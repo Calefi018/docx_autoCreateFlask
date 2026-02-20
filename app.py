@@ -1,28 +1,24 @@
 import os
 import io
 import json
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, jsonify
 from docx import Document
 import google.generativeai as genai
 
 app = Flask(__name__)
 
-# Configura a chave logo na inicialização do servidor
 CHAVE_API = os.environ.get("GEMINI_API_KEY")
 if CHAVE_API:
     genai.configure(api_key=CHAVE_API)
 
 # =========================================================
-# FUNÇÕES DA FERRAMENTA 1: PREENCHEDOR INTELIGENTE (INJETA)
+# FUNÇÕES DA FERRAMENTA 1: PREENCHEDOR INTELIGENTE
 # =========================================================
 def preencher_template_inteligente(arquivo_template, respostas_json):
     doc = Document(arquivo_template)
     
-    # Função para substituir o texto exato dentro da caixa/tabela
     def substituir_texto_formatado(paragrafo, texto_resposta):
-        paragrafo.text = "" # Apaga a frase "Estudante, escreva aqui..."
-        
-        # Injeta a resposta aplicando o negrito onde tiver **
+        paragrafo.text = "" 
         partes = texto_resposta.split('**')
         for i, parte in enumerate(partes):
             if i % 2 == 1:
@@ -30,7 +26,6 @@ def preencher_template_inteligente(arquivo_template, respostas_json):
             else:
                 paragrafo.add_run(parte)
 
-    # Coleta TODOS os parágrafos (os soltos na página e os que estão dentro das tabelas/caixas)
     todos_paragrafos = list(doc.paragraphs)
     for tabela in doc.tables:
         for linha in tabela.rows:
@@ -40,26 +35,22 @@ def preencher_template_inteligente(arquivo_template, respostas_json):
 
     preenchidos = {"etapa_2": False, "etapa_3": False, "etapa_4": False, "etapa_5": False}
     
-    # Varre os parágrafos procurando as frases-isca da faculdade
     for p in todos_paragrafos:
-        texto = p.text.lower()
+        texto = p.text.lower().strip()
         
-        # Etapa 2
-        if ("escreva aqui os três aspectos" in texto or "escreva aqui." in texto) and not preenchidos["etapa_2"]:
+        # Etapa 2: Busca ampliada para garantir que acerta a caixa
+        if ("aspecto 1:" in texto or "escreva aqui os três aspectos" in texto or "estudante, escreva aqui." in texto) and not preenchidos["etapa_2"]:
             substituir_texto_formatado(p, respostas_json.get('etapa_2', ''))
             preenchidos["etapa_2"] = True
             
-        # Etapa 3
         elif "registre aqui os conceitos" in texto and not preenchidos["etapa_3"]:
             substituir_texto_formatado(p, respostas_json.get('etapa_3', ''))
             preenchidos["etapa_3"] = True
             
-        # Etapa 4
         elif "aplique aqui os conceitos" in texto and not preenchidos["etapa_4"]:
             substituir_texto_formatado(p, respostas_json.get('etapa_4', ''))
             preenchidos["etapa_4"] = True
             
-        # Etapa 5 (Alguns templates dizem 'registre' outros 'escreva')
         elif ("registre aqui seu memorial" in texto or "escreva aqui seu memorial" in texto) and not preenchidos["etapa_5"]:
             substituir_texto_formatado(p, respostas_json.get('etapa_5', ''))
             preenchidos["etapa_5"] = True
@@ -73,11 +64,10 @@ def gerar_respostas_ia_preenchedor(texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
     Você é um especialista acadêmico ajudando um estudante universitário.
-    Vou te fornecer o TEMA/CASO de um Desafio Profissional.
-    Sua tarefa é gerar as respostas originais e sem plágio para preencher as Etapas 2, 3, 4 e 5 do trabalho.
+    Gere as respostas originais e sem plágio para preencher as Etapas 2, 3, 4 e 5 do trabalho.
     
-    REGRA OBRIGATÓRIA DA ETAPA 5 (MEMORIAL ANALÍTICO):
-    Você deve redigir a Etapa 5 seguindo estritamente este padrão com os títulos em **negrito**:
+    REGRA OBRIGATÓRIA DA ETAPA 5:
+    Siga estritamente este padrão com os títulos em **negrito**:
     **Resumo:** [1 parágrafo]
     **Contextualização do desafio:** [Quem? Onde? Situação?]
     **Análise:** [Conceitos e exemplos]
@@ -87,8 +77,7 @@ def gerar_respostas_ia_preenchedor(texto_tema, nome_modelo):
     **Autoavaliação:** [Processo de estudo]
     
     FORMATO DE SAÍDA OBRIGATÓRIO:
-    Retorne APENAS um objeto JSON válido. Não adicione crases (```json).
-    As chaves do JSON devem ser EXATAMENTE estas:
+    Retorne APENAS um objeto JSON válido.
     {{
         "etapa_2": "Escreva aqui os 3 aspectos mais relevantes e justifique...",
         "etapa_3": "Escreva aqui a lista comentada de conceitos teóricos...",
@@ -110,55 +99,23 @@ def extrair_texto_docx(arquivo_upload):
     texto_completo = [p.text for p in doc.paragraphs if p.text.strip()]
     return "\n".join(texto_completo)
 
-def criar_gabarito_word(texto_ia):
-    doc = Document()
-    doc.add_heading('Gabarito Gerado - Desafio Profissional', level=1)
-    
-    linhas = texto_ia.split('\n')
-    for linha in linhas:
-        linha = linha.strip()
-        if not linha: continue
-            
-        p = doc.add_paragraph()
-        partes = linha.split('**')
-        for i, parte in enumerate(partes):
-            if i % 2 == 1:
-                p.add_run(parte).bold = True
-            else:
-                p.add_run(parte)
-                
-    arquivo_saida = io.BytesIO()
-    doc.save(arquivo_saida)
-    arquivo_saida.seek(0)
-    return arquivo_saida
-
 def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
-    Você é um especialista acadêmico ajudando um estudante universitário a resolver um Desafio Profissional.
+    Atue como um especialista acadêmico ajudando um estudante a resolver um Desafio Profissional.
     
-    1. A DESCRIÇÃO DO TEMA/CASO: {texto_tema}
-    2. O TEXTO DO TEMPLATE PADRÃO ÚNICO: {texto_template}
+    TEMA/CASO: {texto_tema}
+    TEMPLATE: {texto_template}
     
-    Gere todas as respostas passo a passo. Me informe claramente onde preencher no Word.
-    
-    REGRA OBRIGATÓRIA PARA A ETAPA 5 (MEMORIAL ANALÍTICO):
-    Escreva a Etapa 5 seguindo estritamente o padrão abaixo com títulos em **negrito**:
-    
-    **Resumo:** [1 parágrafo]
-    **Contextualização do desafio:** [Quem? Onde? Situação?]
-    **Análise:** [Conceitos da disciplina, com exemplos]
-    **Propostas de solução:** [Recomendações e teorias]
-    **Conclusão reflexiva:** [O que foi aprendido]
-    **Referências:** [ABNT]
-    **Autoavaliação:** [Processo de estudo]
+    Gere as respostas passo a passo. Informe claramente onde preencher no Word (Ex: "Na Etapa 2, escreva isso:").
+    Use a formatação Markdown (**negrito**) para destacar títulos.
     O texto da Etapa 5 NÃO pode passar de 6000 caracteres.
     """
     resposta = modelo.generate_content(prompt)
     return resposta.text
 
 # =========================================================
-# ROTAS WEB (FLASK)
+# ROTAS WEB
 # =========================================================
 @app.route('/')
 def index():
@@ -168,12 +125,10 @@ def index():
             for m in genai.list_models():
                 if 'generateContent' in m.supported_generation_methods:
                     modelos_disponiveis.append(m.name.replace('models/', ''))
-        except Exception as e:
-            print(f"Erro ao listar modelos: {e}")
-            
+        except:
+            pass
     if not modelos_disponiveis:
         modelos_disponiveis = ["gemini-2.5-flash", "gemini-2.5-pro"]
-        
     return render_template('index.html', modelos=modelos_disponiveis)
 
 @app.route('/processar', methods=['POST'])
@@ -187,10 +142,8 @@ def processar():
         texto_tema = request.form.get('tema')
         arquivo_upload = request.files['arquivo']
         
-        if not arquivo_upload or arquivo_upload.filename == '':
-            return "Erro: Você esqueceu de anexar o arquivo Word!", 400
-        if not texto_tema:
-            return "Erro: Você esqueceu de colar o tema do desafio!", 400
+        if not arquivo_upload or not texto_tema:
+            return jsonify({"erro": "Arquivo ou tema ausentes."}), 400
 
         arquivo_memoria = io.BytesIO(arquivo_upload.read())
 
@@ -198,6 +151,7 @@ def processar():
             respostas_geradas = gerar_respostas_ia_preenchedor(texto_tema, modelo_escolhido)
             if respostas_geradas:
                 documento_pronto = preencher_template_inteligente(arquivo_memoria, respostas_geradas)
+                # Retorna o arquivo diretamente
                 return send_file(
                     documento_pronto, 
                     as_attachment=True, 
@@ -209,18 +163,13 @@ def processar():
             texto_do_template = extrair_texto_docx(arquivo_memoria)
             resposta_ia = gerar_resolucao_inteligente_gabarito(texto_do_template, texto_tema, modelo_escolhido)
             if resposta_ia:
-                documento_pronto = criar_gabarito_word(resposta_ia)
-                return send_file(
-                    documento_pronto, 
-                    as_attachment=True, 
-                    download_name="Gabarito_Desafio.docx",
-                    mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+                # Retorna apenas o texto JSON para renderizar na tela
+                return jsonify({"tipo": "texto", "conteudo": resposta_ia})
                 
-        return "Erro na geração do documento com a IA.", 500
+        return jsonify({"erro": "Falha ao gerar conteúdo."}), 500
         
     except Exception as e:
-        return f"Ocorreu um erro inesperado: {str(e)}", 500
+        return jsonify({"erro": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
