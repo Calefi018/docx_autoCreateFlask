@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import re
 from flask import Flask, render_template, request, send_file, jsonify
 from docx import Document
 import google.generativeai as genai
@@ -24,8 +25,8 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
         
         for marcador, texto_novo in dicionario_dados.items():
             if marcador in texto_original:
-                # Garante que \n seja tratado como quebra de linha real
-                texto_formatado = str(texto_novo).replace("\\n", "\n")
+                # Troca a tag segura [QUEBRA] pela quebra de linha real do Word
+                texto_formatado = str(texto_novo).replace("[QUEBRA]", "\n")
                 texto_original = texto_original.replace(marcador, texto_formatado)
                 tem_tag = True
                 
@@ -33,7 +34,7 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
             # Limpa o parágrafo atual para reconstruí-lo formatado
             paragrafo.clear()
             
-            # TRADUTOR DE MARKDOWN PARA WORD (Lida com \n e **)
+            # TRADUTOR DE MARKDOWN PARA WORD
             linhas = texto_original.split('\n')
             for i, linha in enumerate(linhas):
                 partes = linha.split('**')
@@ -69,15 +70,16 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     Atue como um especialista acadêmico resolvendo um Desafio Profissional.
     
     REGRA MÁXIMA DE COMPORTAMENTO:
-    É ESTRITAMENTE PROIBIDO usar saudações, despedidas ou frases introdutórias (NÃO escreva "Olá estudante", "Segue a lista:", "Aqui está a análise:"). 
+    É ESTRITAMENTE PROIBIDO usar saudações, despedidas ou frases introdutórias (NÃO escreva "Olá estudante", "Segue a lista:"). 
     Vá DIRETO ao conteúdo acadêmico.
     
-    REGRA DE FORMATAÇÃO:
-    - Para destacar termos importantes, use **negrito**.
-    - Para criar listas, pule uma linha com \\n e use o símbolo "-" (traço). NUNCA use asteriscos simples (*) para listas.
+    REGRA DE FORMATAÇÃO E ESTRUTURA (MUITO IMPORTANTE):
+    1. Retorne APENAS um objeto JSON válido.
+    2. NUNCA use quebras de linha reais (apertar Enter) dentro dos textos do JSON. Isso quebra o sistema.
+    3. Para pular linha, fazer parágrafos ou listas, use a palavra [QUEBRA]. Exemplo: - **Conceito:** texto[QUEBRA]- **Conceito 2:** texto
+    4. Para destacar termos importantes, use **negrito**. NUNCA use asteriscos simples (*).
     
-    FORMATO DE SAÍDA OBRIGATÓRIO:
-    Retorne APENAS um objeto JSON válido. Não adicione crases (```json).
+    FORMATO DE SAÍDA OBRIGATÓRIO (Mantenha tudo em uma linha contínua se necessário, usando [QUEBRA]):
     {{
         "ASPECTO_1": "texto do aspecto 1",
         "POR_QUE_1": "justificativa do aspecto 1",
@@ -85,7 +87,7 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
         "POR_QUE_2": "justificativa do aspecto 2",
         "ASPECTO_3": "texto do aspecto 3",
         "POR_QUE_3": "justificativa do aspecto 3",
-        "CONCEITOS_TEORICOS": "- **Conceito A:** Definição...\\n- **Conceito B:** Definição...",
+        "CONCEITOS_TEORICOS": "- **Conceito A:** Definição...[QUEBRA]- **Conceito B:** Definição...",
         "RESP_AUTORRESP": "Explicação teórica direta...",
         "RESP_PILARES": "Explicação teórica direta...",
         "RESP_SOLUCOES": "Soluções recomendadas detalhadas...",
@@ -102,15 +104,22 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     """
     try:
         resposta = modelo.generate_content(prompt)
-        texto_limpo = resposta.text.strip().replace("```json", "").replace("```", "")
+        texto_limpo = resposta.text.strip()
+        
+        # Expressão regular para forçar a captura apenas do JSON, ignorando textos extras da IA
+        match = re.search(r'\{.*\}', texto_limpo, re.DOTALL)
+        if match:
+            texto_limpo = match.group(0)
+            
         dicionario_dados = json.loads(texto_limpo)
         
         # Recria as tags {{ }} para o Python achar no Word
         dicionario_higienizado = {}
         for chave, texto_gerado in dicionario_dados.items():
             if isinstance(texto_gerado, str):
-                # Limpa chaves e colchetes residuais, mas mantém a formatação
-                texto_gerado = texto_gerado.replace("{", "").replace("}", "").replace("[", "]").strip()
+                texto_gerado = texto_gerado.replace("{", "").replace("}", "").replace("[", "").replace("]", "").replace("*", "").strip()
+                # Devolve os colchetes apenas para a tag de [QUEBRA]
+                texto_gerado = texto_gerado.replace("QUEBRA", "[QUEBRA]")
             else:
                 texto_gerado = str(texto_gerado)
                 
@@ -195,7 +204,7 @@ def processar():
                     mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
             else:
-                return jsonify({"erro": "Falha ao gerar respostas com a IA."}), 500
+                return jsonify({"erro": "Falha de formatação na IA. Tente gerar novamente."}), 500
         
         elif ferramenta == 'gabarito':
             texto_do_template = extrair_texto_docx(arquivo_memoria)
