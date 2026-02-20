@@ -5,11 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hub de Desafios Profissionais</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
-        /* Dark Mode Estilo Streamlit */
         :root {
             --primary-color: #FF4B4B; 
             --bg-color: #0E1117; 
@@ -30,12 +28,7 @@
             justify-content: center;
         }
 
-        .st-container {
-            width: 100%;
-            max-width: 730px;
-            padding: 3rem 1.5rem;
-        }
-
+        .st-container { width: 100%; max-width: 730px; padding: 3rem 1.5rem; }
         h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 0.5rem; }
         p.subtitle { font-size: 1rem; color: #9E9E9E; margin-bottom: 2rem; }
 
@@ -43,31 +36,15 @@
         label.main-label { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; display: block; }
 
         input[type="file"], select, textarea {
-            width: 100%;
-            background-color: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            font-size: 1rem;
-            color: var(--text-color);
-            font-family: 'Inter', sans-serif;
-            box-sizing: border-box;
+            width: 100%; background-color: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 0.75rem 1rem; font-size: 1rem; color: var(--text-color);
+            font-family: 'Inter', sans-serif; box-sizing: border-box;
         }
-
         input[type="file"]::-webkit-file-upload-button {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 4px 10px;
-            margin-right: 10px;
-            cursor: pointer;
+            background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color);
+            border-radius: 4px; padding: 4px 10px; margin-right: 10px; cursor: pointer;
         }
-
-        input[type="file"]:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
+        input[type="file"]:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary-color); }
 
         .radio-group { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
         .radio-option { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; }
@@ -76,65 +53,30 @@
         .radio-desc { font-size: 0.85rem; color: #9E9E9E; }
 
         .btn-primary {
-            background-color: var(--primary-color);
-            color: #FFFFFF;
-            border: none;
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            transition: all 0.2s;
-            margin-top: 1rem;
+            background-color: var(--primary-color); color: #FFFFFF; border: none; border-radius: 8px;
+            padding: 0.75rem 1rem; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%;
+            transition: all 0.2s; margin-top: 1rem;
         }
         .btn-primary:hover { background-color: #ff3333; }
 
-        /* Loader */
         #loading { display: none; text-align: center; margin-top: 2rem; }
         .spinner {
-            border: 4px solid var(--bg-secondary);
-            width: 36px; height: 36px; border-radius: 50%;
-            border-left-color: var(--primary-color);
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
+            border: 4px solid var(--bg-secondary); width: 36px; height: 36px; border-radius: 50%;
+            border-left-color: var(--primary-color); animation: spin 1s linear infinite; margin: 0 auto;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .loading-text { margin-top: 1rem; font-size: 0.9rem; color: #9E9E9E; }
 
-        /* Caixa de Sucesso */
         .success-box {
-            background-color: var(--success-bg);
-            color: var(--success-text);
-            border: 1px solid #144f3f;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-top: 1.5rem;
-            display: none;
-            font-weight: 600;
+            background-color: var(--success-bg); color: var(--success-text); border: 1px solid #144f3f;
+            padding: 1rem; border-radius: 8px; margin-top: 1.5rem; display: none; font-weight: 600;
         }
 
-        /* Formatação perfeita do Markdown gerado pela IA (igual Streamlit) */
         #resultado-texto-container { display: none; margin-top: 2rem; }
-        #resultado-texto {
-            font-size: 0.95rem;
-            line-height: 1.7;
-            color: var(--text-color);
-        }
-        #resultado-texto h1, #resultado-texto h2, #resultado-texto h3 {
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-        #resultado-texto hr {
-            border: 0;
-            border-top: 1px solid var(--border-color);
-            margin: 2rem 0;
-        }
-        #resultado-texto ul {
-            padding-left: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
+        #resultado-texto { font-size: 0.95rem; line-height: 1.7; color: var(--text-color); }
+        #resultado-texto h1, #resultado-texto h2, #resultado-texto h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600; }
+        #resultado-texto hr { border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        #resultado-texto ul { padding-left: 1.5rem; margin-bottom: 1.5rem; }
         #resultado-texto li { margin-bottom: 0.5rem; }
         #resultado-texto strong { color: #FFFFFF; font-weight: 700; }
     </style>
@@ -143,7 +85,7 @@
 
 <div class="st-container">
     <h1>Hub de Desafios</h1>
-    <p class="subtitle">Gere trabalhos universitários originais.</p>
+    <p class="subtitle">Gere trabalhos universitários originais com formatação perfeita.</p>
 
     <form id="meuFormulario">
         <div class="form-group">
@@ -152,15 +94,15 @@
                 <label class="radio-option">
                     <input type="radio" name="ferramenta" value="preenchedor" checked>
                     <div>
-                        <span class="radio-title">Preenchedor Inteligente</span><br>
-                        <span class="radio-desc">Injeta respostas diretamente no seu arquivo original e baixa o .docx.</span>
+                        <span class="radio-title">Preenchedor via Tags</span><br>
+                        <span class="radio-desc">Substitui as tags do seu TEMPLATE_COM_TAGS.docx gerando um arquivo pronto.</span>
                     </div>
                 </label>
                 <label class="radio-option">
                     <input type="radio" name="ferramenta" value="gabarito">
                     <div>
                         <span class="radio-title">Gerador de Gabarito</span><br>
-                        <span class="radio-desc">Escreve o passo a passo na tela para você ler e colar manualmente.</span>
+                        <span class="radio-desc">Lê qualquer arquivo e escreve o passo a passo na tela.</span>
                     </div>
                 </label>
             </div>
@@ -169,6 +111,7 @@
         <div class="form-group">
             <label class="main-label" for="arquivo">2. Anexe o Template (.docx)</label>
             <input type="file" id="arquivo" name="arquivo" accept=".docx" required>
+            <small style="color: #9E9E9E; display: block; margin-top: 5px;">*Para a opção 1, use o seu arquivo que contém as chaves {{VARIAVEL}}</small>
         </div>
 
         <div class="form-group">
@@ -189,7 +132,7 @@
 
         <div id="loading">
             <div class="spinner"></div>
-            <p class="loading-text">A IA está escrevendo... Isso pode levar de 30 a 60 segundos.</p>
+            <p class="loading-text">A IA está processando... Isso pode levar de 30 a 60 segundos.</p>
         </div>
     </form>
 
@@ -197,7 +140,7 @@
 
     <div id="resultado-texto-container">
         <hr>
-        <h2>Pré-visualização do Resultado:</h2>
+        <h2>Pré-visualização do Gabarito:</h2>
         <div id="resultado-texto"></div>
     </div>
 </div>
@@ -230,23 +173,22 @@
         .then(resultado => {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('btn-submit').style.display = 'block';
-            document.getElementById('msg-sucesso').style.display = 'block';
 
             if (resultado.tipo === 'json') {
                 if (resultado.dados.erro) {
                     alert("Erro: " + resultado.dados.erro);
-                    document.getElementById('msg-sucesso').style.display = 'none';
                 } else {
-                    // Usando o marked.js para renderizar Markdown PERFEITAMENTE
+                    document.getElementById('msg-sucesso').style.display = 'block';
                     document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.dados.conteudo);
                     document.getElementById('resultado-texto-container').style.display = 'block';
                 }
             } else {
+                document.getElementById('msg-sucesso').style.display = 'block';
                 const url = window.URL.createObjectURL(resultado.dados);
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
-                a.download = 'Desafio_Preenchido.docx';
+                a.download = 'Desafio_Profissional_Finalizado.docx';
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
@@ -255,7 +197,7 @@
         .catch(error => {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('btn-submit').style.display = 'block';
-            alert("Ocorreu um erro ao gerar o arquivo. Tente novamente.");
+            alert("Ocorreu um erro ao gerar. Tente novamente.");
         });
     });
 </script>
