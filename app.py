@@ -29,19 +29,23 @@ def preencher_template_inteligente(arquivo_template, respostas_json):
             else:
                 paragrafo.add_run(parte)
 
-    todos_paragrafos = list(doc.paragraphs)
+    # 1. NOVA ABORDAGEM: Lê as tabelas PRIMEIRO (onde as caixas de resposta ficam)
+    todos_paragrafos = []
     for tabela in doc.tables:
         for linha in tabela.rows:
             for celula in linha.cells:
                 for p in celula.paragraphs:
                     todos_paragrafos.append(p)
 
+    # 2. Adiciona os parágrafos do corpo do texto DEPOIS
+    todos_paragrafos.extend(list(doc.paragraphs))
+
     preenchidos = {"etapa_2": False, "etapa_3": False, "etapa_4": False, "etapa_5": False}
     
     for p in todos_paragrafos:
         texto = p.text.lower().strip()
         
-        # O ALVO EXATO DA ETAPA 2 (Conforme o print: "estudante, escreva aqui.")
+        # O ALVO EXATO DA ETAPA 2
         if ("estudante, escreva aqui" in texto or "escreva aqui os três aspectos" in texto or "aspecto 1:" in texto) and not preenchidos["etapa_2"]:
             substituir_texto_formatado(p, respostas_json.get('etapa_2', ''))
             preenchidos["etapa_2"] = True
@@ -78,9 +82,9 @@ def gerar_respostas_ia_preenchedor(texto_tema, nome_modelo):
     FORMATO DE SAÍDA OBRIGATÓRIO:
     Retorne APENAS um objeto JSON válido.
     {{
-        "etapa_2": "Escreva aqui os 3 aspectos mais relevantes e justifique...",
-        "etapa_3": "Escreva aqui a lista de conceitos teóricos...",
-        "etapa_4": "Escreva aqui a aplicação dos conceitos e as soluções...",
+        "etapa_2": "Texto da resposta completa gerada pela IA aqui...",
+        "etapa_3": "Texto da resposta completa gerada pela IA aqui...",
+        "etapa_4": "Texto da resposta completa gerada pela IA aqui...",
         "etapa_5": "**Resumo:** ...\\n**Contextualização do desafio:** ...\\n**Análise:** ...\\n**Propostas de solução:** ...\\n**Conclusão reflexiva:** ...\\n**Referências:** ...\\n**Autoavaliação:** ..."
     }}
     DESCRIÇÃO DO TEMA/CASO DO DESAFIO:
@@ -95,7 +99,21 @@ def gerar_respostas_ia_preenchedor(texto_tema, nome_modelo):
 # =========================================================
 def extrair_texto_docx(arquivo_upload):
     doc = Document(arquivo_upload)
-    texto_completo = [p.text for p in doc.paragraphs if p.text.strip()]
+    texto_completo = []
+    
+    # Extrai texto dos parágrafos normais
+    for p in doc.paragraphs:
+        if p.text.strip():
+            texto_completo.append(p.text.strip())
+            
+    # Extrai texto que possa estar dentro de tabelas (importante para ler o template inteiro)
+    for tabela in doc.tables:
+        for linha in tabela.rows:
+            for celula in linha.cells:
+                for p in celula.paragraphs:
+                    if p.text.strip():
+                        texto_completo.append(p.text.strip())
+                        
     return "\n".join(texto_completo)
 
 def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo):
