@@ -1,261 +1,214 @@
-import os
-import io
-import json
-import re
-from flask import Flask, render_template, request, send_file, jsonify
-from docx import Document
-import google.generativeai as genai
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hub de Desafios Profissionais</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-app = Flask(__name__)
+    <style>
+        :root {
+            --primary-color: #FF4B4B; 
+            --bg-color: #0E1117; 
+            --bg-secondary: #262730; 
+            --text-color: #FAFAFA; 
+            --border-color: #444C56;
+            --success-bg: #0E3A2F;
+            --success-text: #57D2A9;
+        }
 
-CHAVE_API = os.environ.get("GEMINI_API_KEY")
-if CHAVE_API:
-    genai.configure(api_key=CHAVE_API)
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
 
-# =========================================================
-# FUNÇÕES DA FERRAMENTA 1: PREENCHEDOR CLÁSSICO (COM TAGS)
-# =========================================================
-def preencher_template_com_tags(arquivo_template, dicionario_dados):
-    doc = Document(arquivo_template)
+        .st-container { width: 100%; max-width: 730px; padding: 3rem 1.5rem; }
+        h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+        p.subtitle { font-size: 1rem; color: #9E9E9E; margin-bottom: 2rem; }
 
-    def processar_paragrafo(paragrafo):
-        texto_original = paragrafo.text
-        tem_tag = False
-        
-        for marcador, texto_novo in dicionario_dados.items():
-            if marcador in texto_original:
-                # Troca a tag segura [QUEBRA] pela quebra de linha real do Word
-                texto_formatado = str(texto_novo).replace("[QUEBRA]", "\n")
-                texto_original = texto_original.replace(marcador, texto_formatado)
-                tem_tag = True
-                
-        if tem_tag:
-            paragrafo.clear()
-            # TRADUTOR DE MARKDOWN PARA WORD
-            linhas = texto_original.split('\n')
-            for i, linha in enumerate(linhas):
-                partes = linha.split('**')
-                for j, parte in enumerate(partes):
-                    if parte: 
-                        run = paragrafo.add_run(parte)
-                        if j % 2 == 1: 
-                            run.bold = True
-                if i < len(linhas) - 1:
-                    paragrafo.add_run('\n')
+        .form-group { margin-bottom: 1.5rem; }
+        label.main-label { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; display: block; }
 
-    # Varre corpo do texto
-    for paragrafo in doc.paragraphs:
-        processar_paragrafo(paragrafo)
+        input[type="file"], select, textarea {
+            width: 100%; background-color: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 0.75rem 1rem; font-size: 1rem; color: var(--text-color);
+            font-family: 'Inter', sans-serif; box-sizing: border-box;
+        }
+        input[type="file"]::-webkit-file-upload-button {
+            background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color);
+            border-radius: 4px; padding: 4px 10px; margin-right: 10px; cursor: pointer;
+        }
+        input[type="file"]:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary-color); }
 
-    # Varre tabelas e caixas de texto
-    for tabela in doc.tables:
-        for linha in tabela.rows:
-            for celula in linha.cells:
-                for paragrafo in celula.paragraphs:
-                    processar_paragrafo(paragrafo)
+        .radio-group { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
+        .radio-option { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; }
+        .radio-option input[type="radio"] { accent-color: var(--primary-color); width: 1.1rem; height: 1.1rem; margin-top: 3px; cursor: pointer; }
+        .radio-title { font-size: 1rem; font-weight: 600; color: var(--text-color); }
+        .radio-desc { font-size: 0.85rem; color: #9E9E9E; }
 
-    arquivo_saida = io.BytesIO()
-    doc.save(arquivo_saida)
-    arquivo_saida.seek(0)
-    return arquivo_saida
+        .btn-primary {
+            background-color: var(--primary-color); color: #FFFFFF; border: none; border-radius: 8px;
+            padding: 0.75rem 1rem; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%;
+            transition: all 0.2s; margin-top: 1rem;
+        }
+        .btn-primary:hover { background-color: #ff3333; }
 
-def gerar_respostas_ia_tags(texto_tema, nome_modelo):
-    modelo = genai.GenerativeModel(nome_modelo)
-    prompt = f"""
-    Você é um Especialista Acadêmico Sênior com Doutorado em Gestão. Sua missão é resolver um Desafio Profissional Universitário.
-    
-    REGRA DE OURO (QUALIDADE EXTREMA): 
-    É EXPRESSAMENTE PROIBIDO ser raso ou breve. Suas respostas devem ser DENSAS, PROFUNDAS e usar vocabulário técnico acadêmico rigoroso. Cada justificativa e análise deve ter múltiplas linhas de argumentação fundamentada.
-    
-    REGRA DE FORMATAÇÃO DO JSON:
-    1. Retorne APENAS o JSON válido. NENHUM texto fora das chaves.
-    2. NUNCA use "Enter" (quebra de linha real) dentro das strings. Se precisar pular linha ou fazer tópicos, digite a palavra exata [QUEBRA].
-    3. Use **negrito** para destacar conceitos chave. NUNCA use asteriscos simples (*).
-    
-    TEMA/CASO DO DESAFIO:
-    {texto_tema}
-    
-    RETORNE EXATAMENTE ESTE JSON PREENCHIDO COM TEXTOS LONGOS E COMPLEXOS:
-    {{
-        "ASPECTO_1": "Descreva o aspecto 1 de forma técnica e profunda",
-        "POR_QUE_1": "Justifique o aspecto 1 com uma análise densa de pelo menos 4 linhas...",
-        "ASPECTO_2": "Descreva o aspecto 2 de forma técnica",
-        "POR_QUE_2": "Justifique o aspecto 2 com uma análise densa de pelo menos 4 linhas...",
-        "ASPECTO_3": "Descreva o aspecto 3 de forma técnica",
-        "POR_QUE_3": "Justifique o aspecto 3 com uma análise densa de pelo menos 4 linhas...",
-        "CONCEITOS_TEORICOS": "- **[Nome do Conceito 1]:** [Explicação teórica longa e detalhada sobre como se aplica ao caso][QUEBRA]- **[Nome do Conceito 2]:** [Explicação teórica longa...]",
-        "RESP_AUTORRESP": "Análise teórica profunda de no mínimo um parágrafo longo...",
-        "RESP_PILARES": "Análise teórica densa, conectando a teoria aos sintomas descritos no caso...",
-        "RESP_SOLUCOES": "Plano de ação robusto listando etapas complexas e justificadas...",
-        "RESUMO_MEMORIAL": "Resumo executivo denso e bem estruturado...",
-        "CONTEXTO_MEMORIAL": "Contextualização rica detalhando as nuances do problema...",
-        "ANALISE_MEMORIAL": "Análise profunda com múltiplos parágrafos, interligando no mínimo 3 conceitos da disciplina...",
-        "PROPOSTAS_MEMORIAL": "Recomendações técnicas detalhadas e justificadas por teorias...",
-        "CONCLUSAO_MEMORIAL": "Conclusão madura sobre o aprendizado sistêmico do caso...",
-        "AUTOAVALIACAO_MEMORIAL": "Autoavaliação crítica do aluno, evidenciando amadurecimento acadêmico..."
-    }}
-    """
-    try:
-        resposta = modelo.generate_content(prompt)
-        texto_limpo = resposta.text.strip()
-        
-        # Extrator Blindado de JSON (Evita o erro 500)
-        match = re.search(r'\{.*\}', texto_limpo, re.DOTALL)
-        if match:
-            texto_limpo = match.group(0)
+        #loading { display: none; text-align: center; margin-top: 2rem; }
+        .spinner {
+            border: 4px solid var(--bg-secondary); width: 36px; height: 36px; border-radius: 50%;
+            border-left-color: var(--primary-color); animation: spin 1s linear infinite; margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { margin-top: 1rem; font-size: 0.9rem; color: #9E9E9E; }
+
+        .success-box {
+            background-color: var(--success-bg); color: var(--success-text); border: 1px solid #144f3f;
+            padding: 1rem; border-radius: 8px; margin-top: 1.5rem; display: none; font-weight: 600;
+        }
+
+        #resultado-texto-container { display: none; margin-top: 2rem; }
+        #resultado-texto { font-size: 0.95rem; line-height: 1.7; color: var(--text-color); }
+        #resultado-texto h1, #resultado-texto h2, #resultado-texto h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600; }
+        #resultado-texto hr { border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0; }
+        #resultado-texto ul { padding-left: 1.5rem; margin-bottom: 1.5rem; }
+        #resultado-texto li { margin-bottom: 0.5rem; }
+        #resultado-texto strong { color: #FFFFFF; font-weight: 700; }
+    </style>
+</head>
+<body>
+
+<div class="st-container">
+    <h1>Hub de Desafios</h1>
+    <p class="subtitle">Gere trabalhos universitários originais com formatação perfeita.</p>
+
+    <form id="meuFormulario">
+        <div class="form-group">
+            <label class="main-label">1. Escolha a Ferramenta:</label>
+            <div class="radio-group">
+                <label class="radio-option">
+                    <input type="radio" name="ferramenta" value="preenchedor" checked>
+                    <div>
+                        <span class="radio-title">Preenchedor via Tags</span><br>
+                        <span class="radio-desc">Substitui as tags do seu TEMPLATE_COM_TAGS.docx gerando um arquivo pronto.</span>
+                    </div>
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="ferramenta" value="gabarito">
+                    <div>
+                        <span class="radio-title">Gerador de Gabarito</span><br>
+                        <span class="radio-desc">Lê qualquer arquivo e escreve o passo a passo na tela.</span>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="main-label" for="arquivo">2. Anexe o Template (.docx)</label>
+            <input type="file" id="arquivo" name="arquivo" accept=".docx" required>
+            <small style="color: #9E9E9E; display: block; margin-top: 5px;">*Para a opção 1, use o seu arquivo que contém as chaves {{VARIAVEL}}</small>
+        </div>
+
+        <div class="form-group">
+            <label class="main-label" for="tema">3. Cole o Tema do Desafio</label>
+            <textarea id="tema" name="tema" rows="6" placeholder="Cole aqui o texto do portal..." required></textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="main-label" for="modelo">4. Selecione a IA</label>
+            <select id="modelo" name="modelo">
+                {% for modelo in modelos %}
+                    <option value="{{ modelo }}">{{ modelo }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button type="submit" class="btn-primary" id="btn-submit">🚀 Gerar Trabalho</button>
+
+        <div id="loading">
+            <div class="spinner"></div>
+            <p class="loading-text">A IA está processando de forma aprofundada... Isso pode levar de 30 a 60 segundos.</p>
+        </div>
+    </form>
+
+    <div class="success-box" id="msg-sucesso">✅ Trabalho gerado com sucesso!</div>
+
+    <div id="resultado-texto-container">
+        <hr>
+        <h2>Pré-visualização do Gabarito:</h2>
+        <div id="resultado-texto"></div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('meuFormulario').addEventListener('submit', function(event) {
+        event.preventDefault(); 
+
+        document.getElementById('btn-submit').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('msg-sucesso').style.display = 'none';
+        document.getElementById('resultado-texto-container').style.display = 'none';
+
+        const formData = new FormData(this);
+
+        fetch('/processar', {
+            method: 'POST',
+            body: formData
+        })
+        .then(async response => {
+            // Tratamento de erros do servidor para jogar na tela
+            if (!response.ok) {
+                let errorMsg = "Erro desconhecido no servidor.";
+                try {
+                    const errData = await response.json();
+                    errorMsg = errData.erro || errorMsg;
+                } catch(e) {}
+                throw new Error(errorMsg); 
+            }
             
-        dicionario_dados = json.loads(texto_limpo)
-        
-        dicionario_higienizado = {}
-        for chave, texto_gerado in dicionario_dados.items():
-            if isinstance(texto_gerado, str):
-                texto_gerado = texto_gerado.replace("{", "").replace("}", "").replace("[", "").replace("]", "").replace("*", "").strip()
-                texto_gerado = texto_gerado.replace("QUEBRA", "[QUEBRA]")
-            else:
-                texto_gerado = str(texto_gerado)
-                
-            chave_limpa = chave.replace("{", "").replace("}", "").strip()
-            chave_marcador = f"{{{{{chave_limpa}}}}}"
-            dicionario_higienizado[chave_marcador] = texto_gerado
-            
-        return dicionario_higienizado
-    except Exception as e:
-        raise Exception(f"Falha na formatação da IA. Clique em gerar novamente. Detalhe: {str(e)}")
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                return response.json().then(data => ({ tipo: 'json', dados: data }));
+            } else {
+                return response.blob().then(blob => ({ tipo: 'arquivo', dados: blob }));
+            }
+        })
+        .then(resultado => {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('btn-submit').style.display = 'block';
 
-# =========================================================
-# FUNÇÕES DA FERRAMENTA 2: GERADOR UNIVERSAL (GABARITO)
-# =========================================================
-def extrair_texto_docx(arquivo_upload):
-    doc = Document(arquivo_upload)
-    texto_completo = [p.text for p in doc.paragraphs if p.text.strip()]
-    return "\n".join(texto_completo)
+            if (resultado.tipo === 'json') {
+                if (resultado.dados.erro) {
+                    alert("Erro: " + resultado.dados.erro);
+                } else {
+                    document.getElementById('msg-sucesso').style.display = 'block';
+                    document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.dados.conteudo);
+                    document.getElementById('resultado-texto-container').style.display = 'block';
+                }
+            } else {
+                document.getElementById('msg-sucesso').style.display = 'block';
+                const url = window.URL.createObjectURL(resultado.dados);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'Desafio_Profissional_Finalizado.docx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+        })
+        .catch(error => {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('btn-submit').style.display = 'block';
+            alert("⚠️ " + error.message);
+        });
+    });
+</script>
 
-def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo):
-    modelo = genai.GenerativeModel(nome_modelo)
-    prompt = f"""
-    Atue como um Especialista Acadêmico Sênior resolvendo um Desafio Profissional.
-    TEMA/CASO: {texto_tema}
-    TEMPLATE: {texto_template}
-    
-    REGRA MÁXIMA DE COMPORTAMENTO E QUALIDADE:
-    - NÃO use NENHUMA saudação ou despedida. Vá DIRETO AO PONTO.
-    - É EXPRESSAMENTE PROIBIDO gerar conteúdo raso. Exijo parágrafos densos, análises profundas e vocabulário acadêmico de alto nível.
-    
-    ESTRUTURA VISUAL OBRIGATÓRIA (SIGA EXATAMENTE ESTE PADRÃO MARKDOWN):
-    
-    Pré-visualização do Resultado:
-    Olá! Serei seu especialista acadêmico neste Desafio Profissional. Vamos preencher o template passo a passo.
-    
-    ---
-    **Na Etapa 1 (Apresentação do Desafio Profissional), você deve apenas ler e compreender o desafio.**
-    
-    ---
-    **Na Etapa 2 (Materiais de referência - ambientação), escreva isso:**
-    
-    **1. O que chamou atenção:** **[Escreva o Conceito do Aspecto 1]**
-    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
-    
-    **2. O que chamou atenção:** **[Escreva o Conceito do Aspecto 2]**
-    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
-    
-    **3. O que chamou atenção:** **[Escreva o Conceito do Aspecto 3]**
-    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
-    
-    ---
-    **Na Etapa 3 (Levantamento de conceitos teóricos), escreva isso:**
-    
-    - **[Nome do Conceito 1]:** [Definição extensa e elaborada mostrando como se aplica ao caso]
-    - **[Nome do Conceito 2]:** [Definição extensa e elaborada...]
-    - **[Nome do Conceito 3]:** [Definição extensa e elaborada...]
-    - **[Nome do Conceito 4]:** [Definição extensa e elaborada...]
-    
-    ---
-    **Na Etapa 4 (Aplicação dos conceitos teóricos ao Desafio Profissional), escreva isso:**
-    
-    - **Como o conceito de [Conceito Principal] explica o que aconteceu na situação?**
-      [Parágrafo analítico longo e detalhado dissecando o problema]
-    - **O que a teoria nos ajuda a entender sobre o problema central?**
-      [Parágrafo profundo conectando sintomas e teorias]
-    - **Que soluções possíveis a teoria aponta (e por que elas fazem sentido)?**
-      [Propostas práticas detalhadas fundamentadas na teoria]
-      
-    ---
-    **Na Etapa 5 (Memorial Analítico), escreva isso:**
-    
-    **Resumo do que você descobriu:** [Parágrafo denso]
-    **Contextualização do desafio:** [Quem? Onde? Qual a situação? Parágrafo denso]
-    **Análise:** [Parágrafo profundo de pelo menos 6 linhas utilizando conceitos para explicar a situação]
-    **Propostas de solução:** [Recomendações detalhadas. Pelo menos 2 parágrafos robustos]
-    **Conclusão reflexiva:** [O que aprendeu de forma madura. Pelo menos 2 parágrafos]
-    **Referências:** [Liste no padrão ABNT]
-    **Autoavaliação:** [Análise crítica sobre o próprio processo de estudo]
-    """
-    try:
-        resposta = modelo.generate_content(prompt)
-        return resposta.text
-    except Exception as e:
-        raise Exception(f"Falha na IA (Gabarito): {str(e)}")
-
-# =========================================================
-# ROTAS WEB
-# =========================================================
-@app.route('/')
-def index():
-    modelos_disponiveis = []
-    if CHAVE_API:
-        try:
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    modelos_disponiveis.append(m.name.replace('models/', ''))
-        except:
-            pass
-            
-    # Força o Flash rápido e robusto a ser a primeira opção (para não bater o limite)
-    if "gemini-1.5-flash" not in modelos_disponiveis:
-        modelos_disponiveis.insert(0, "gemini-1.5-flash")
-        
-    if not modelos_disponiveis:
-        modelos_disponiveis = ["gemini-1.5-flash", "gemini-2.5-flash"]
-        
-    return render_template('index.html', modelos=modelos_disponiveis)
-
-@app.route('/processar', methods=['POST'])
-def processar():
-    try:
-        if not CHAVE_API:
-            genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-            
-        ferramenta = request.form.get('ferramenta')
-        modelo_escolhido = request.form.get('modelo')
-        texto_tema = request.form.get('tema')
-        arquivo_upload = request.files['arquivo']
-        
-        if not arquivo_upload or not texto_tema:
-            return jsonify({"erro": "Arquivo Word ou tema do desafio não foram enviados."}), 400
-
-        arquivo_memoria = io.BytesIO(arquivo_upload.read())
-
-        if ferramenta == 'preenchedor':
-            respostas_geradas = gerar_respostas_ia_tags(texto_tema, modelo_escolhido)
-            if respostas_geradas:
-                documento_pronto = preencher_template_com_tags(arquivo_memoria, respostas_geradas)
-                return send_file(
-                    documento_pronto, 
-                    as_attachment=True, 
-                    download_name="Desafio_Preenchido_Academico.docx",
-                    mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-        
-        elif ferramenta == 'gabarito':
-            texto_do_template = extrair_texto_docx(arquivo_memoria)
-            resposta_ia = gerar_resolucao_inteligente_gabarito(texto_do_template, texto_tema, modelo_escolhido)
-            if resposta_ia:
-                return jsonify({"tipo": "texto", "conteudo": resposta_ia})
-                
-        return jsonify({"erro": "Opção inválida selecionada."}), 400
-        
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True)
+</body>
+</html>
