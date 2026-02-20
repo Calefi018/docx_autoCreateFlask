@@ -160,8 +160,16 @@
             method: 'POST',
             body: formData
         })
-        .then(response => {
-            if (!response.ok) throw new Error("Erro no servidor");
+        .then(async response => {
+            // Se o servidor retornar erro (ex: 500 ou 400)
+            if (!response.ok) {
+                let errorMsg = "Erro desconhecido no servidor.";
+                try {
+                    const errData = await response.json();
+                    errorMsg = errData.erro || errorMsg;
+                } catch(e) {}
+                throw new Error(errorMsg); // Joga a mensagem REAL para o catch abaixo
+            }
             
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
@@ -197,7 +205,8 @@
         .catch(error => {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('btn-submit').style.display = 'block';
-            alert("Ocorreu um erro ao gerar. Tente novamente.");
+            // Agora o alerta mostra a verdadeira causa da falha!
+            alert("⚠️ " + error.message);
         });
     });
 </script>
