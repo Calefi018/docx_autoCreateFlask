@@ -1,7 +1,6 @@
 import os
 import io
 import json
-import re
 from flask import Flask, render_template, request, send_file, jsonify
 from docx import Document
 import google.generativeai as genai
@@ -16,7 +15,6 @@ if CHAVE_API:
 # FUNÇÕES DA FERRAMENTA 1: PREENCHEDOR CLÁSSICO (COM TAGS)
 # =========================================================
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
-    """Substitui as tags {{CHAVE}} pelo texto gerado e formata negritos e parágrafos no Word."""
     doc = Document(arquivo_template)
 
     def processar_paragrafo(paragrafo):
@@ -25,34 +23,31 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
         
         for marcador, texto_novo in dicionario_dados.items():
             if marcador in texto_original:
-                # Troca a tag segura [QUEBRA] pela quebra de linha real do Word
-                texto_formatado = str(texto_novo).replace("[QUEBRA]", "\n")
-                texto_original = texto_original.replace(marcador, texto_formatado)
+                # Substitui a tag pelo texto limpo (O JSON Mode já manda o \n nativo correto)
+                texto_original = texto_original.replace(marcador, str(texto_novo))
                 tem_tag = True
                 
         if tem_tag:
-            # Limpa o parágrafo atual para reconstruí-lo formatado
             paragrafo.clear()
             
-            # TRADUTOR DE MARKDOWN PARA WORD
+            # TRADUTOR DE MARKDOWN PARA WORD (Lida com \n real e **)
             linhas = texto_original.split('\n')
             for i, linha in enumerate(linhas):
                 partes = linha.split('**')
                 for j, parte in enumerate(partes):
-                    if parte: # Evita adicionar espaços vazios
+                    if parte: 
                         run = paragrafo.add_run(parte)
-                        if j % 2 == 1: # O texto que estava entre ** fica em negrito
+                        if j % 2 == 1: 
                             run.bold = True
                 
                 # Adiciona o 'Enter' real no Word se não for a última linha
                 if i < len(linhas) - 1:
                     paragrafo.add_run('\n')
 
-    # 1. Substitui no corpo do texto normal
+    # Varre todo o documento
     for paragrafo in doc.paragraphs:
         processar_paragrafo(paragrafo)
 
-    # 2. Substitui dentro de tabelas e caixas de texto
     for tabela in doc.tables:
         for linha in tabela.rows:
             for celula in linha.cells:
@@ -69,68 +64,40 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     prompt = f"""
     Atue como um especialista acadêmico resolvendo um Desafio Profissional.
     
-    REGRA MÁXIMA DE COMPORTAMENTO:
-    É ESTRITAMENTE PROIBIDO usar saudações, despedidas ou frases introdutórias (NÃO escreva "Olá estudante", "Segue a lista:"). 
-    Vá DIRETO ao conteúdo acadêmico.
-    
-    REGRA DE FORMATAÇÃO E ESTRUTURA (MUITO IMPORTANTE):
-    1. Retorne APENAS um objeto JSON válido.
-    2. NUNCA use quebras de linha reais (apertar Enter) dentro dos textos do JSON. Isso quebra o sistema.
-    3. Para pular linha, fazer parágrafos ou listas, use a palavra [QUEBRA]. Exemplo: - **Conceito:** texto[QUEBRA]- **Conceito 2:** texto
-    4. Para destacar termos importantes, use **negrito**. NUNCA use asteriscos simples (*).
-    
-    FORMATO DE SAÍDA OBRIGATÓRIO (Mantenha tudo em uma linha contínua se necessário, usando [QUEBRA]):
-    {{
-        "ASPECTO_1": "texto do aspecto 1",
-        "POR_QUE_1": "justificativa do aspecto 1",
-        "ASPECTO_2": "texto do aspecto 2",
-        "POR_QUE_2": "justificativa do aspecto 2",
-        "ASPECTO_3": "texto do aspecto 3",
-        "POR_QUE_3": "justificativa do aspecto 3",
-        "CONCEITOS_TEORICOS": "- **Conceito A:** Definição...[QUEBRA]- **Conceito B:** Definição...",
-        "RESP_AUTORRESP": "Explicação teórica direta...",
-        "RESP_PILARES": "Explicação teórica direta...",
-        "RESP_SOLUCOES": "Soluções recomendadas detalhadas...",
-        "RESUMO_MEMORIAL": "Resumo...",
-        "CONTEXTO_MEMORIAL": "Contextualização...",
-        "ANALISE_MEMORIAL": "Análise...",
-        "PROPOSTAS_MEMORIAL": "Propostas...",
-        "CONCLUSAO_MEMORIAL": "Conclusão...",
-        "AUTOAVALIACAO_MEMORIAL": "Autoavaliação reflexiva..."
-    }}
+    REGRA MÁXIMA: 
+    Vá DIRETO ao conteúdo. NÃO use saudações.
+    Para destacar palavras, use **negrito**. NUNCA use asteriscos simples (*) para listas, use traço (-).
+    Para pular linha, use a quebra de linha normal.
     
     TEMA/CASO DO DESAFIO:
     {texto_tema}
+    
+    Você DEVE retornar as seguintes chaves no JSON:
+    "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
+    "CONCEITOS_TEORICOS", "RESP_AUTORRESP", "RESP_PILARES", "RESP_SOLUCOES",
+    "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", 
+    "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "AUTOAVALIACAO_MEMORIAL".
     """
     try:
-        resposta = modelo.generate_content(prompt)
-        texto_limpo = resposta.text.strip()
+        # A MÁGICA: Força o Google a retornar 100% formato JSON nativo (Inquebrável)
+        resposta = modelo.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
         
-        # Expressão regular para forçar a captura apenas do JSON, ignorando textos extras da IA
-        match = re.search(r'\{.*\}', texto_limpo, re.DOTALL)
-        if match:
-            texto_limpo = match.group(0)
-            
-        dicionario_dados = json.loads(texto_limpo)
+        # Como o formato é garantido, podemos carregar direto
+        dicionario_dados = json.loads(resposta.text)
         
         # Recria as tags {{ }} para o Python achar no Word
         dicionario_higienizado = {}
         for chave, texto_gerado in dicionario_dados.items():
-            if isinstance(texto_gerado, str):
-                texto_gerado = texto_gerado.replace("{", "").replace("}", "").replace("[", "").replace("]", "").replace("*", "").strip()
-                # Devolve os colchetes apenas para a tag de [QUEBRA]
-                texto_gerado = texto_gerado.replace("QUEBRA", "[QUEBRA]")
-            else:
-                texto_gerado = str(texto_gerado)
-                
             chave_limpa = chave.replace("{", "").replace("}", "").strip()
             chave_marcador = f"{{{{{chave_limpa}}}}}"
-            dicionario_higienizado[chave_marcador] = texto_gerado
+            dicionario_higienizado[chave_marcador] = str(texto_gerado).strip()
             
         return dicionario_higienizado
     except Exception as e:
-        print(f"Erro IA: {e}")
-        return None
+        raise Exception(f"Falha na IA (Tags): {str(e)}")
 
 # =========================================================
 # FUNÇÕES DA FERRAMENTA 2: GERADOR UNIVERSAL (GABARITO)
@@ -148,17 +115,19 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     TEMPLATE: {texto_template}
     
     REGRA MÁXIMA DE COMPORTAMENTO:
-    NÃO use NENHUMA saudação (ex: "Olá", "Bem-vindo"). 
-    NÃO use frases introdutórias (ex: "Aqui está o trabalho..."). Vá DIRETO AO PONTO. 
-    Comece o texto diretamente com "--- ETAPA 1".
+    NÃO use NENHUMA saudação (ex: "Olá"). Comece o texto diretamente com "--- ETAPA 1".
     
     REGRA DE FORMATAÇÃO (MARKDOWN):
     Use '---' (três traços) em uma linha separada para criar uma linha divisória antes de cada etapa.
     Use **negrito** para destacar tópicos e títulos.
-    O texto da Etapa 5 NÃO pode passar de 6000 caracteres e deve conter os tópicos em **negrito**.
     """
-    resposta = modelo.generate_content(prompt)
-    return resposta.text
+    try:
+        resposta = modelo.generate_content(prompt)
+        if not resposta.parts:
+            raise Exception("A resposta foi bloqueada pelos filtros de segurança do Google.")
+        return resposta.text
+    except Exception as e:
+        raise Exception(f"Falha na IA (Gabarito): {str(e)}")
 
 # =========================================================
 # ROTAS WEB
@@ -189,7 +158,7 @@ def processar():
         arquivo_upload = request.files['arquivo']
         
         if not arquivo_upload or not texto_tema:
-            return jsonify({"erro": "Arquivo ou tema ausentes."}), 400
+            return jsonify({"erro": "Arquivo Word ou tema do desafio não foram enviados."}), 400
 
         arquivo_memoria = io.BytesIO(arquivo_upload.read())
 
@@ -203,8 +172,6 @@ def processar():
                     download_name="Desafio_Preenchido_Perfeito.docx",
                     mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
-            else:
-                return jsonify({"erro": "Falha de formatação na IA. Tente gerar novamente."}), 500
         
         elif ferramenta == 'gabarito':
             texto_do_template = extrair_texto_docx(arquivo_memoria)
@@ -212,9 +179,10 @@ def processar():
             if resposta_ia:
                 return jsonify({"tipo": "texto", "conteudo": resposta_ia})
                 
-        return jsonify({"erro": "Opção inválida."}), 500
+        return jsonify({"erro": "Opção inválida selecionada."}), 400
         
     except Exception as e:
+        # Agora sim o Python vai mandar o erro REAL para a tela do site
         return jsonify({"erro": str(e)}), 500
 
 if __name__ == '__main__':
