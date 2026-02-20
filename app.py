@@ -7,6 +7,11 @@ import google.generativeai as genai
 
 app = Flask(__name__)
 
+# Configura a chave logo na inicialização do servidor para conseguir listar os modelos
+CHAVE_API = os.environ.get("GEMINI_API_KEY")
+if CHAVE_API:
+    genai.configure(api_key=CHAVE_API)
+
 # =========================================================
 # FUNÇÕES DA FERRAMENTA 1: PREENCHEDOR INTELIGENTE (INJETA)
 # =========================================================
@@ -139,17 +144,32 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
 # =========================================================
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # Busca dinamicamente os modelos disponíveis na API
+    modelos_disponiveis = []
+    if CHAVE_API:
+        try:
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    modelos_disponiveis.append(m.name.replace('models/', ''))
+        except Exception as e:
+            print(f"Erro ao listar modelos: {e}")
+            
+    # Fallback caso dê algum erro na listagem (garante que a página abra)
+    if not modelos_disponiveis:
+        modelos_disponiveis = ["gemini-2.5-flash", "gemini-2.5-pro"]
+        
+    # Manda a lista para o HTML
+    return render_template('index.html', modelos=modelos_disponiveis)
 
 @app.route('/processar', methods=['POST'])
 def processar():
     try:
-        # Configura a chave da API pega direto do Render
-        CHAVE_API = os.environ.get("GEMINI_API_KEY")
-        genai.configure(api_key=CHAVE_API)
-        
+        # Garante que a API esteja configurada antes de gerar o conteúdo
+        if not CHAVE_API:
+            genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+            
         ferramenta = request.form.get('ferramenta')
-        modelo_escolhido = request.form.get('modelo', 'gemini-1.5-flash')
+        modelo_escolhido = request.form.get('modelo')
         texto_tema = request.form.get('tema')
         arquivo_upload = request.files['arquivo']
         
@@ -158,7 +178,6 @@ def processar():
         if not texto_tema:
             return "Erro: Você esqueceu de colar o tema do desafio!", 400
 
-        # Lê o arquivo na memória
         arquivo_memoria = io.BytesIO(arquivo_upload.read())
 
         if ferramenta == 'preenchedor':
