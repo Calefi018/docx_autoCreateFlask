@@ -1,6 +1,7 @@
 import os
 import io
-import json
+import re
+import traceback
 from flask import Flask, render_template, request, send_file, jsonify
 from docx import Document
 import google.generativeai as genai
@@ -21,16 +22,15 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
         texto_original = paragrafo.text
         tem_tag = False
         
+        # Procura as tags no parágrafo e substitui pelo texto gerado
         for marcador, texto_novo in dicionario_dados.items():
             if marcador in texto_original:
-                # Substitui a tag pelo texto limpo (O JSON Mode já manda o \n nativo correto)
                 texto_original = texto_original.replace(marcador, str(texto_novo))
                 tem_tag = True
                 
+        # Se achou uma tag, aplica a formatação nativa do Word (Negritos e Enters)
         if tem_tag:
             paragrafo.clear()
-            
-            # TRADUTOR DE MARKDOWN PARA WORD (Lida com \n real e **)
             linhas = texto_original.split('\n')
             for i, linha in enumerate(linhas):
                 partes = linha.split('**')
@@ -39,12 +39,10 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                         run = paragrafo.add_run(parte)
                         if j % 2 == 1: 
                             run.bold = True
-                
-                # Adiciona o 'Enter' real no Word se não for a última linha
                 if i < len(linhas) - 1:
                     paragrafo.add_run('\n')
 
-    # Varre todo o documento
+    # Varre todo o documento (corpo, tabelas e caixas)
     for paragrafo in doc.paragraphs:
         processar_paragrafo(paragrafo)
 
@@ -62,42 +60,109 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
 def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
-    Atue como um especialista acadêmico resolvendo um Desafio Profissional.
+    Você é um Especialista Acadêmico Sênior com Doutorado em Gestão. Sua missão é resolver um Desafio Profissional Universitário.
     
-    REGRA MÁXIMA: 
-    Vá DIRETO ao conteúdo. NÃO use saudações.
-    Para destacar palavras, use **negrito**. NUNCA use asteriscos simples (*) para listas, use traço (-).
-    Para pular linha, use a quebra de linha normal.
+    REGRA DE OURO (QUALIDADE EXTREMA): 
+    É EXPRESSAMENTE PROIBIDO ser raso ou breve. Suas respostas devem ser DENSAS, PROFUNDAS e usar vocabulário técnico acadêmico rigoroso. Cada justificativa e análise deve ter múltiplas linhas de argumentação fundamentada.
+    
+    REGRA DE ESTRUTURA (ANTI-ERRO):
+    NÃO USE FORMATO JSON. Você DEVE retornar o texto preenchendo as caixas delimitadoras exatas abaixo.
+    Para destacar conceitos, use **negrito**. Para tópicos, use o traço (-). Pule linhas normalmente com Enter.
     
     TEMA/CASO DO DESAFIO:
     {texto_tema}
     
-    Você DEVE retornar as seguintes chaves no JSON:
-    "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
-    "CONCEITOS_TEORICOS", "RESP_AUTORRESP", "RESP_PILARES", "RESP_SOLUCOES",
-    "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", 
-    "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "AUTOAVALIACAO_MEMORIAL".
+    GERAÇÃO OBRIGATÓRIA (Crie textos extensos dentro de cada delimitador):
+    
+    [START_ASPECTO_1]
+    Descreva o aspecto 1 de forma técnica e profunda...
+    [END_ASPECTO_1]
+    
+    [START_POR_QUE_1]
+    Justifique o aspecto 1 com uma análise densa de pelo menos 4 linhas...
+    [END_POR_QUE_1]
+    
+    [START_ASPECTO_2]
+    Descreva o aspecto 2 de forma técnica...
+    [END_ASPECTO_2]
+    
+    [START_POR_QUE_2]
+    Justifique o aspecto 2 com uma análise densa de pelo menos 4 linhas...
+    [END_POR_QUE_2]
+    
+    [START_ASPECTO_3]
+    Descreva o aspecto 3 de forma técnica...
+    [END_ASPECTO_3]
+    
+    [START_POR_QUE_3]
+    Justifique o aspecto 3 com uma análise densa de pelo menos 4 linhas...
+    [END_POR_QUE_3]
+    
+    [START_CONCEITOS_TEORICOS]
+    - **[Nome do Conceito 1]:** [Explicação teórica longa e detalhada sobre como se aplica ao caso]
+    - **[Nome do Conceito 2]:** [Explicação teórica longa e detalhada...]
+    [END_CONCEITOS_TEORICOS]
+    
+    [START_RESP_AUTORRESP]
+    Análise teórica profunda e extensa aplicada ao cenário específico...
+    [END_RESP_AUTORRESP]
+    
+    [START_RESP_PILARES]
+    Análise teórica densa sobre o problema central...
+    [END_RESP_PILARES]
+    
+    [START_RESP_SOLUCOES]
+    Apresente um plano de ação robusto listando etapas detalhadas...
+    [END_RESP_SOLUCOES]
+    
+    [START_RESUMO_MEMORIAL]
+    Resumo executivo denso e bem articulado...
+    [END_RESUMO_MEMORIAL]
+    
+    [START_CONTEXTO_MEMORIAL]
+    Contextualização rica detalhando a complexidade da situação...
+    [END_CONTEXTO_MEMORIAL]
+    
+    [START_ANALISE_MEMORIAL]
+    Análise aprofundada com múltiplos parágrafos, interligando conceitos da disciplina...
+    [END_ANALISE_MEMORIAL]
+    
+    [START_PROPOSTAS_MEMORIAL]
+    Recomendações técnicas detalhadas e justificadas por teorias...
+    [END_PROPOSTAS_MEMORIAL]
+    
+    [START_CONCLUSAO_MEMORIAL]
+    Conclusão reflexiva madura sobre o aprendizado do caso...
+    [END_CONCLUSAO_MEMORIAL]
+    
+    [START_AUTOAVALIACAO_MEMORIAL]
+    Autoavaliação crítica do aluno, evidenciando amadurecimento acadêmico...
+    [END_AUTOAVALIACAO_MEMORIAL]
     """
     try:
-        # A MÁGICA: Força o Google a retornar 100% formato JSON nativo (Inquebrável)
-        resposta = modelo.generate_content(
-            prompt,
-            generation_config={"response_mime_type": "application/json"}
-        )
+        resposta = modelo.generate_content(prompt)
+        texto_ia = resposta.text
         
-        # Como o formato é garantido, podemos carregar direto
-        dicionario_dados = json.loads(resposta.text)
+        # Extrator Blindado: Puxa o conteúdo de cada caixa ignorando formatações que quebravam o JSON
+        chaves = [
+            "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
+            "CONCEITOS_TEORICOS", "RESP_AUTORRESP", "RESP_PILARES", "RESP_SOLUCOES",
+            "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", "PROPOSTAS_MEMORIAL",
+            "CONCLUSAO_MEMORIAL", "AUTOAVALIACAO_MEMORIAL"
+        ]
         
-        # Recria as tags {{ }} para o Python achar no Word
         dicionario_higienizado = {}
-        for chave, texto_gerado in dicionario_dados.items():
-            chave_limpa = chave.replace("{", "").replace("}", "").strip()
-            chave_marcador = f"{{{{{chave_limpa}}}}}"
-            dicionario_higienizado[chave_marcador] = str(texto_gerado).strip()
-            
+        for chave in chaves:
+            padrao = rf"\[START_{chave}\](.*?)\[END_{chave}\]"
+            match = re.search(padrao, texto_ia, re.DOTALL)
+            if match:
+                dicionario_higienizado[f"{{{{{chave}}}}}"] = match.group(1).strip()
+            else:
+                dicionario_higienizado[f"{{{{{chave}}}}}"] = "" 
+                
         return dicionario_higienizado
     except Exception as e:
-        raise Exception(f"Falha na IA (Tags): {str(e)}")
+        raise Exception(f"Falha de geração na IA: {str(e)}")
 
 # =========================================================
 # FUNÇÕES DA FERRAMENTA 2: GERADOR UNIVERSAL (GABARITO)
@@ -110,21 +175,64 @@ def extrair_texto_docx(arquivo_upload):
 def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
-    Atue como um especialista acadêmico ajudando um estudante a resolver um Desafio Profissional.
+    Atue como um Especialista Acadêmico Sênior resolvendo um Desafio Profissional.
     TEMA/CASO: {texto_tema}
     TEMPLATE: {texto_template}
     
-    REGRA MÁXIMA DE COMPORTAMENTO:
-    NÃO use NENHUMA saudação (ex: "Olá"). Comece o texto diretamente com "--- ETAPA 1".
+    REGRA MÁXIMA DE COMPORTAMENTO E QUALIDADE:
+    - NÃO use NENHUMA saudação ou despedida. Vá DIRETO AO PONTO.
+    - É EXPRESSAMENTE PROIBIDO gerar conteúdo raso. Exijo parágrafos densos, análises profundas e vocabulário acadêmico de alto nível.
     
-    REGRA DE FORMATAÇÃO (MARKDOWN):
-    Use '---' (três traços) em uma linha separada para criar uma linha divisória antes de cada etapa.
-    Use **negrito** para destacar tópicos e títulos.
+    ESTRUTURA VISUAL OBRIGATÓRIA (SIGA EXATAMENTE ESTE PADRÃO MARKDOWN):
+    
+    Pré-visualização do Resultado:
+    Olá! Serei seu especialista acadêmico neste Desafio Profissional. Vamos preencher o template passo a passo.
+    
+    ---
+    **Na Etapa 1 (Apresentação do Desafio Profissional), você deve apenas ler e compreender o desafio.**
+    
+    ---
+    **Na Etapa 2 (Materiais de referência - ambientação), escreva isso:**
+    
+    **1. O que chamou atenção:** **[Escreva o Conceito do Aspecto 1]**
+    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
+    
+    **2. O que chamou atenção:** **[Escreva o Conceito do Aspecto 2]**
+    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
+    
+    **3. O que chamou atenção:** **[Escreva o Conceito do Aspecto 3]**
+    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
+    
+    ---
+    **Na Etapa 3 (Levantamento de conceitos teóricos), escreva isso:**
+    
+    - **[Nome do Conceito 1]:** [Definição extensa e elaborada mostrando como se aplica ao caso]
+    - **[Nome do Conceito 2]:** [Definição extensa e elaborada...]
+    - **[Nome do Conceito 3]:** [Definição extensa e elaborada...]
+    
+    ---
+    **Na Etapa 4 (Aplicação dos conceitos teóricos ao Desafio Profissional), escreva isso:**
+    
+    - **Como o conceito de [Conceito Principal] explica o que aconteceu na situação?**
+      [Parágrafo analítico longo e detalhado dissecando o problema]
+    - **O que a teoria nos ajuda a entender sobre o problema central?**
+      [Parágrafo profundo conectando sintomas e teorias]
+    - **Que soluções possíveis a teoria aponta (e por que elas fazem sentido)?**
+      [Propostas práticas detalhadas fundamentadas na teoria]
+      
+    ---
+    **Na Etapa 5 (Memorial Analítico), escreva isso:**
+    
+    **Resumo do que você descobriu:** [Parágrafo denso]
+    **Contextualização do desafio:** [Quem? Onde? Qual a situação? Parágrafo denso]
+    **Análise:** [Parágrafo profundo de pelo menos 6 linhas utilizando conceitos para explicar a situação]
+    **Propostas de solução:** [Recomendações detalhadas. Pelo menos 2 parágrafos robustos]
+    **Conclusão reflexiva:** [O que aprendeu de forma madura. Pelo menos 2 parágrafos]
+    **Referências:** [Liste no padrão ABNT]
+    **Autoavaliação:** [Análise crítica sobre o próprio processo de estudo]
     """
     try:
         resposta = modelo.generate_content(prompt)
-        if not resposta.parts:
-            raise Exception("A resposta foi bloqueada pelos filtros de segurança do Google.")
         return resposta.text
     except Exception as e:
         raise Exception(f"Falha na IA (Gabarito): {str(e)}")
@@ -134,17 +242,23 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
 # =========================================================
 @app.route('/')
 def index():
-    modelos_disponiveis = []
-    if CHAVE_API:
-        try:
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    modelos_disponiveis.append(m.name.replace('models/', ''))
-        except:
-            pass
-    if not modelos_disponiveis:
-        modelos_disponiveis = ["gemini-2.5-flash", "gemini-2.5-pro"]
-    return render_template('index.html', modelos=modelos_disponiveis)
+    try:
+        modelos_disponiveis = []
+        if CHAVE_API:
+            try:
+                for m in genai.list_models():
+                    if 'generateContent' in m.supported_generation_methods:
+                        modelos_disponiveis.append(m.name.replace('models/', ''))
+            except:
+                pass
+                
+        # Força o Flash robusto como primeira opção
+        if "gemini-1.5-flash" not in modelos_disponiveis:
+            modelos_disponiveis.insert(0, "gemini-1.5-flash")
+            
+        return render_template('index.html', modelos=modelos_disponiveis)
+    except Exception as e:
+        return f"Erro crítico ao carregar: {str(e)}", 500
 
 @app.route('/processar', methods=['POST'])
 def processar():
@@ -169,7 +283,7 @@ def processar():
                 return send_file(
                     documento_pronto, 
                     as_attachment=True, 
-                    download_name="Desafio_Preenchido_Perfeito.docx",
+                    download_name="Desafio_Preenchido_Academico.docx",
                     mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
         
@@ -182,8 +296,8 @@ def processar():
         return jsonify({"erro": "Opção inválida selecionada."}), 400
         
     except Exception as e:
-        # Agora sim o Python vai mandar o erro REAL para a tela do site
-        return jsonify({"erro": str(e)}), 500
+        traceback.print_exc()
+        return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
