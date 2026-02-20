@@ -19,7 +19,10 @@ def preencher_template_inteligente(arquivo_template, respostas_json):
     
     def substituir_texto_formatado(paragrafo, texto_resposta):
         paragrafo.text = "" 
-        partes = texto_resposta.split('**')
+        # Troca asteriscos soltos de listas por traços para não sujar o Word
+        texto_limpo = texto_resposta.replace("\n* ", "\n- ").replace("\n*", "\n- ")
+        
+        partes = texto_limpo.split('**')
         for i, parte in enumerate(partes):
             if i % 2 == 1:
                 paragrafo.add_run(parte).bold = True
@@ -38,8 +41,8 @@ def preencher_template_inteligente(arquivo_template, respostas_json):
     for p in todos_paragrafos:
         texto = p.text.lower().strip()
         
-        # Etapa 2: Busca ampliada para garantir que acerta a caixa
-        if ("aspecto 1:" in texto or "escreva aqui os três aspectos" in texto or "estudante, escreva aqui." in texto) and not preenchidos["etapa_2"]:
+        # O ALVO EXATO DA ETAPA 2 (Conforme o print: "estudante, escreva aqui.")
+        if ("estudante, escreva aqui" in texto or "escreva aqui os três aspectos" in texto or "aspecto 1:" in texto) and not preenchidos["etapa_2"]:
             substituir_texto_formatado(p, respostas_json.get('etapa_2', ''))
             preenchidos["etapa_2"] = True
             
@@ -66,21 +69,17 @@ def gerar_respostas_ia_preenchedor(texto_tema, nome_modelo):
     Você é um especialista acadêmico ajudando um estudante universitário.
     Gere as respostas originais e sem plágio para preencher as Etapas 2, 3, 4 e 5 do trabalho.
     
-    REGRA OBRIGATÓRIA DA ETAPA 5:
-    Siga estritamente este padrão com os títulos em **negrito**:
-    **Resumo:** [1 parágrafo]
-    **Contextualização do desafio:** [Quem? Onde? Situação?]
-    **Análise:** [Conceitos e exemplos]
-    **Propostas de solução:** [Recomendações]
-    **Conclusão reflexiva:** [Aprendizado]
-    **Referências:** [ABNT]
-    **Autoavaliação:** [Processo de estudo]
+    REGRA MÁXIMA DE COMPORTAMENTO:
+    NÃO use saudações ("Olá", "Bem-vindo"). NÃO faça comentários ("Aqui está a lista"). Retorne APENAS o JSON solicitado.
+    
+    REGRA DE FORMATAÇÃO:
+    NÃO use asteriscos simples (*) para listas. Use sempre traços (-). Use asteriscos duplos (**) APENAS para negrito.
     
     FORMATO DE SAÍDA OBRIGATÓRIO:
     Retorne APENAS um objeto JSON válido.
     {{
         "etapa_2": "Escreva aqui os 3 aspectos mais relevantes e justifique...",
-        "etapa_3": "Escreva aqui a lista comentada de conceitos teóricos...",
+        "etapa_3": "Escreva aqui a lista de conceitos teóricos...",
         "etapa_4": "Escreva aqui a aplicação dos conceitos e as soluções...",
         "etapa_5": "**Resumo:** ...\\n**Contextualização do desafio:** ...\\n**Análise:** ...\\n**Propostas de solução:** ...\\n**Conclusão reflexiva:** ...\\n**Referências:** ...\\n**Autoavaliação:** ..."
     }}
@@ -107,9 +106,17 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     TEMA/CASO: {texto_tema}
     TEMPLATE: {texto_template}
     
+    REGRA MÁXIMA DE COMPORTAMENTO:
+    NÃO use NENHUMA saudação (ex: "Olá estudante", "Bem-vindo"). 
+    NÃO use frases introdutórias (ex: "Aqui está a análise", "Segue a lista").
+    Vá DIRETO AO PONTO. Comece o texto diretamente com "--- ETAPA 1".
+    
+    REGRA DE FORMATAÇÃO (MARKDOWN):
+    Use '---' (três traços) em uma linha separada para criar uma linha divisória antes de cada nova etapa.
+    Use **negrito** para destacar tópicos.
+    
     Gere as respostas passo a passo. Informe claramente onde preencher no Word (Ex: "Na Etapa 2, escreva isso:").
-    Use a formatação Markdown (**negrito**) para destacar títulos.
-    O texto da Etapa 5 NÃO pode passar de 6000 caracteres.
+    O texto da Etapa 5 NÃO pode passar de 6000 caracteres e deve conter os tópicos em **negrito** (Resumo, Contextualização, etc).
     """
     resposta = modelo.generate_content(prompt)
     return resposta.text
@@ -151,7 +158,6 @@ def processar():
             respostas_geradas = gerar_respostas_ia_preenchedor(texto_tema, modelo_escolhido)
             if respostas_geradas:
                 documento_pronto = preencher_template_inteligente(arquivo_memoria, respostas_geradas)
-                # Retorna o arquivo diretamente
                 return send_file(
                     documento_pronto, 
                     as_attachment=True, 
@@ -163,7 +169,6 @@ def processar():
             texto_do_template = extrair_texto_docx(arquivo_memoria)
             resposta_ia = gerar_resolucao_inteligente_gabarito(texto_do_template, texto_tema, modelo_escolhido)
             if resposta_ia:
-                # Retorna apenas o texto JSON para renderizar na tela
                 return jsonify({"tipo": "texto", "conteudo": resposta_ia})
                 
         return jsonify({"erro": "Falha ao gerar conteúdo."}), 500
