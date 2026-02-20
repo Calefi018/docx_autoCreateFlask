@@ -217,8 +217,12 @@
             method: 'POST',
             body: formData
         })
-        .then(response => {
-            if (!response.ok) throw new Error("Erro no servidor");
+        .then(async response => {
+            // SE O BACKEND DER ERRO, VAMOS LER QUAL FOI
+            if (!response.ok) {
+                const erroData = await response.json().catch(() => ({ erro: 'Erro desconhecido HTTP ' + response.status }));
+                throw new Error(erroData.erro || 'Falha na comunicação com o servidor.');
+            }
             
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
@@ -230,18 +234,17 @@
         .then(resultado => {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('btn-submit').style.display = 'block';
-            document.getElementById('msg-sucesso').style.display = 'block';
-
+            
             if (resultado.tipo === 'json') {
                 if (resultado.dados.erro) {
-                    alert("Erro: " + resultado.dados.erro);
-                    document.getElementById('msg-sucesso').style.display = 'none';
+                    throw new Error(resultado.dados.erro); // Joga pro catch
                 } else {
-                    // Usando o marked.js para renderizar Markdown PERFEITAMENTE
+                    document.getElementById('msg-sucesso').style.display = 'block';
                     document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.dados.conteudo);
                     document.getElementById('resultado-texto-container').style.display = 'block';
                 }
             } else {
+                document.getElementById('msg-sucesso').style.display = 'block';
                 const url = window.URL.createObjectURL(resultado.dados);
                 const a = document.createElement('a');
                 a.style.display = 'none';
@@ -255,7 +258,9 @@
         .catch(error => {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('btn-submit').style.display = 'block';
-            alert("Ocorreu um erro ao gerar o arquivo. Tente novamente.");
+            
+            // AGORA O ALERTA MOSTRA O ERRO REAL (ex: Erro interno: ...)
+            alert("Atenção: " + error.message);
         });
     });
 </script>
