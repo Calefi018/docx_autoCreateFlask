@@ -7,7 +7,7 @@ import google.generativeai as genai
 
 app = Flask(__name__)
 
-# Configura a chave logo na inicialização do servidor para conseguir listar os modelos
+# Configura a chave logo na inicialização do servidor
 CHAVE_API = os.environ.get("GEMINI_API_KEY")
 if CHAVE_API:
     genai.configure(api_key=CHAVE_API)
@@ -18,32 +18,50 @@ if CHAVE_API:
 def preencher_template_inteligente(arquivo_template, respostas_json):
     doc = Document(arquivo_template)
     
-    def inserir_resposta_abaixo(paragrafo_alvo, texto_resposta):
-        novo_p = doc.add_paragraph()
-        novo_p.style = doc.styles['Normal']
+    # Função para substituir o texto exato dentro da caixa/tabela
+    def substituir_texto_formatado(paragrafo, texto_resposta):
+        paragrafo.text = "" # Apaga a frase "Estudante, escreva aqui..."
+        
+        # Injeta a resposta aplicando o negrito onde tiver **
         partes = texto_resposta.split('**')
         for i, parte in enumerate(partes):
             if i % 2 == 1:
-                novo_p.add_run(parte).bold = True
+                paragrafo.add_run(parte).bold = True
             else:
-                novo_p.add_run(parte)
-        paragrafo_alvo._p.addnext(novo_p._p)
+                paragrafo.add_run(parte)
+
+    # Coleta TODOS os parágrafos (os soltos na página e os que estão dentro das tabelas/caixas)
+    todos_paragrafos = list(doc.paragraphs)
+    for tabela in doc.tables:
+        for linha in tabela.rows:
+            for celula in linha.cells:
+                for p in celula.paragraphs:
+                    todos_paragrafos.append(p)
 
     preenchidos = {"etapa_2": False, "etapa_3": False, "etapa_4": False, "etapa_5": False}
     
-    for p in doc.paragraphs:
-        texto_upper = p.text.upper()
-        if "ETAPA 2:" in texto_upper and not preenchidos["etapa_2"]:
-            inserir_resposta_abaixo(p, f"\n{respostas_json.get('etapa_2', '')}\n")
+    # Varre os parágrafos procurando as frases-isca da faculdade
+    for p in todos_paragrafos:
+        texto = p.text.lower()
+        
+        # Etapa 2
+        if ("escreva aqui os três aspectos" in texto or "escreva aqui." in texto) and not preenchidos["etapa_2"]:
+            substituir_texto_formatado(p, respostas_json.get('etapa_2', ''))
             preenchidos["etapa_2"] = True
-        elif "ETAPA 3:" in texto_upper and not preenchidos["etapa_3"]:
-            inserir_resposta_abaixo(p, f"\n{respostas_json.get('etapa_3', '')}\n")
+            
+        # Etapa 3
+        elif "registre aqui os conceitos" in texto and not preenchidos["etapa_3"]:
+            substituir_texto_formatado(p, respostas_json.get('etapa_3', ''))
             preenchidos["etapa_3"] = True
-        elif "ETAPA 4:" in texto_upper and not preenchidos["etapa_4"]:
-            inserir_resposta_abaixo(p, f"\n{respostas_json.get('etapa_4', '')}\n")
+            
+        # Etapa 4
+        elif "aplique aqui os conceitos" in texto and not preenchidos["etapa_4"]:
+            substituir_texto_formatado(p, respostas_json.get('etapa_4', ''))
             preenchidos["etapa_4"] = True
-        elif "ETAPA 5" in texto_upper and "AVALIATIVA" in texto_upper and not preenchidos["etapa_5"]:
-            inserir_resposta_abaixo(p, f"\n{respostas_json.get('etapa_5', '')}\n")
+            
+        # Etapa 5 (Alguns templates dizem 'registre' outros 'escreva')
+        elif ("registre aqui seu memorial" in texto or "escreva aqui seu memorial" in texto) and not preenchidos["etapa_5"]:
+            substituir_texto_formatado(p, respostas_json.get('etapa_5', ''))
             preenchidos["etapa_5"] = True
 
     arquivo_saida = io.BytesIO()
@@ -144,7 +162,6 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
 # =========================================================
 @app.route('/')
 def index():
-    # Busca dinamicamente os modelos disponíveis na API
     modelos_disponiveis = []
     if CHAVE_API:
         try:
@@ -154,17 +171,14 @@ def index():
         except Exception as e:
             print(f"Erro ao listar modelos: {e}")
             
-    # Fallback caso dê algum erro na listagem (garante que a página abra)
     if not modelos_disponiveis:
         modelos_disponiveis = ["gemini-2.5-flash", "gemini-2.5-pro"]
         
-    # Manda a lista para o HTML
     return render_template('index.html', modelos=modelos_disponiveis)
 
 @app.route('/processar', methods=['POST'])
 def processar():
     try:
-        # Garante que a API esteja configurada antes de gerar o conteúdo
         if not CHAVE_API:
             genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
             
