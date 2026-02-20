@@ -6,13 +6,15 @@
     <title>Hub de Desafios Profissionais</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
     <style>
         /* Dark Mode Estilo Streamlit */
         :root {
             --primary-color: #FF4B4B; 
-            --bg-color: #0E1117; /* Fundo principal escuro */
-            --bg-secondary: #262730; /* Fundo dos inputs e caixas */
-            --text-color: #FAFAFA; /* Texto claro */
+            --bg-color: #0E1117; 
+            --bg-secondary: #262730; 
+            --text-color: #FAFAFA; 
             --border-color: #444C56;
             --success-bg: #0E3A2F;
             --success-text: #57D2A9;
@@ -112,21 +114,29 @@
             font-weight: 600;
         }
 
-        /* Container de Renderização do Texto (Para a opção Gabarito) */
-        #resultado-texto-container {
-            display: none;
-            margin-top: 2rem;
-            border-top: 1px solid var(--border-color);
-            padding-top: 1.5rem;
-        }
+        /* Formatação perfeita do Markdown gerado pela IA (igual Streamlit) */
+        #resultado-texto-container { display: none; margin-top: 2rem; }
         #resultado-texto {
-            background-color: var(--bg-secondary);
-            padding: 1.5rem;
-            border-radius: 8px;
-            line-height: 1.6;
             font-size: 0.95rem;
-            white-space: pre-wrap; /* Mantém as quebras de linha */
+            line-height: 1.7;
+            color: var(--text-color);
         }
+        #resultado-texto h1, #resultado-texto h2, #resultado-texto h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        #resultado-texto hr {
+            border: 0;
+            border-top: 1px solid var(--border-color);
+            margin: 2rem 0;
+        }
+        #resultado-texto ul {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        #resultado-texto li { margin-bottom: 0.5rem; }
+        #resultado-texto strong { color: #FFFFFF; font-weight: 700; }
     </style>
 </head>
 <body>
@@ -186,6 +196,7 @@
     <div class="success-box" id="msg-sucesso">✅ Trabalho gerado com sucesso!</div>
 
     <div id="resultado-texto-container">
+        <hr>
         <h2>Pré-visualização do Resultado:</h2>
         <div id="resultado-texto"></div>
     </div>
@@ -193,9 +204,8 @@
 
 <script>
     document.getElementById('meuFormulario').addEventListener('submit', function(event) {
-        event.preventDefault(); // Impede o envio tradicional
+        event.preventDefault(); 
 
-        // Esconde botão e mostra o carregamento
         document.getElementById('btn-submit').style.display = 'none';
         document.getElementById('loading').style.display = 'block';
         document.getElementById('msg-sucesso').style.display = 'none';
@@ -203,7 +213,6 @@
 
         const formData = new FormData(this);
 
-        // Faz a requisição "por trás dos panos" (AJAX)
         fetch('/processar', {
             method: 'POST',
             body: formData
@@ -211,7 +220,6 @@
         .then(response => {
             if (!response.ok) throw new Error("Erro no servidor");
             
-            // Verifica se a resposta é um Arquivo (Blob) ou Texto (JSON)
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
                 return response.json().then(data => ({ tipo: 'json', dados: data }));
@@ -220,7 +228,6 @@
             }
         })
         .then(resultado => {
-            // Para o loading
             document.getElementById('loading').style.display = 'none';
             document.getElementById('btn-submit').style.display = 'block';
             document.getElementById('msg-sucesso').style.display = 'block';
@@ -230,13 +237,11 @@
                     alert("Erro: " + resultado.dados.erro);
                     document.getElementById('msg-sucesso').style.display = 'none';
                 } else {
-                    // Renderiza o texto na tela transformando **texto** em negrito
-                    let textoFormatado = resultado.dados.conteudo.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                    document.getElementById('resultado-texto').innerHTML = textoFormatado;
+                    // Usando o marked.js para renderizar Markdown PERFEITAMENTE
+                    document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.dados.conteudo);
                     document.getElementById('resultado-texto-container').style.display = 'block';
                 }
             } else {
-                // Dispara o download do arquivo silenciosamente
                 const url = window.URL.createObjectURL(resultado.dados);
                 const a = document.createElement('a');
                 a.style.display = 'none';
