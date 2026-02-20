@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import re
 from flask import Flask, render_template, request, send_file, jsonify
 from docx import Document
 import google.generativeai as genai
@@ -23,11 +24,14 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
         
         for marcador, texto_novo in dicionario_dados.items():
             if marcador in texto_original:
-                texto_original = texto_original.replace(marcador, str(texto_novo))
+                # Troca a tag segura [QUEBRA] pela quebra de linha real do Word
+                texto_formatado = str(texto_novo).replace("[QUEBRA]", "\n")
+                texto_original = texto_original.replace(marcador, texto_formatado)
                 tem_tag = True
                 
         if tem_tag:
             paragrafo.clear()
+            # TRADUTOR DE MARKDOWN PARA WORD
             linhas = texto_original.split('\n')
             for i, linha in enumerate(linhas):
                 partes = linha.split('**')
@@ -39,9 +43,11 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                 if i < len(linhas) - 1:
                     paragrafo.add_run('\n')
 
+    # Varre corpo do texto
     for paragrafo in doc.paragraphs:
         processar_paragrafo(paragrafo)
 
+    # Varre tabelas e caixas de texto
     for tabela in doc.tables:
         for linha in tabela.rows:
             for celula in linha.cells:
@@ -56,57 +62,65 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
 def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
-    Atue como um Especialista Acadêmico Sênior resolvendo um Desafio Profissional de nível universitário.
+    Você é um Especialista Acadêmico Sênior com Doutorado em Gestão. Sua missão é resolver um Desafio Profissional Universitário.
     
-    REGRA MÁXIMA DE QUALIDADE: 
-    O conteúdo deve ser DENSO, ANALÍTICO e PROFUNDO. Evite respostas rasas. 
-    Use vocabulário técnico da disciplina e explique os conceitos de forma robusta e interligada ao caso.
+    REGRA DE OURO (QUALIDADE EXTREMA): 
+    É EXPRESSAMENTE PROIBIDO ser raso ou breve. Suas respostas devem ser DENSAS, PROFUNDAS e usar vocabulário técnico acadêmico rigoroso. Cada justificativa e análise deve ter múltiplas linhas de argumentação fundamentada.
     
-    REGRAS DE FORMATAÇÃO:
-    - Vá DIRETO ao conteúdo. NÃO use saudações ou encerramentos.
-    - Para destacar palavras e títulos, use **negrito**. 
-    - NUNCA use asteriscos simples (*) para listas, use apenas o traço (-).
-    - Para pular linha, use a quebra de linha normal (\\n).
+    REGRA DE FORMATAÇÃO DO JSON:
+    1. Retorne APENAS o JSON válido. NENHUM texto fora das chaves.
+    2. NUNCA use "Enter" (quebra de linha real) dentro das strings. Se precisar pular linha ou fazer tópicos, digite a palavra exata [QUEBRA].
+    3. Use **negrito** para destacar conceitos chave. NUNCA use asteriscos simples (*).
     
     TEMA/CASO DO DESAFIO:
     {texto_tema}
     
-    Você DEVE retornar as seguintes chaves no JSON, preenchendo com textos ricos e extensos:
+    RETORNE EXATAMENTE ESTE JSON PREENCHIDO COM TEXTOS LONGOS E COMPLEXOS:
     {{
-        "ASPECTO_1": "Descreva o aspecto 1 de forma detalhada e acadêmica.",
-        "POR_QUE_1": "Justifique com base na teoria e no contexto do caso de forma profunda (mínimo 3 a 4 linhas).",
-        "ASPECTO_2": "Descreva o aspecto 2 de forma detalhada.",
-        "POR_QUE_2": "Justifique profundamente a escolha do aspecto 2.",
-        "ASPECTO_3": "Descreva o aspecto 3 de forma detalhada.",
-        "POR_QUE_3": "Justifique profundamente a escolha do aspecto 3.",
-        "CONCEITOS_TEORICOS": "- **[Nome do Conceito 1]:** [Definição completa e extensa de como ajuda a entender o caso]\\n- **[Nome do Conceito 2]:** [Definição completa...]",
-        "RESP_AUTORRESP": "Análise teórica profunda e aplicada ao cenário específico do desafio...",
-        "RESP_PILARES": "Análise teórica densa sobre o problema central...",
-        "RESP_SOLUCOES": "Apresente um plano de ação robusto, listando as soluções e justificando-as teoricamente...",
-        "RESUMO_MEMORIAL": "Resumo executivo do caso, bem articulado e estruturado...",
-        "CONTEXTO_MEMORIAL": "Contextualização rica: Quem? Onde? Qual a complexidade da situação?...",
-        "ANALISE_MEMORIAL": "Análise aprofundada utilizando 2 a 3 conceitos da disciplina conectados aos fatos do caso...",
-        "PROPOSTAS_MEMORIAL": "Recomendações detalhadas em parágrafos estruturados (não seja breve)...",
-        "CONCLUSAO_MEMORIAL": "Conclusão reflexiva madura sobre o aprendizado do caso...",
-        "AUTOAVALIACAO_MEMORIAL": "Autoavaliação crítica sobre o desenvolvimento acadêmico do aluno na resolução."
+        "ASPECTO_1": "Descreva o aspecto 1 de forma técnica e profunda",
+        "POR_QUE_1": "Justifique o aspecto 1 com uma análise densa de pelo menos 4 linhas...",
+        "ASPECTO_2": "Descreva o aspecto 2 de forma técnica",
+        "POR_QUE_2": "Justifique o aspecto 2 com uma análise densa de pelo menos 4 linhas...",
+        "ASPECTO_3": "Descreva o aspecto 3 de forma técnica",
+        "POR_QUE_3": "Justifique o aspecto 3 com uma análise densa de pelo menos 4 linhas...",
+        "CONCEITOS_TEORICOS": "- **[Nome do Conceito 1]:** [Explicação teórica longa e detalhada sobre como se aplica ao caso][QUEBRA]- **[Nome do Conceito 2]:** [Explicação teórica longa...]",
+        "RESP_AUTORRESP": "Análise teórica profunda de no mínimo um parágrafo longo...",
+        "RESP_PILARES": "Análise teórica densa, conectando a teoria aos sintomas descritos no caso...",
+        "RESP_SOLUCOES": "Plano de ação robusto listando etapas complexas e justificadas...",
+        "RESUMO_MEMORIAL": "Resumo executivo denso e bem estruturado...",
+        "CONTEXTO_MEMORIAL": "Contextualização rica detalhando as nuances do problema...",
+        "ANALISE_MEMORIAL": "Análise profunda com múltiplos parágrafos, interligando no mínimo 3 conceitos da disciplina...",
+        "PROPOSTAS_MEMORIAL": "Recomendações técnicas detalhadas e justificadas por teorias...",
+        "CONCLUSAO_MEMORIAL": "Conclusão madura sobre o aprendizado sistêmico do caso...",
+        "AUTOAVALIACAO_MEMORIAL": "Autoavaliação crítica do aluno, evidenciando amadurecimento acadêmico..."
     }}
     """
     try:
-        resposta = modelo.generate_content(
-            prompt,
-            generation_config={"response_mime_type": "application/json"}
-        )
-        dicionario_dados = json.loads(resposta.text)
+        resposta = modelo.generate_content(prompt)
+        texto_limpo = resposta.text.strip()
+        
+        # Extrator Blindado de JSON (Evita o erro 500)
+        match = re.search(r'\{.*\}', texto_limpo, re.DOTALL)
+        if match:
+            texto_limpo = match.group(0)
+            
+        dicionario_dados = json.loads(texto_limpo)
         
         dicionario_higienizado = {}
         for chave, texto_gerado in dicionario_dados.items():
+            if isinstance(texto_gerado, str):
+                texto_gerado = texto_gerado.replace("{", "").replace("}", "").replace("[", "").replace("]", "").replace("*", "").strip()
+                texto_gerado = texto_gerado.replace("QUEBRA", "[QUEBRA]")
+            else:
+                texto_gerado = str(texto_gerado)
+                
             chave_limpa = chave.replace("{", "").replace("}", "").strip()
             chave_marcador = f"{{{{{chave_limpa}}}}}"
-            dicionario_higienizado[chave_marcador] = str(texto_gerado).strip()
+            dicionario_higienizado[chave_marcador] = texto_gerado
             
         return dicionario_higienizado
     except Exception as e:
-        raise Exception(f"Falha na IA (Tags): {str(e)}")
+        raise Exception(f"Falha na formatação da IA. Clique em gerar novamente. Detalhe: {str(e)}")
 
 # =========================================================
 # FUNÇÕES DA FERRAMENTA 2: GERADOR UNIVERSAL (GABARITO)
@@ -123,48 +137,61 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     TEMA/CASO: {texto_tema}
     TEMPLATE: {texto_template}
     
-    REGRA MÁXIMA DE COMPORTAMENTO:
-    - É EXPRESSAMENTE PROIBIDO iniciar o texto com saudações (ex: "Olá", "Bem-vindo", "Aqui está").
-    - É EXPRESSAMENTE PROIBIDO terminar com mensagens conversacionais (ex: "Espero ter ajudado", "Bons estudos").
-    - O conteúdo deve ser DENSO, RICO, COM PARÁGRAFOS EXTENSOS E VOCABULÁRIO TÉCNICO. Não seja raso!
+    REGRA MÁXIMA DE COMPORTAMENTO E QUALIDADE:
+    - NÃO use NENHUMA saudação ou despedida. Vá DIRETO AO PONTO.
+    - É EXPRESSAMENTE PROIBIDO gerar conteúdo raso. Exijo parágrafos densos, análises profundas e vocabulário acadêmico de alto nível.
     
-    A SAÍDA DEVE SEGUIR RIGOROSAMENTE ESTA ESTRUTURA VISUAL E DE CONTEÚDO:
+    ESTRUTURA VISUAL OBRIGATÓRIA (SIGA EXATAMENTE ESTE PADRÃO MARKDOWN):
     
-    **1. Apresentação do Desafio Profissional**
-    [Escreva uma análise densa e detalhada sobre o contexto inicial do desafio]
+    Pré-visualização do Resultado:
+    Olá! Serei seu especialista acadêmico neste Desafio Profissional. Vamos preencher o template passo a passo.
     
-    **2. Materiais de Referência (Ambientação)**
-    - **Aspecto 1:** [Escreva de forma aprofundada o aspecto e o porquê]
-    - **Aspecto 2:** [Escreva de forma aprofundada o aspecto e o porquê]
-    - **Aspecto 3:** [Escreva de forma aprofundada o aspecto e o porquê]
+    ---
+    **Na Etapa 1 (Apresentação do Desafio Profissional), você deve apenas ler e compreender o desafio.**
     
-    **3. Levantamento de Conceitos Teóricos**
-    - **[Nome do Conceito 1]:** [Definição extensa e como se aplica]
-    - **[Nome do Conceito 2]:** [Definição extensa e como se aplica]
-    - **[Nome do Conceito 3]:** [Definição extensa e como se aplica]
-    - **[Nome do Conceito 4]:** [Definição extensa e como se aplica]
+    ---
+    **Na Etapa 2 (Materiais de referência - ambientação), escreva isso:**
     
-    **4. Aplicação dos Conceitos Teóricos ao Desafio Profissional**
-    - **Como o conceito X explica o que aconteceu na situação?**
-      [Resposta analítica, longa e rica em detalhes conectando teoria e prática]
+    **1. O que chamou atenção:** **[Escreva o Conceito do Aspecto 1]**
+    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
+    
+    **2. O que chamou atenção:** **[Escreva o Conceito do Aspecto 2]**
+    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
+    
+    **3. O que chamou atenção:** **[Escreva o Conceito do Aspecto 3]**
+    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
+    
+    ---
+    **Na Etapa 3 (Levantamento de conceitos teóricos), escreva isso:**
+    
+    - **[Nome do Conceito 1]:** [Definição extensa e elaborada mostrando como se aplica ao caso]
+    - **[Nome do Conceito 2]:** [Definição extensa e elaborada...]
+    - **[Nome do Conceito 3]:** [Definição extensa e elaborada...]
+    - **[Nome do Conceito 4]:** [Definição extensa e elaborada...]
+    
+    ---
+    **Na Etapa 4 (Aplicação dos conceitos teóricos ao Desafio Profissional), escreva isso:**
+    
+    - **Como o conceito de [Conceito Principal] explica o que aconteceu na situação?**
+      [Parágrafo analítico longo e detalhado dissecando o problema]
     - **O que a teoria nos ajuda a entender sobre o problema central?**
-      [Resposta aprofundada detalhando as nuances do problema]
+      [Parágrafo profundo conectando sintomas e teorias]
     - **Que soluções possíveis a teoria aponta (e por que elas fazem sentido)?**
-      [Plano de ação robusto e bem justificado]
+      [Propostas práticas detalhadas fundamentadas na teoria]
       
-    **5. AVALIATIVA: Redação do Produto - Memorial Analítico**
+    ---
+    **Na Etapa 5 (Memorial Analítico), escreva isso:**
+    
     **Resumo do que você descobriu:** [Parágrafo denso]
-    **Contextualização do desafio:** [Parágrafo denso com Quem, Onde e Qual a Situação]
-    **Análise:** [Parágrafo profundo utilizando os conceitos para explicar a situação]
-    **Propostas de solução:** [Lista detalhada ou parágrafos extensos de soluções plausíveis]
-    **Conclusão reflexiva:** [Aprendizado rico do aluno]
-    **Referências:** [Referências acadêmicas reais]
-    **Autoavaliação:** [Análise crítica sobre o processo de estudo do aluno]
+    **Contextualização do desafio:** [Quem? Onde? Qual a situação? Parágrafo denso]
+    **Análise:** [Parágrafo profundo de pelo menos 6 linhas utilizando conceitos para explicar a situação]
+    **Propostas de solução:** [Recomendações detalhadas. Pelo menos 2 parágrafos robustos]
+    **Conclusão reflexiva:** [O que aprendeu de forma madura. Pelo menos 2 parágrafos]
+    **Referências:** [Liste no padrão ABNT]
+    **Autoavaliação:** [Análise crítica sobre o próprio processo de estudo]
     """
     try:
         resposta = modelo.generate_content(prompt)
-        if not resposta.parts:
-            raise Exception("A resposta foi bloqueada pelos filtros de segurança do Google.")
         return resposta.text
     except Exception as e:
         raise Exception(f"Falha na IA (Gabarito): {str(e)}")
@@ -183,7 +210,7 @@ def index():
         except:
             pass
             
-    # Força a inclusão do 1.5 Flash (com 1500 requisições diárias)
+    # Força o Flash rápido e robusto a ser a primeira opção (para não bater o limite)
     if "gemini-1.5-flash" not in modelos_disponiveis:
         modelos_disponiveis.insert(0, "gemini-1.5-flash")
         
@@ -215,7 +242,7 @@ def processar():
                 return send_file(
                     documento_pronto, 
                     as_attachment=True, 
-                    download_name="Desafio_Preenchido_Perfeito.docx",
+                    download_name="Desafio_Preenchido_Academico.docx",
                     mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
         
