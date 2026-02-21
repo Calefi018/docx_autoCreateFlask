@@ -11,13 +11,14 @@
         input:focus { outline: none; border-color: #FF4B4B; }
         button { width: 100%; padding: 12px; margin-top: 15px; background-color: #FF4B4B; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.2s;}
         button:hover { background-color: #ff3333; }
-        .error { color: #FF4B4B; font-size: 0.9rem; margin-bottom: 15px; }
+        .error { color: #FF4B4B; font-size: 0.9rem; margin-bottom: 15px; font-weight: bold; }
         h2 { margin-top: 0; }
     </style>
 </head>
 <body>
     <div class="login-box">
         <h2>Acesso Restrito</h2>
+        
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -25,8 +26,9 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
+        
         <form method="POST">
-            <input type="text" name="username" placeholder="Nome de Utilizador" required>
+            <input type="text" name="username" placeholder="Nome de Usuário" required>
             <input type="password" name="password" placeholder="Senha" required>
             <button type="submit">Entrar na Ferramenta</button>
         </form>
