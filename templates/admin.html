@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0E1117; color: #FAFAFA; padding: 2rem; }
+        .nav { margin-bottom: 20px; }
+        .nav a { color: #2196F3; text-decoration: none; margin-right: 15px; font-weight: bold;}
+        .nav a.logout { color: #FF4B4B; float: right; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background-color: #262730; border-radius: 8px; overflow: hidden; }
+        th, td { border-bottom: 1px solid #444C56; padding: 12px 15px; text-align: left; }
+        th { background-color: #1c1d24; color: #9E9E9E; }
+        .form-box { background-color: #262730; padding: 25px; border-radius: 8px; margin-bottom: 20px; }
+        .input-group { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; align-items: center;}
+        input, select { padding: 10px; border-radius: 4px; border: 1px solid #444C56; background: #0E1117; color: white; flex: 1; min-width: 150px;}
+        button { padding: 10px 20px; background-color: #57D2A9; color: #0E1117; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;}
+        .btn-del { background-color: #FF4B4B; text-decoration: none; padding: 6px 12px; border-radius: 4px; color: white; font-size: 0.85rem;}
+        .expired { color: #FF4B4B; font-weight: bold; }
+        .active { color: #57D2A9; }
+        .messages { color: #57D2A9; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">&larr; Voltar para o Site</a>
+        <a href="/logout" class="logout">Sair</a>
+    </div>
+    
+    <h2>Gestão de Clientes e Acessos</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="messages" style="color: {% if category == 'error' %}#FF4B4B{% else %}#57D2A9{% endif %}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="form-box">
+        <h3 style="margin-top: 0;">Criar Novo Acesso</h3>
+        <form method="POST">
+            <div class="input-group">
+                <input type="text" name="username" placeholder="Nome do Cliente" required>
+                <input type="password" name="password" placeholder="Senha de Acesso" required>
+            </div>
+            <div class="input-group">
+                <select name="role">
+                    <option value="cliente">Cliente (Paga pelo acesso)</option>
+                    <option value="sub-admin">Sub-Admin (Seu Sócio/Gerente)</option>
+                    <option value="admin">Administrador Geral</option>
+                </select>
+                <label style="color: #9E9E9E; font-size: 0.9rem;">Expira em:</label>
+                <input type="date" name="expiration_date" title="Deixe vazio para acesso vitalício">
+                <button type="submit">Gerar Conta</button>
+            </div>
+        </form>
+    </div>
+
+    <h3>Contas Ativas no Sistema</h3>
+    <table>
+        <tr>
+            <th>Usuário</th>
+            <th>Nível</th>
+            <th>Data de Expiração</th>
+            <th>Status</th>
+            <th>Ações</th>
+        </tr>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.username }}</td>
+            <td>{{ user.role.title() }}</td>
+            <td>{{ user.expiration_date.strftime('%d/%m/%Y') if user.expiration_date else 'Vitalício' }}</td>
+            <td>
+                {% if user.expiration_date and user.expiration_date < hoje %}
+                    <span class="expired">Expirado</span>
+                {% else %}
+                    <span class="active">Ativo</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if user.username != 'admin' %}
+                    <a href="/delete_user/{{ user.id }}" class="btn-del" onclick="return confirm('Tem certeza que deseja apagar o acesso deste cliente?')">Revogar Acesso</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
