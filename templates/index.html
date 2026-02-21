@@ -105,8 +105,10 @@
 <body>
 
 <div class="top-nav">
+    <span style="color: #9E9E9E; font-size: 0.9rem; margin-right: 15px;">Olá, {{ user.username }}</span>
+    <a href="/mudar_senha" style="color: #2196F3; margin-right: 15px;">Mudar Senha</a>
     {% if role in ['admin', 'sub-admin'] %}
-        <a href="/admin" style="color: #57D2A9;">⚙️ Painel Admin</a>
+        <a href="/admin" style="color: #57D2A9; margin-right: 15px;">⚙️ Painel Admin</a>
     {% endif %}
     <a href="/logout" style="color: #FF4B4B;">Sair</a>
 </div>
@@ -254,3 +256,4 @@
 </script>
 </body>
 </html>
+
