@@ -16,6 +16,7 @@
             --border-color: #444C56;
             --success-bg: #0E3A2F;
             --success-text: #57D2A9;
+            --btn-blue: #2196F3;
         }
 
         body {
@@ -35,16 +36,12 @@
         .form-group { margin-bottom: 1.5rem; }
         label.main-label { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; display: block; }
 
-        input[type="file"], select, textarea {
+        select, textarea {
             width: 100%; background-color: var(--bg-secondary); border: 1px solid var(--border-color);
             border-radius: 8px; padding: 0.75rem 1rem; font-size: 1rem; color: var(--text-color);
             font-family: 'Inter', sans-serif; box-sizing: border-box;
         }
-        input[type="file"]::-webkit-file-upload-button {
-            background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color);
-            border-radius: 4px; padding: 4px 10px; margin-right: 10px; cursor: pointer;
-        }
-        input[type="file"]:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary-color); }
+        select:focus, textarea:focus { outline: none; border-color: var(--primary-color); }
 
         .radio-group { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
         .radio-option { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; }
@@ -77,14 +74,19 @@
         .header-resultado {
             display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem;
+            flex-wrap: wrap; gap: 10px;
         }
         .header-resultado h2 { margin: 0; font-size: 1.5rem;}
         
-        .btn-copiar {
-            background-color: #4CAF50; color: white; border: none; border-radius: 4px;
-            padding: 6px 12px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+        .btn-action {
+            color: white; border: none; border-radius: 4px; padding: 6px 12px; 
+            font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
         }
+        .btn-copiar { background-color: #4CAF50; }
         .btn-copiar:hover { background-color: #45a049; }
+        
+        .btn-baixar { background-color: var(--btn-blue); }
+        .btn-baixar:hover { background-color: #1976D2; }
 
         #resultado-texto { font-size: 0.95rem; line-height: 1.7; color: var(--text-color); }
         #resultado-texto h1, #resultado-texto h2, #resultado-texto h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600; }
@@ -98,7 +100,7 @@
 
 <div class="st-container">
     <h1>Hub de Desafios</h1>
-    <p class="subtitle">Gere trabalhos universitários originais com formatação perfeita.</p>
+    <p class="subtitle">Gere trabalhos universitários originais de forma 100% automatizada.</p>
 
     <form id="meuFormulario">
         <div class="form-group">
@@ -107,32 +109,27 @@
                 <label class="radio-option">
                     <input type="radio" name="ferramenta" value="preenchedor" checked>
                     <div>
-                        <span class="radio-title">Preenchedor via Tags</span><br>
-                        <span class="radio-desc">Baixa o DOCX preenchido e exibe o Memorial na tela para colar no portal.</span>
+                        <span class="radio-title">Preenchedor via Tags Automático</span><br>
+                        <span class="radio-desc">Gera o DOCX a partir do template do servidor e extrai o texto para o portal.</span>
                     </div>
                 </label>
                 <label class="radio-option">
                     <input type="radio" name="ferramenta" value="gabarito">
                     <div>
                         <span class="radio-title">Gerador de Gabarito</span><br>
-                        <span class="radio-desc">Lê o arquivo bruto e escreve todo o passo a passo na tela.</span>
+                        <span class="radio-desc">Escreve todo o passo a passo na tela para visualização rápida.</span>
                     </div>
                 </label>
             </div>
         </div>
 
         <div class="form-group">
-            <label class="main-label" for="arquivo">2. Anexe o Template (.docx)</label>
-            <input type="file" id="arquivo" name="arquivo" accept=".docx" required>
+            <label class="main-label" for="tema">2. Cole o Tema do Desafio</label>
+            <textarea id="tema" name="tema" rows="8" placeholder="Cole aqui o texto do portal..." required></textarea>
         </div>
 
         <div class="form-group">
-            <label class="main-label" for="tema">3. Cole o Tema do Desafio</label>
-            <textarea id="tema" name="tema" rows="6" placeholder="Cole aqui o texto do portal..." required></textarea>
-        </div>
-
-        <div class="form-group">
-            <label class="main-label" for="modelo">4. Selecione a IA</label>
+            <label class="main-label" for="modelo">3. Selecione a IA</label>
             <select id="modelo" name="modelo">
                 {% for modelo in modelos %}
                     <option value="{{ modelo }}">{{ modelo }}</option>
@@ -153,7 +150,10 @@
     <div id="resultado-texto-container">
         <div class="header-resultado">
             <h2 id="titulo-resultado">Texto Extraído:</h2>
-            <button class="btn-copiar" onclick="copiarTexto()">📋 Copiar Texto</button>
+            <div>
+                <button class="btn-action btn-baixar" id="btn-baixar" style="display:none;" onclick="baixarManual()">📥 Baixar DOCX</button>
+                <button class="btn-action btn-copiar" onclick="copiarTexto()">📋 Copiar Texto</button>
+            </div>
         </div>
         <div id="texto-oculto" style="display: none;"></div>
         <div id="resultado-texto"></div>
@@ -161,6 +161,9 @@
 </div>
 
 <script>
+    let arquivoBase64Global = "";
+    let nomeArquivoGlobal = "";
+
     function copiarTexto() {
         const texto = document.getElementById("texto-oculto").innerText;
         navigator.clipboard.writeText(texto).then(() => {
@@ -170,6 +173,16 @@
         });
     }
 
+    function baixarManual() {
+        if(!arquivoBase64Global) return;
+        const link = document.createElement('a');
+        link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + arquivoBase64Global;
+        link.download = nomeArquivoGlobal;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     document.getElementById('meuFormulario').addEventListener('submit', function(event) {
         event.preventDefault(); 
 
@@ -177,6 +190,7 @@
         document.getElementById('loading').style.display = 'block';
         document.getElementById('msg-sucesso').style.display = 'none';
         document.getElementById('resultado-texto-container').style.display = 'none';
+        document.getElementById('btn-baixar').style.display = 'none';
 
         const formData = new FormData(this);
 
@@ -193,7 +207,6 @@
                 } catch(e) {}
                 throw new Error(errorMsg); 
             }
-            // Todo o tráfego agora é JSON seguro
             return response.json(); 
         })
         .then(resultado => {
@@ -206,25 +219,21 @@
             }
 
             if (resultado.tipo === 'sucesso_tags') {
-                // 1. Mágica do Download Automático do DOCX
-                const link = document.createElement('a');
-                link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + resultado.arquivo_base64;
-                link.download = resultado.nome_arquivo;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                arquivoBase64Global = resultado.arquivo_base64;
+                nomeArquivoGlobal = resultado.nome_arquivo;
+                
+                baixarManual(); 
 
-                // 2. Mostra o texto para o Portal
+                document.getElementById('btn-baixar').style.display = 'inline-block';
                 document.getElementById('msg-sucesso').style.display = 'block';
-                document.getElementById('msg-sucesso').innerText = "✅ DOCX baixado! (Abra-o no Word e clique em 'Salvar como PDF' para garantir a formatação perfeita). Copie o texto abaixo para o portal.";
+                document.getElementById('msg-sucesso').innerText = "✅ Trabalho Gerado! Caso o download não tenha iniciado, clique no botão azul 'Baixar DOCX'.";
                 
                 document.getElementById('titulo-resultado').innerText = "Memorial Analítico para o Portal";
                 document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.memorial_texto);
-                document.getElementById('texto-oculto').innerText = resultado.memorial_texto.replace(/\*\*/g, ''); // Tira os asteriscos na hora de copiar
+                document.getElementById('texto-oculto').innerText = resultado.memorial_texto.replace(/\*\*/g, ''); 
                 document.getElementById('resultado-texto-container').style.display = 'block';
             } 
             else if (resultado.tipo === 'texto') {
-                // Modo Gabarito Clássico
                 document.getElementById('msg-sucesso').style.display = 'block';
                 document.getElementById('msg-sucesso').innerText = "✅ Gabarito gerado com sucesso!";
                 
