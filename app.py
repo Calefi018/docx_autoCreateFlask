@@ -95,7 +95,7 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     Para destacar conceitos, use **negrito**. Para tópicos, use o traço (-). Pule linhas com Enter.
     É EXPRESSAMENTE PROIBIDO ATRIBUIR NOTAS NUMÉRICAS A SI MESMO NA AUTOAVALIAÇÃO.
     
-    TEMA/CASO DO DESAFIO:
+    TEMA/CASO DO DESAFIO (com as referências no final):
     {texto_tema}
     
     GERAÇÃO OBRIGATÓRIA (Crie textos extensos dentro de cada delimitador e NADA MAIS):
@@ -129,17 +129,17 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     - **[Nome do Conceito 2]:** [Explicação teórica longa e detalhada...]
     [END_CONCEITOS_TEORICOS]
     
-    [START_RESP_AUTORRESP]
-    Análise teórica profunda e extensa aplicada ao cenário específico...
-    [END_RESP_AUTORRESP]
+    [START_ANALISE_CONCEITO_1]
+    Análise teórica profunda respondendo como o conceito principal explica o que aconteceu na situação...
+    [END_ANALISE_CONCEITO_1]
     
-    [START_RESP_PILARES]
-    Análise teórica densa sobre o problema central...
-    [END_RESP_PILARES]
+    [START_ENTENDIMENTO_TEORICO]
+    Análise teórica densa respondendo o que a teoria ajuda a entender sobre o problema central...
+    [END_ENTENDIMENTO_TEORICO]
     
-    [START_RESP_SOLUCOES]
-    Apresente um plano de ação robusto listando etapas detalhadas...
-    [END_RESP_SOLUCOES]
+    [START_SOLUCOES_TEORICAS]
+    Apresente um plano de ação robusto respondendo que soluções possíveis a teoria aponta e por que fazem sentido...
+    [END_SOLUCOES_TEORICAS]
     
     [START_RESUMO_MEMORIAL]
     Resumo executivo denso e bem articulado...
@@ -161,6 +161,10 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     Conclusão reflexiva madura sobre o aprendizado do caso...
     [END_CONCLUSAO_MEMORIAL]
     
+    [START_REFERENCIAS_ADICIONAIS]
+    Localize as referências bibliográficas e fontes que foram informadas no texto do TEMA/CASO DO DESAFIO e liste-as aqui rigorosamente no padrão ABNT. Se não houver referências coladas, cite os conceitos teóricos gerais utilizados.
+    [END_REFERENCIAS_ADICIONAIS]
+    
     [START_AUTOAVALIACAO_MEMORIAL]
     Autoavaliação crítica do aluno focada estritamente no processo de aprendizado, desafios superados e maturação acadêmica. É EXPRESSAMENTE PROIBIDO se dar qualquer nota ou pontuação.
     [END_AUTOAVALIACAO_MEMORIAL]
@@ -171,9 +175,9 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
         
         chaves = [
             "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
-            "CONCEITOS_TEORICOS", "RESP_AUTORRESP", "RESP_PILARES", "RESP_SOLUCOES",
+            "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS",
             "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", "PROPOSTAS_MEMORIAL",
-            "CONCLUSAO_MEMORIAL", "AUTOAVALIACAO_MEMORIAL"
+            "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"
         ]
         
         dicionario_higienizado = {}
@@ -201,7 +205,7 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
     Atue como um Especialista Acadêmico Sênior resolvendo um Desafio Profissional.
-    TEMA/CASO: {texto_tema}
+    TEMA/CASO (com as referências no final): {texto_tema}
     TEMPLATE: {texto_template}
     
     REGRA MÁXIMA DE COMPORTAMENTO E QUALIDADE:
@@ -253,7 +257,7 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     **Análise:** [Parágrafo profundo utilizando conceitos]
     **Propostas de solução:** [Recomendações detalhadas]
     **Conclusão reflexiva:** [O que aprendeu de forma madura]
-    **Referências:** [Padrão ABNT]
+    **Referências:** [Extraia as referências do texto do tema e formate em padrão ABNT]
     **Autoavaliação:** [Análise crítica sobre o próprio estudo focada nos aprendizados. NUNCA DÊ UMA NOTA A SI MESMO]
     """
     try:
@@ -308,7 +312,7 @@ def processar():
                 arquivo_bytes = documento_pronto.read()
                 arquivo_base64 = base64.b64encode(arquivo_bytes).decode('utf-8')
                 
-                # 2. Monta o texto do Memorial Analítico para a tela
+                # 2. Monta o texto do Memorial Analítico para a tela, com referências pescadas
                 memorial_texto = f"""### Memorial Analítico
 
 **Resumo**
@@ -327,7 +331,7 @@ def processar():
 {respostas_geradas.get('{{CONCLUSAO_MEMORIAL}}', '')}
 
 **Referências**
-MULLER, Cláudia et al. Perspectivas Profissionais. Florianópolis: Arqué, 2023. VIEIRA, Paulo. O poder da ação: faça sua vida ideal sair do papel. Fortaleza: Premius, 2015.
+{respostas_geradas.get('{{REFERENCIAS_ADICIONAIS}}', '')}
 
 **Autoavaliação**
 {respostas_geradas.get('{{AUTOAVALIACAO_MEMORIAL}}', '')}
