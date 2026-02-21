@@ -16,10 +16,11 @@
         .input-group { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; align-items: center;}
         input, select { padding: 10px; border-radius: 4px; border: 1px solid #444C56; background: #0E1117; color: white; flex: 1; min-width: 150px;}
         button { padding: 10px 20px; background-color: #57D2A9; color: #0E1117; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;}
+        .btn-edit { background-color: #2196F3; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 0.85rem; margin-right: 5px;}
         .btn-del { background-color: #FF4B4B; text-decoration: none; padding: 6px 12px; border-radius: 4px; color: white; font-size: 0.85rem;}
         .expired { color: #FF4B4B; font-weight: bold; }
         .active { color: #57D2A9; }
-        .messages { color: #57D2A9; margin-bottom: 15px; }
+        .messages { padding: 10px; border-radius: 5px; margin-bottom: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -33,7 +34,7 @@
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div class="messages" style="color: {% if category == 'error' %}#FF4B4B{% else %}#57D2A9{% endif %}">{{ message }}</div>
+                <div class="messages" style="color: {% if category == 'error' %}#FF4B4B{% else %}#57D2A9{% endif %}; background-color: #1c1d24;">{{ message }}</div>
             {% endfor %}
         {% endif %}
     {% endwith %}
@@ -48,8 +49,10 @@
             <div class="input-group">
                 <select name="role">
                     <option value="cliente">Cliente (Paga pelo acesso)</option>
+                    {% if current_user.role == 'admin' %}
                     <option value="sub-admin">Sub-Admin (Seu Sócio/Gerente)</option>
                     <option value="admin">Administrador Geral</option>
+                    {% endif %}
                 </select>
                 <label style="color: #9E9E9E; font-size: 0.9rem;">Expira em:</label>
                 <input type="date" name="expiration_date" title="Deixe vazio para acesso vitalício">
@@ -81,6 +84,7 @@
             </td>
             <td>
                 {% if user.username != 'admin' %}
+                    <a href="/edit_user/{{ user.id }}" class="btn-edit">Editar</a>
                     <a href="/delete_user/{{ user.id }}" class="btn-del" onclick="return confirm('Tem certeza que deseja apagar o acesso deste cliente?')">Revogar Acesso</a>
                 {% endif %}
             </td>
