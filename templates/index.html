@@ -26,10 +26,16 @@
             margin: 0;
             padding: 0;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            align-items: center;
         }
 
-        .st-container { width: 100%; max-width: 730px; padding: 3rem 1.5rem; }
+        .top-nav {
+            width: 100%; max-width: 730px; text-align: right; padding: 15px 0;
+        }
+        .top-nav a { text-decoration: none; font-weight: 600; margin-left: 15px; }
+
+        .st-container { width: 100%; max-width: 730px; padding: 1rem 1.5rem 3rem 1.5rem; }
         h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 0.5rem; }
         p.subtitle { font-size: 1rem; color: #9E9E9E; margin-bottom: 2rem; }
 
@@ -98,6 +104,13 @@
 </head>
 <body>
 
+<div class="top-nav">
+    {% if role in ['admin', 'sub-admin'] %}
+        <a href="/admin" style="color: #57D2A9;">⚙️ Painel Admin</a>
+    {% endif %}
+    <a href="/logout" style="color: #FF4B4B;">Sair</a>
+</div>
+
 <div class="st-container">
     <h1>Hub de Desafios</h1>
     <p class="subtitle">Gere trabalhos universitários originais de forma 100% automatizada.</p>
@@ -110,7 +123,7 @@
                     <input type="radio" name="ferramenta" value="preenchedor" checked>
                     <div>
                         <span class="radio-title">Preenchedor via Tags Automático</span><br>
-                        <span class="radio-desc">Gera o DOCX a partir do template do servidor e extrai o texto para o portal.</span>
+                        <span class="radio-desc">Gera o DOCX a partir do template e extrai o texto para o portal.</span>
                     </div>
                 </label>
                 <label class="radio-option">
@@ -185,7 +198,6 @@
 
     document.getElementById('meuFormulario').addEventListener('submit', function(event) {
         event.preventDefault(); 
-
         document.getElementById('btn-submit').style.display = 'none';
         document.getElementById('loading').style.display = 'block';
         document.getElementById('msg-sucesso').style.display = 'none';
@@ -194,10 +206,7 @@
 
         const formData = new FormData(this);
 
-        fetch('/processar', {
-            method: 'POST',
-            body: formData
-        })
+        fetch('/processar', { method: 'POST', body: formData })
         .then(async response => {
             if (!response.ok) {
                 let errorMsg = "Erro desconhecido no servidor.";
@@ -213,30 +222,23 @@
             document.getElementById('loading').style.display = 'none';
             document.getElementById('btn-submit').style.display = 'block';
 
-            if (resultado.erro) {
-                alert("Erro: " + resultado.erro);
-                return;
-            }
+            if (resultado.erro) { alert("Erro: " + resultado.erro); return; }
 
             if (resultado.tipo === 'sucesso_tags') {
                 arquivoBase64Global = resultado.arquivo_base64;
                 nomeArquivoGlobal = resultado.nome_arquivo;
-                
                 baixarManual(); 
 
                 document.getElementById('btn-baixar').style.display = 'inline-block';
                 document.getElementById('msg-sucesso').style.display = 'block';
                 document.getElementById('msg-sucesso').innerText = "✅ Trabalho Gerado! Caso o download não tenha iniciado, clique no botão azul 'Baixar DOCX'.";
-                
                 document.getElementById('titulo-resultado').innerText = "Memorial Analítico para o Portal";
                 document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.memorial_texto);
                 document.getElementById('texto-oculto').innerText = resultado.memorial_texto.replace(/\*\*/g, ''); 
                 document.getElementById('resultado-texto-container').style.display = 'block';
-            } 
-            else if (resultado.tipo === 'texto') {
+            } else if (resultado.tipo === 'texto') {
                 document.getElementById('msg-sucesso').style.display = 'block';
                 document.getElementById('msg-sucesso').innerText = "✅ Gabarito gerado com sucesso!";
-                
                 document.getElementById('titulo-resultado').innerText = "Pré-visualização do Gabarito";
                 document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.conteudo);
                 document.getElementById('texto-oculto').innerText = resultado.conteudo.replace(/\*\*/g, '');
@@ -250,6 +252,5 @@
         });
     });
 </script>
-
 </body>
 </html>
