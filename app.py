@@ -1,8 +1,9 @@
 import os
 import io
 import re
+import base64
 import traceback
-from flask import Flask, render_template, request, send_file, jsonify
+from flask import Flask, render_template, request, jsonify
 from docx import Document
 import google.generativeai as genai
 
@@ -28,11 +29,7 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                 tem_tag = True
                 
         if tem_tag:
-            # ========================================================
-            # AUTO FORMATADOR MÁGICO (Design idêntico ao Gabarito)
-            # ========================================================
-            
-            # 1. Pula linha e bota negrito nos títulos da Etapa 5
+            # AUTO FORMATADOR MÁGICO
             titulos_memorial = [
                 "Resumo", "Contextualização do desafio", "Análise", 
                 "Propostas de solução", "Conclusão reflexiva", "Referências", "Autoavaliação"
@@ -41,7 +38,6 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                 if texto_original.strip().startswith(t):
                     texto_original = texto_original.replace(t, f"**{t}**\n", 1)
             
-            # 2. Bota negrito nos Aspectos e pula linha antes do "Por quê:"
             titulos_aspectos = ["Aspecto 1:", "Aspecto 2:", "Aspecto 3:", "Por quê:"]
             for t in titulos_aspectos:
                 if t in texto_original:
@@ -50,18 +46,14 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                     else:
                         texto_original = texto_original.replace(t, f"**{t}** ")
                         
-            # 3. Auto-negrito e pulo de linha para as perguntas da Etapa 4
             if "?" in texto_original and "Por quê:" not in texto_original:
                 partes = texto_original.split("?", 1)
                 pergunta = partes[0].strip()
                 if 10 < len(pergunta) < 150 and not pergunta.startswith("**"):
                     texto_original = f"**{pergunta}?**\n" + partes[1].lstrip()
 
-            # Limpa espacinhos extras gerados pelas quebras de linha
             texto_original = texto_original.replace("**\n ", "**\n")
             texto_original = texto_original.replace(":**\n:", ":**\n")
-            
-            # ========================================================
 
             paragrafo.clear()
             linhas = texto_original.split('\n')
@@ -75,7 +67,6 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                 if i < len(linhas) - 1:
                     paragrafo.add_run('\n')
 
-    # Varre todo o documento
     for paragrafo in doc.paragraphs:
         processar_paragrafo(paragrafo)
 
@@ -98,10 +89,10 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     REGRA DE OURO (QUALIDADE EXTREMA): 
     É EXPRESSAMENTE PROIBIDO ser raso ou breve. Suas respostas devem ser DENSAS, PROFUNDAS e usar vocabulário técnico acadêmico rigoroso. Cada justificativa e análise deve ter múltiplas linhas de argumentação fundamentada.
     
-    REGRA DE ESTRUTURA (ANTI-ERRO E ANTI-FALAÇÃO):
+    REGRA DE ESTRUTURA (ANTI-ERRO):
     NÃO USE FORMATO JSON. Você DEVE retornar o texto preenchendo as caixas delimitadoras exatas abaixo.
-    É ESTRITAMENTE PROIBIDO usar frases introdutórias (como "Segue a lista", "Aqui estão as respostas").
-    Para destacar conceitos, use **negrito**. Para tópicos, use o traço (-). Pule linhas normalmente com Enter.
+    É ESTRITAMENTE PROIBIDO usar frases introdutórias (como "Segue a lista").
+    Para destacar conceitos, use **negrito**. Para tópicos, use o traço (-). Pule linhas com Enter.
     
     TEMA/CASO DO DESAFIO:
     {texto_tema}
@@ -214,55 +205,54 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     
     REGRA MÁXIMA DE COMPORTAMENTO E QUALIDADE:
     - NÃO use NENHUMA saudação ou despedida. Vá DIRETO AO PONTO.
-    - É EXPRESSAMENTE PROIBIDO gerar conteúdo raso. Exijo parágrafos densos, análises profundas e vocabulário acadêmico de alto nível.
+    - É EXPRESSAMENTE PROIBIDO gerar conteúdo raso. Exijo parágrafos densos, análises profundas.
     
-    ESTRUTURA VISUAL OBRIGATÓRIA (SIGA EXATAMENTE ESTE PADRÃO MARKDOWN):
+    ESTRUTURA VISUAL OBRIGATÓRIA (SIGA ESTE PADRÃO MARKDOWN):
     
     Pré-visualização do Resultado:
-    Olá! Serei seu especialista acadêmico neste Desafio Profissional. Vamos preencher o template passo a passo.
+    Olá! Serei seu especialista acadêmico. Vamos preencher o template passo a passo.
     
     ---
-    **Na Etapa 1 (Apresentação do Desafio Profissional), você deve apenas ler e compreender o desafio.**
+    **Na Etapa 1, você deve apenas ler e compreender o desafio.**
     
     ---
-    **Na Etapa 2 (Materiais de referência - ambientação), escreva isso:**
+    **Na Etapa 2 (Materiais de referência), escreva isso:**
     
-    **1. O que chamou atenção:** **[Escreva o Conceito do Aspecto 1]**
-    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
+    **1. O que chamou atenção:** **[Aspecto 1]**
+    - **Por quê:** [Justificativa densa de no mínimo 4 linhas]
     
-    **2. O que chamou atenção:** **[Escreva o Conceito do Aspecto 2]**
-    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
+    **2. O que chamou atenção:** **[Aspecto 2]**
+    - **Por quê:** [Justificativa densa]
     
-    **3. O que chamou atenção:** **[Escreva o Conceito do Aspecto 3]**
-    - **Por quê:** [Justificativa técnica e profunda de no mínimo 4 linhas]
-    
-    ---
-    **Na Etapa 3 (Levantamento de conceitos teóricos), escreva isso:**
-    
-    - **[Nome do Conceito 1]:** [Definição extensa e elaborada mostrando como se aplica ao caso]
-    - **[Nome do Conceito 2]:** [Definição extensa e elaborada...]
-    - **[Nome do Conceito 3]:** [Definição extensa e elaborada...]
+    **3. O que chamou atenção:** **[Aspecto 3]**
+    - **Por quê:** [Justificativa densa]
     
     ---
-    **Na Etapa 4 (Aplicação dos conceitos teóricos ao Desafio Profissional), escreva isso:**
+    **Na Etapa 3 (Levantamento de conceitos), escreva isso:**
     
-    - **Como o conceito de [Conceito Principal] explica o que aconteceu na situação?**
-      [Parágrafo analítico longo e detalhado dissecando o problema]
-    - **O que a teoria nos ajuda a entender sobre o problema central?**
+    - **[Nome do Conceito 1]:** [Definição extensa]
+    - **[Nome do Conceito 2]:** [Definição extensa]
+    
+    ---
+    **Na Etapa 4 (Aplicação dos conceitos), escreva isso:**
+    
+    - **Como o conceito explica o que aconteceu?**
+      [Parágrafo analítico longo]
+    - **O que a teoria ajuda a entender sobre o problema?**
       [Parágrafo profundo conectando sintomas e teorias]
-    - **Que soluções possíveis a teoria aponta (e por que elas fazem sentido)?**
-      [Propostas práticas detalhadas fundamentadas na teoria]
+    - **Que soluções a teoria aponta?**
+      [Propostas práticas detalhadas]
       
     ---
     **Na Etapa 5 (Memorial Analítico), escreva isso:**
     
     **Resumo do que você descobriu:** [Parágrafo denso]
-    **Contextualização do desafio:** [Quem? Onde? Qual a situação? Parágrafo denso]
-    **Análise:** [Parágrafo profundo de pelo menos 6 linhas utilizando conceitos para explicar a situação]
-    **Propostas de solução:** [Recomendações detalhadas. Pelo menos 2 parágrafos robustos]
-    **Conclusão reflexiva:** [O que aprendeu de forma madura. Pelo menos 2 parágrafos]
-    **Referências:** [Liste no padrão ABNT]
-    **Autoavaliação:** [Análise crítica sobre o próprio processo de estudo]
+    **Contextualização do desafio:** [Quem? Onde? Qual a situação?]
+    **Análise:** [Parágrafo profundo utilizando conceitos]
+    **Propostas de solução:** [Recomendações detalhadas]
+    **Conclusão reflexiva:** [O que aprendeu de forma madura]
+    **Referências:** [Padrão ABNT]
+    **Autoavaliação:** [Análise crítica sobre o próprio estudo]
     """
     try:
         resposta = modelo.generate_content(prompt)
@@ -311,13 +301,42 @@ def processar():
         if ferramenta == 'preenchedor':
             respostas_geradas = gerar_respostas_ia_tags(texto_tema, modelo_escolhido)
             if respostas_geradas:
+                # 1. Gera o arquivo .docx preenchido
                 documento_pronto = preencher_template_com_tags(arquivo_memoria, respostas_geradas)
-                return send_file(
-                    documento_pronto, 
-                    as_attachment=True, 
-                    download_name="Desafio_Preenchido_Perfeito.docx",
-                    mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+                arquivo_bytes = documento_pronto.read()
+                arquivo_base64 = base64.b64encode(arquivo_bytes).decode('utf-8')
+                
+                # 2. Monta o texto do Memorial Analítico para a tela
+                memorial_texto = f"""### Memorial Analítico
+
+**Resumo**
+{respostas_geradas.get('{{RESUMO_MEMORIAL}}', '')}
+
+**Contextualização do desafio**
+{respostas_geradas.get('{{CONTEXTO_MEMORIAL}}', '')}
+
+**Análise**
+{respostas_geradas.get('{{ANALISE_MEMORIAL}}', '')}
+
+**Propostas de solução**
+{respostas_geradas.get('{{PROPOSTAS_MEMORIAL}}', '')}
+
+**Conclusão reflexiva**
+{respostas_geradas.get('{{CONCLUSAO_MEMORIAL}}', '')}
+
+**Referências**
+MULLER, Cláudia et al. Perspectivas Profissionais. Florianópolis: Arqué, 2023. VIEIRA, Paulo. O poder da ação: faça sua vida ideal sair do papel. Fortaleza: Premius, 2015.
+
+**Autoavaliação**
+{respostas_geradas.get('{{AUTOAVALIACAO_MEMORIAL}}', '')}
+"""
+                # Retorna tudo junto para o site!
+                return jsonify({
+                    "tipo": "sucesso_tags",
+                    "arquivo_base64": arquivo_base64,
+                    "nome_arquivo": "Desafio_Preenchido_Academico.docx",
+                    "memorial_texto": memorial_texto
+                })
         
         elif ferramenta == 'gabarito':
             texto_do_template = extrair_texto_docx(arquivo_memoria)
