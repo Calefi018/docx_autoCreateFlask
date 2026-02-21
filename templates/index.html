@@ -73,6 +73,19 @@
         }
 
         #resultado-texto-container { display: none; margin-top: 2rem; }
+        
+        .header-resultado {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem;
+        }
+        .header-resultado h2 { margin: 0; font-size: 1.5rem;}
+        
+        .btn-copiar {
+            background-color: #4CAF50; color: white; border: none; border-radius: 4px;
+            padding: 6px 12px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+        }
+        .btn-copiar:hover { background-color: #45a049; }
+
         #resultado-texto { font-size: 0.95rem; line-height: 1.7; color: var(--text-color); }
         #resultado-texto h1, #resultado-texto h2, #resultado-texto h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600; }
         #resultado-texto hr { border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0; }
@@ -95,14 +108,14 @@
                     <input type="radio" name="ferramenta" value="preenchedor" checked>
                     <div>
                         <span class="radio-title">Preenchedor via Tags</span><br>
-                        <span class="radio-desc">Substitui as tags do seu TEMPLATE_COM_TAGS.docx gerando um arquivo pronto.</span>
+                        <span class="radio-desc">Baixa o DOCX preenchido e exibe o Memorial na tela para colar no portal.</span>
                     </div>
                 </label>
                 <label class="radio-option">
                     <input type="radio" name="ferramenta" value="gabarito">
                     <div>
                         <span class="radio-title">Gerador de Gabarito</span><br>
-                        <span class="radio-desc">Lê qualquer arquivo e escreve o passo a passo na tela.</span>
+                        <span class="radio-desc">Lê o arquivo bruto e escreve todo o passo a passo na tela.</span>
                     </div>
                 </label>
             </div>
@@ -111,7 +124,6 @@
         <div class="form-group">
             <label class="main-label" for="arquivo">2. Anexe o Template (.docx)</label>
             <input type="file" id="arquivo" name="arquivo" accept=".docx" required>
-            <small style="color: #9E9E9E; display: block; margin-top: 5px;">*Para a opção 1, use o seu arquivo que contém as chaves {{VARIAVEL}}</small>
         </div>
 
         <div class="form-group">
@@ -136,16 +148,28 @@
         </div>
     </form>
 
-    <div class="success-box" id="msg-sucesso">✅ Trabalho gerado com sucesso!</div>
+    <div class="success-box" id="msg-sucesso"></div>
 
     <div id="resultado-texto-container">
-        <hr>
-        <h2>Pré-visualização do Gabarito:</h2>
+        <div class="header-resultado">
+            <h2 id="titulo-resultado">Texto Extraído:</h2>
+            <button class="btn-copiar" onclick="copiarTexto()">📋 Copiar Texto</button>
+        </div>
+        <div id="texto-oculto" style="display: none;"></div>
         <div id="resultado-texto"></div>
     </div>
 </div>
 
 <script>
+    function copiarTexto() {
+        const texto = document.getElementById("texto-oculto").innerText;
+        navigator.clipboard.writeText(texto).then(() => {
+            alert("✅ Texto copiado para a área de transferência!");
+        }).catch(err => {
+            alert("Erro ao copiar o texto.");
+        });
+    }
+
     document.getElementById('meuFormulario').addEventListener('submit', function(event) {
         event.preventDefault(); 
 
@@ -161,7 +185,6 @@
             body: formData
         })
         .then(async response => {
-            // Tratamento de erros do servidor para jogar na tela
             if (!response.ok) {
                 let errorMsg = "Erro desconhecido no servidor.";
                 try {
@@ -170,36 +193,45 @@
                 } catch(e) {}
                 throw new Error(errorMsg); 
             }
-            
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.includes("application/json")) {
-                return response.json().then(data => ({ tipo: 'json', dados: data }));
-            } else {
-                return response.blob().then(blob => ({ tipo: 'arquivo', dados: blob }));
-            }
+            // Todo o tráfego agora é JSON seguro
+            return response.json(); 
         })
         .then(resultado => {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('btn-submit').style.display = 'block';
 
-            if (resultado.tipo === 'json') {
-                if (resultado.dados.erro) {
-                    alert("Erro: " + resultado.dados.erro);
-                } else {
-                    document.getElementById('msg-sucesso').style.display = 'block';
-                    document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.dados.conteudo);
-                    document.getElementById('resultado-texto-container').style.display = 'block';
-                }
-            } else {
+            if (resultado.erro) {
+                alert("Erro: " + resultado.erro);
+                return;
+            }
+
+            if (resultado.tipo === 'sucesso_tags') {
+                // 1. Mágica do Download Automático do DOCX
+                const link = document.createElement('a');
+                link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + resultado.arquivo_base64;
+                link.download = resultado.nome_arquivo;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // 2. Mostra o texto para o Portal
                 document.getElementById('msg-sucesso').style.display = 'block';
-                const url = window.URL.createObjectURL(resultado.dados);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = 'Desafio_Profissional_Finalizado.docx';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
+                document.getElementById('msg-sucesso').innerText = "✅ DOCX baixado! (Abra-o no Word e clique em 'Salvar como PDF' para garantir a formatação perfeita). Copie o texto abaixo para o portal.";
+                
+                document.getElementById('titulo-resultado').innerText = "Memorial Analítico para o Portal";
+                document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.memorial_texto);
+                document.getElementById('texto-oculto').innerText = resultado.memorial_texto.replace(/\*\*/g, ''); // Tira os asteriscos na hora de copiar
+                document.getElementById('resultado-texto-container').style.display = 'block';
+            } 
+            else if (resultado.tipo === 'texto') {
+                // Modo Gabarito Clássico
+                document.getElementById('msg-sucesso').style.display = 'block';
+                document.getElementById('msg-sucesso').innerText = "✅ Gabarito gerado com sucesso!";
+                
+                document.getElementById('titulo-resultado').innerText = "Pré-visualização do Gabarito";
+                document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.conteudo);
+                document.getElementById('texto-oculto').innerText = resultado.conteudo.replace(/\*\*/g, '');
+                document.getElementById('resultado-texto-container').style.display = 'block';
             }
         })
         .catch(error => {
