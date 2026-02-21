@@ -297,23 +297,17 @@ def processar():
         ferramenta = request.form.get('ferramenta')
         modelo_escolhido = request.form.get('modelo')
         texto_tema = request.form.get('tema')
-        arquivo_upload = request.files.get('arquivo')
         
         if not texto_tema:
             return jsonify({"erro": "O tema do desafio não foi enviado."}), 400
 
-        # MÁGICA DO ARQUIVO LOCAL
-        if arquivo_upload and arquivo_upload.filename != '':
-            # O usuário anexou um arquivo manualmente
-            arquivo_memoria = io.BytesIO(arquivo_upload.read())
-        else:
-            # O usuário deixou vazio, o sistema pega o arquivo padrão do Github/Render
-            caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
-            if not os.path.exists(caminho_padrao):
-                return jsonify({"erro": "Você não anexou nenhum arquivo e o TEMPLATE_COM_TAGS.docx padrão não foi encontrado no servidor. Faça o upload dele no GitHub!"}), 400
-            
-            with open(caminho_padrao, 'rb') as f:
-                arquivo_memoria = io.BytesIO(f.read())
+        # LÓGICA DE LEITURA DO ARQUIVO LOCAL OBRIGATÓRIA
+        caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
+        if not os.path.exists(caminho_padrao):
+            return jsonify({"erro": "O arquivo TEMPLATE_COM_TAGS.docx não foi encontrado no servidor."}), 400
+        
+        with open(caminho_padrao, 'rb') as f:
+            arquivo_memoria = io.BytesIO(f.read())
 
         if ferramenta == 'preenchedor':
             respostas_geradas = gerar_respostas_ia_tags(texto_tema, modelo_escolhido)
@@ -353,6 +347,7 @@ def processar():
                 })
         
         elif ferramenta == 'gabarito':
+            # O gerador de gabarito agora também lê o arquivo raiz, sem precisar de anexo
             texto_do_template = extrair_texto_docx(arquivo_memoria)
             resposta_ia = gerar_resolucao_inteligente_gabarito(texto_do_template, texto_tema, modelo_escolhido)
             if resposta_ia:
