@@ -93,6 +93,7 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     NÃO USE FORMATO JSON. Você DEVE retornar o texto preenchendo as caixas delimitadoras exatas abaixo.
     É ESTRITAMENTE PROIBIDO usar frases introdutórias (como "Segue a lista").
     Para destacar conceitos, use **negrito**. Para tópicos, use o traço (-). Pule linhas com Enter.
+    É EXPRESSAMENTE PROIBIDO ATRIBUIR NOTAS NUMÉRICAS A SI MESMO NA AUTOAVALIAÇÃO.
     
     TEMA/CASO DO DESAFIO:
     {texto_tema}
@@ -161,7 +162,7 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     [END_CONCLUSAO_MEMORIAL]
     
     [START_AUTOAVALIACAO_MEMORIAL]
-    Autoavaliação crítica do aluno, evidenciando amadurecimento acadêmico...
+    Autoavaliação crítica do aluno focada estritamente no processo de aprendizado, desafios superados e maturação acadêmica. É EXPRESSAMENTE PROIBIDO se dar qualquer nota ou pontuação.
     [END_AUTOAVALIACAO_MEMORIAL]
     """
     try:
@@ -206,6 +207,7 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     REGRA MÁXIMA DE COMPORTAMENTO E QUALIDADE:
     - NÃO use NENHUMA saudação ou despedida. Vá DIRETO AO PONTO.
     - É EXPRESSAMENTE PROIBIDO gerar conteúdo raso. Exijo parágrafos densos, análises profundas.
+    - É EXPRESSAMENTE PROIBIDO ATRIBUIR NOTAS NUMÉRICAS A SI MESMO NA AUTOAVALIAÇÃO.
     
     ESTRUTURA VISUAL OBRIGATÓRIA (SIGA ESTE PADRÃO MARKDOWN):
     
@@ -252,7 +254,7 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     **Propostas de solução:** [Recomendações detalhadas]
     **Conclusão reflexiva:** [O que aprendeu de forma madura]
     **Referências:** [Padrão ABNT]
-    **Autoavaliação:** [Análise crítica sobre o próprio estudo]
+    **Autoavaliação:** [Análise crítica sobre o próprio estudo focada nos aprendizados. NUNCA DÊ UMA NOTA A SI MESMO]
     """
     try:
         resposta = modelo.generate_content(prompt)
@@ -330,7 +332,6 @@ MULLER, Cláudia et al. Perspectivas Profissionais. Florianópolis: Arqué, 2023
 **Autoavaliação**
 {respostas_geradas.get('{{AUTOAVALIACAO_MEMORIAL}}', '')}
 """
-                # Retorna tudo junto para o site!
                 return jsonify({
                     "tipo": "sucesso_tags",
                     "arquivo_base64": arquivo_base64,
