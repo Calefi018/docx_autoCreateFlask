@@ -31,11 +31,11 @@
         }
 
         .top-nav {
-            width: 100%; max-width: 730px; text-align: right; padding: 15px 0;
+            width: 100%; max-width: 730px; text-align: right; padding: 15px 0; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem;
         }
         .top-nav a { text-decoration: none; font-weight: 600; margin-left: 15px; }
 
-        .st-container { width: 100%; max-width: 730px; padding: 1rem 1.5rem 3rem 1.5rem; }
+        .st-container { width: 100%; max-width: 730px; padding: 0 1.5rem 3rem 1.5rem; }
         h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 0.5rem; }
         p.subtitle { font-size: 1rem; color: #9E9E9E; margin-bottom: 2rem; }
 
@@ -116,6 +116,14 @@
 <div class="st-container">
     <h1>Hub de Desafios</h1>
     <p class="subtitle">Gere trabalhos universitários originais de forma 100% automatizada.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div style="color: #57D2A9; background-color: #0E3A2F; padding: 10px; border-radius: 5px; margin-bottom: 15px;">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     <form id="meuFormulario">
         <div class="form-group">
@@ -256,4 +264,3 @@
 </script>
 </body>
 </html>
-
