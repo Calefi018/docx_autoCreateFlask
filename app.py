@@ -83,20 +83,24 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
 def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
-    Você é um Especialista Acadêmico Sênior com Doutorado. Sua missão é resolver um Desafio Profissional Universitário.
+    Você é um aluno universitário inteligente, estudioso e objetivo resolvendo um Desafio Profissional.
     
-    REGRA DE OURO (QUALIDADE EXTREMA): 
-    É EXPRESSAMENTE PROIBIDO ser raso ou breve. Suas respostas devem ser DENSAS, PROFUNDAS e usar vocabulário técnico acadêmico rigoroso. Cada justificativa e análise deve ter múltiplas linhas de argumentação fundamentada.
+    REGRA DE OURO (LINGUAGEM HUMANA):
+    - É EXPRESSAMENTE PROIBIDO usar palavras robóticas de IA (ex: "multifacetado", "tessitura", "arcabouços", "mergulhar", "jornada", "adentrar", "imperativo", "em suma"). 
+    - Escreva de forma natural, direta e acadêmica, como um estudante real.
     
-    REGRA DE ESTRUTURA (ANTI-ERRO):
-    NÃO USE FORMATO JSON. Você DEVE retornar o texto preenchendo as caixas delimitadoras exatas abaixo.
-    É ESTRITAMENTE PROIBIDO usar frases introdutórias (como "Segue a lista").
-    Para destacar conceitos, use **negrito**. Para tópicos, use o traço (-). Pule linhas com Enter.
+    REGRA DE ESTRUTURA E LIMITES (MUITO IMPORTANTE):
+    - NÃO USE FORMATO JSON. Retorne o texto preenchendo as caixas delimitadoras exatas abaixo.
+    - É ESTRITAMENTE PROIBIDO usar frases introdutórias (como "Aqui estão as respostas").
+    - Para destacar conceitos, use **negrito**. Para tópicos, use o traço (-).
+    - LIMITE DE PARÁGRAFOS ESTRITO: Respeite rigorosamente os limites de tamanho indicados nas caixas abaixo. Se a regra pede "1 parágrafo", gere EXATAMENTE UM ÚNICO PARÁGRAFO SEM QUEBRAS DE LINHA (Enter) no meio.
+    - O texto total gerado para as seções do Memorial Analítico NÃO PODE passar de 5500 caracteres.
+    - É EXPRESSAMENTE PROIBIDO ATRIBUIR NOTAS NUMÉRICAS A SI MESMO NA AUTOAVALIAÇÃO.
     
     TEMA/CASO DO DESAFIO (com as referências no final):
     {texto_tema}
     
-    GERAÇÃO OBRIGATÓRIA (Crie textos extensos dentro de cada delimitador e NADA MAIS):
+    GERAÇÃO OBRIGATÓRIA (Crie textos dentro de cada delimitador respeitando as regras acima e nada mais):
     
     [START_ASPECTO_1]
     Descreva o aspecto 1 de forma técnica e profunda...
@@ -123,8 +127,8 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     [END_POR_QUE_3]
     
     [START_CONCEITOS_TEORICOS]
-    - **[Nome do Conceito 1]:** [Explicação teórica longa e detalhada sobre como se aplica ao caso]
-    - **[Nome do Conceito 2]:** [Explicação teórica longa e detalhada...]
+    - **[Nome do Conceito 1]:** [Explicação teórica detalhada sobre como se aplica ao caso]
+    - **[Nome do Conceito 2]:** [Explicação teórica detalhada...]
     [END_CONCEITOS_TEORICOS]
     
     [START_ANALISE_CONCEITO_1]
@@ -140,33 +144,31 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     [END_SOLUCOES_TEORICAS]
     
     [START_RESUMO_MEMORIAL]
-    Resumo executivo denso e bem articulado...
+    Escreva EXATAMENTE 1 (um) parágrafo resumindo o que descobriu no caso.
     [END_RESUMO_MEMORIAL]
     
     [START_CONTEXTO_MEMORIAL]
-    Contextualização rica detalhando a complexidade da situação...
+    Escreva EXATAMENTE 1 (um) parágrafo contextualizando (Quem? Onde? Qual a situação?).
     [END_CONTEXTO_MEMORIAL]
     
     [START_ANALISE_MEMORIAL]
-    Análise aprofundada com múltiplos parágrafos, interligando conceitos da disciplina...
+    Escreva EXATAMENTE 1 (um) parágrafo usando 2 a 3 conceitos da disciplina para explicar a situação com exemplos do caso.
     [END_ANALISE_MEMORIAL]
     
     [START_PROPOSTAS_MEMORIAL]
-    Recomendações técnicas detalhadas e justificadas por teorias...
+    Escreva no MÁXIMO 2 (dois) parágrafos com propostas de solução. O que você recomenda? Por quê? Qual teoria apoia?
     [END_PROPOSTAS_MEMORIAL]
     
     [START_CONCLUSAO_MEMORIAL]
-    Conclusão reflexiva madura sobre o aprendizado do caso...
+    Escreva no MÁXIMO 2 (dois) parágrafos de conclusão reflexiva. O que você aprendeu com essa experiência?
     [END_CONCLUSAO_MEMORIAL]
     
     [START_REFERENCIAS_ADICIONAIS]
-    Localize as referências bibliográficas e fontes que foram informadas no texto do TEMA/CASO DO DESAFIO e liste-as aqui rigorosamente no padrão ABNT. Se não houver referências coladas, cite os conceitos teóricos gerais utilizados.
+    Localize as referências bibliográficas e fontes que foram informadas no texto do TEMA e liste-as rigorosamente no padrão ABNT.
     [END_REFERENCIAS_ADICIONAIS]
     
     [START_AUTOAVALIACAO_MEMORIAL]
-    Escreva em primeira pessoa ("eu"). Atue como o ALUNO humano que acabou de fazer este trabalho. Reflita sobre o que VOCÊ (aluno) aprendeu com a teoria da disciplina e como foi o desafio de aplicar os conceitos teóricos na prática do caso apresentado. 
-    ATENÇÃO: É EXPRESSAMENTE PROIBIDO mencionar regras de formatação, caixas delimitadoras, JSON, ou inteligência artificial. 
-    É EXPRESSAMENTE PROIBIDO ATRIBUIR NOTAS NUMÉRICAS A SI MESMO.
+    Escreva EXATAMENTE 1 (um) parágrafo em primeira pessoa ("eu"). Reflita sobre o que você percebeu sobre seu próprio processo de estudo. É EXPRESSAMENTE PROIBIDO citar inteligência artificial, regras de formatação ou dar qualquer nota/pontuação a si mesmo.
     [END_AUTOAVALIACAO_MEMORIAL]
     """
     try:
@@ -204,13 +206,14 @@ def extrair_texto_docx(arquivo_upload):
 def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
-    Atue como um Especialista Acadêmico Sênior resolvendo um Desafio Profissional.
+    Atue como um aluno universitário estudioso resolvendo um Desafio Profissional.
     TEMA/CASO (com as referências no final): {texto_tema}
     TEMPLATE: {texto_template}
     
     REGRA MÁXIMA DE COMPORTAMENTO E QUALIDADE:
     - NÃO use NENHUMA saudação ou despedida. Vá DIRETO AO PONTO.
-    - É EXPRESSAMENTE PROIBIDO gerar conteúdo raso. Exijo parágrafos densos, análises profundas.
+    - LINGUAGEM HUMANA: É expressamente proibido usar palavras robóticas de IA (ex: "multifacetado", "tessitura", "arcabouços", "mergulhar").
+    - LIMITE DE PARÁGRAFOS ESTRITO (ETAPA 5): Respeite os limites exigidos nas rubricas (ex: 1 parágrafo para Resumo e Análise, Máximo de 2 para Conclusão). O texto total não pode passar de 5500 caracteres.
     - É EXPRESSAMENTE PROIBIDO ATRIBUIR NOTAS NUMÉRICAS A SI MESMO NA AUTOAVALIAÇÃO.
     
     ESTRUTURA VISUAL OBRIGATÓRIA (SIGA ESTE PADRÃO MARKDOWN):
@@ -225,40 +228,40 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     **Na Etapa 2 (Materiais de referência), escreva isso:**
     
     **1. O que chamou atenção:** **[Aspecto 1]**
-    - **Por quê:** [Justificativa densa de no mínimo 4 linhas]
+    - **Por quê:** [Justificativa de no mínimo 4 linhas]
     
     **2. O que chamou atenção:** **[Aspecto 2]**
-    - **Por quê:** [Justificativa densa]
+    - **Por quê:** [Justificativa]
     
     **3. O que chamou atenção:** **[Aspecto 3]**
-    - **Por quê:** [Justificativa densa]
+    - **Por quê:** [Justificativa]
     
     ---
     **Na Etapa 3 (Levantamento de conceitos), escreva isso:**
     
-    - **[Nome do Conceito 1]:** [Definição extensa]
-    - **[Nome do Conceito 2]:** [Definição extensa]
+    - **[Nome do Conceito 1]:** [Definição]
+    - **[Nome do Conceito 2]:** [Definição]
     
     ---
     **Na Etapa 4 (Aplicação dos conceitos), escreva isso:**
     
     - **Como o conceito explica o que aconteceu?**
-      [Parágrafo analítico longo]
+      [Parágrafo analítico]
     - **O que a teoria ajuda a entender sobre o problema?**
-      [Parágrafo profundo conectando sintomas e teorias]
+      [Parágrafo conectando sintomas e teorias]
     - **Que soluções a teoria aponta?**
       [Propostas práticas detalhadas]
       
     ---
     **Na Etapa 5 (Memorial Analítico), escreva isso:**
     
-    **Resumo do que você descobriu:** [Parágrafo denso]
-    **Contextualização do desafio:** [Quem? Onde? Qual a situação?]
-    **Análise:** [Parágrafo profundo utilizando conceitos]
-    **Propostas de solução:** [Recomendações detalhadas]
-    **Conclusão reflexiva:** [O que aprendeu de forma madura]
+    **Resumo do que você descobriu:** [EXATAMENTE 1 Parágrafo]
+    **Contextualização do desafio:** [EXATAMENTE 1 Parágrafo: Quem? Onde? Qual a situação?]
+    **Análise:** [EXATAMENTE 1 Parágrafo utilizando conceitos]
+    **Propostas de solução:** [MÁXIMO 2 Parágrafos com recomendações]
+    **Conclusão reflexiva:** [MÁXIMO 2 Parágrafos sobre o que aprendeu]
     **Referências:** [Extraia as referências do texto do tema e formate em padrão ABNT]
-    **Autoavaliação:** [Escreva em primeira pessoa ("eu"). Atue como o ALUNO humano que acabou de fazer este trabalho. Reflita sobre os estudos da disciplina. ATENÇÃO: É proibido citar inteligência artificial, regras de prompt ou dar nota a si mesmo.]
+    **Autoavaliação:** [EXATAMENTE 1 Parágrafo em primeira pessoa sobre o processo de estudo. NUNCA DÊ UMA NOTA A SI MESMO]
     """
     try:
         resposta = modelo.generate_content(prompt)
@@ -301,10 +304,11 @@ def processar():
         if not texto_tema:
             return jsonify({"erro": "O tema do desafio não foi enviado."}), 400
 
-        # LÓGICA DE LEITURA DO ARQUIVO LOCAL OBRIGATÓRIA
+        # LÓGICA DE LEITURA DO ARQUIVO LOCAL
+        # Lembre-se: O arquivo 'TEMPLATE_COM_TAGS.docx' precisa estar solto na pasta principal do GitHub
         caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
         if not os.path.exists(caminho_padrao):
-            return jsonify({"erro": "O arquivo TEMPLATE_COM_TAGS.docx não foi encontrado no servidor."}), 400
+            return jsonify({"erro": "O arquivo TEMPLATE_COM_TAGS.docx não foi encontrado na pasta raiz."}), 400
         
         with open(caminho_padrao, 'rb') as f:
             arquivo_memoria = io.BytesIO(f.read())
@@ -318,7 +322,7 @@ def processar():
                 
                 memorial_texto = f"""### Memorial Analítico
 
-**Resumo**
+**Resumo do que você descobriu**
 {respostas_geradas.get('{{RESUMO_MEMORIAL}}', '')}
 
 **Contextualização do desafio**
@@ -347,7 +351,6 @@ def processar():
                 })
         
         elif ferramenta == 'gabarito':
-            # O gerador de gabarito agora também lê o arquivo raiz, sem precisar de anexo
             texto_do_template = extrair_texto_docx(arquivo_memoria)
             resposta_ia = gerar_resolucao_inteligente_gabarito(texto_do_template, texto_tema, modelo_escolhido)
             if resposta_ia:
