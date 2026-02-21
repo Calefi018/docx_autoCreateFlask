@@ -29,7 +29,6 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                 tem_tag = True
                 
         if tem_tag:
-            # AUTO FORMATADOR MÁGICO
             titulos_memorial = [
                 "Resumo", "Contextualização do desafio", "Análise", 
                 "Propostas de solução", "Conclusão reflexiva", "Referências", "Autoavaliação"
@@ -84,7 +83,7 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
 def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
-    Você é um Especialista Acadêmico Sênior com Doutorado em Gestão. Sua missão é resolver um Desafio Profissional Universitário.
+    Você é um Especialista Acadêmico Sênior com Doutorado. Sua missão é resolver um Desafio Profissional Universitário.
     
     REGRA DE OURO (QUALIDADE EXTREMA): 
     É EXPRESSAMENTE PROIBIDO ser raso ou breve. Suas respostas devem ser DENSAS, PROFUNDAS e usar vocabulário técnico acadêmico rigoroso. Cada justificativa e análise deve ter múltiplas linhas de argumentação fundamentada.
@@ -93,7 +92,6 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     NÃO USE FORMATO JSON. Você DEVE retornar o texto preenchendo as caixas delimitadoras exatas abaixo.
     É ESTRITAMENTE PROIBIDO usar frases introdutórias (como "Segue a lista").
     Para destacar conceitos, use **negrito**. Para tópicos, use o traço (-). Pule linhas com Enter.
-    É EXPRESSAMENTE PROIBIDO ATRIBUIR NOTAS NUMÉRICAS A SI MESMO NA AUTOAVALIAÇÃO.
     
     TEMA/CASO DO DESAFIO (com as referências no final):
     {texto_tema}
@@ -166,7 +164,9 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     [END_REFERENCIAS_ADICIONAIS]
     
     [START_AUTOAVALIACAO_MEMORIAL]
-    Autoavaliação crítica do aluno focada estritamente no processo de aprendizado, desafios superados e maturação acadêmica. É EXPRESSAMENTE PROIBIDO se dar qualquer nota ou pontuação.
+    Escreva em primeira pessoa ("eu"). Atue como o ALUNO humano que acabou de fazer este trabalho. Reflita sobre o que VOCÊ (aluno) aprendeu com a teoria da disciplina e como foi o desafio de aplicar os conceitos teóricos na prática do caso apresentado. 
+    ATENÇÃO: É EXPRESSAMENTE PROIBIDO mencionar regras de formatação, caixas delimitadoras, JSON, ou inteligência artificial. 
+    É EXPRESSAMENTE PROIBIDO ATRIBUIR NOTAS NUMÉRICAS A SI MESMO.
     [END_AUTOAVALIACAO_MEMORIAL]
     """
     try:
@@ -258,7 +258,7 @@ def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo
     **Propostas de solução:** [Recomendações detalhadas]
     **Conclusão reflexiva:** [O que aprendeu de forma madura]
     **Referências:** [Extraia as referências do texto do tema e formate em padrão ABNT]
-    **Autoavaliação:** [Análise crítica sobre o próprio estudo focada nos aprendizados. NUNCA DÊ UMA NOTA A SI MESMO]
+    **Autoavaliação:** [Escreva em primeira pessoa ("eu"). Atue como o ALUNO humano que acabou de fazer este trabalho. Reflita sobre os estudos da disciplina. ATENÇÃO: É proibido citar inteligência artificial, regras de prompt ou dar nota a si mesmo.]
     """
     try:
         resposta = modelo.generate_content(prompt)
@@ -297,22 +297,31 @@ def processar():
         ferramenta = request.form.get('ferramenta')
         modelo_escolhido = request.form.get('modelo')
         texto_tema = request.form.get('tema')
-        arquivo_upload = request.files['arquivo']
+        arquivo_upload = request.files.get('arquivo')
         
-        if not arquivo_upload or not texto_tema:
-            return jsonify({"erro": "Arquivo Word ou tema do desafio não foram enviados."}), 400
+        if not texto_tema:
+            return jsonify({"erro": "O tema do desafio não foi enviado."}), 400
 
-        arquivo_memoria = io.BytesIO(arquivo_upload.read())
+        # MÁGICA DO ARQUIVO LOCAL
+        if arquivo_upload and arquivo_upload.filename != '':
+            # O usuário anexou um arquivo manualmente
+            arquivo_memoria = io.BytesIO(arquivo_upload.read())
+        else:
+            # O usuário deixou vazio, o sistema pega o arquivo padrão do Github/Render
+            caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
+            if not os.path.exists(caminho_padrao):
+                return jsonify({"erro": "Você não anexou nenhum arquivo e o TEMPLATE_COM_TAGS.docx padrão não foi encontrado no servidor. Faça o upload dele no GitHub!"}), 400
+            
+            with open(caminho_padrao, 'rb') as f:
+                arquivo_memoria = io.BytesIO(f.read())
 
         if ferramenta == 'preenchedor':
             respostas_geradas = gerar_respostas_ia_tags(texto_tema, modelo_escolhido)
             if respostas_geradas:
-                # 1. Gera o arquivo .docx preenchido
                 documento_pronto = preencher_template_com_tags(arquivo_memoria, respostas_geradas)
                 arquivo_bytes = documento_pronto.read()
                 arquivo_base64 = base64.b64encode(arquivo_bytes).decode('utf-8')
                 
-                # 2. Monta o texto do Memorial Analítico para a tela, com referências pescadas
                 memorial_texto = f"""### Memorial Analítico
 
 **Resumo**
