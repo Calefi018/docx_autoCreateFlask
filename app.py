@@ -22,14 +22,47 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
         texto_original = paragrafo.text
         tem_tag = False
         
-        # Procura as tags no parágrafo e substitui pelo texto gerado
         for marcador, texto_novo in dicionario_dados.items():
             if marcador in texto_original:
                 texto_original = texto_original.replace(marcador, str(texto_novo))
                 tem_tag = True
                 
-        # Se achou uma tag, aplica a formatação nativa do Word (Negritos e Enters)
         if tem_tag:
+            # ========================================================
+            # AUTO FORMATADOR MÁGICO (Design idêntico ao Gabarito)
+            # ========================================================
+            
+            # 1. Pula linha e bota negrito nos títulos da Etapa 5
+            titulos_memorial = [
+                "Resumo", "Contextualização do desafio", "Análise", 
+                "Propostas de solução", "Conclusão reflexiva", "Referências", "Autoavaliação"
+            ]
+            for t in titulos_memorial:
+                if texto_original.strip().startswith(t):
+                    texto_original = texto_original.replace(t, f"**{t}**\n", 1)
+            
+            # 2. Bota negrito nos Aspectos e pula linha antes do "Por quê:"
+            titulos_aspectos = ["Aspecto 1:", "Aspecto 2:", "Aspecto 3:", "Por quê:"]
+            for t in titulos_aspectos:
+                if t in texto_original:
+                    if "Por quê:" in t:
+                        texto_original = texto_original.replace(t, f"\n**{t}** ")
+                    else:
+                        texto_original = texto_original.replace(t, f"**{t}** ")
+                        
+            # 3. Auto-negrito e pulo de linha para as perguntas da Etapa 4
+            if "?" in texto_original and "Por quê:" not in texto_original:
+                partes = texto_original.split("?", 1)
+                pergunta = partes[0].strip()
+                if 10 < len(pergunta) < 150 and not pergunta.startswith("**"):
+                    texto_original = f"**{pergunta}?**\n" + partes[1].lstrip()
+
+            # Limpa espacinhos extras gerados pelas quebras de linha
+            texto_original = texto_original.replace("**\n ", "**\n")
+            texto_original = texto_original.replace(":**\n:", ":**\n")
+            
+            # ========================================================
+
             paragrafo.clear()
             linhas = texto_original.split('\n')
             for i, linha in enumerate(linhas):
@@ -42,7 +75,7 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                 if i < len(linhas) - 1:
                     paragrafo.add_run('\n')
 
-    # Varre todo o documento (corpo, tabelas e caixas)
+    # Varre todo o documento
     for paragrafo in doc.paragraphs:
         processar_paragrafo(paragrafo)
 
@@ -65,14 +98,15 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     REGRA DE OURO (QUALIDADE EXTREMA): 
     É EXPRESSAMENTE PROIBIDO ser raso ou breve. Suas respostas devem ser DENSAS, PROFUNDAS e usar vocabulário técnico acadêmico rigoroso. Cada justificativa e análise deve ter múltiplas linhas de argumentação fundamentada.
     
-    REGRA DE ESTRUTURA (ANTI-ERRO):
+    REGRA DE ESTRUTURA (ANTI-ERRO E ANTI-FALAÇÃO):
     NÃO USE FORMATO JSON. Você DEVE retornar o texto preenchendo as caixas delimitadoras exatas abaixo.
+    É ESTRITAMENTE PROIBIDO usar frases introdutórias (como "Segue a lista", "Aqui estão as respostas").
     Para destacar conceitos, use **negrito**. Para tópicos, use o traço (-). Pule linhas normalmente com Enter.
     
     TEMA/CASO DO DESAFIO:
     {texto_tema}
     
-    GERAÇÃO OBRIGATÓRIA (Crie textos extensos dentro de cada delimitador):
+    GERAÇÃO OBRIGATÓRIA (Crie textos extensos dentro de cada delimitador e NADA MAIS):
     
     [START_ASPECTO_1]
     Descreva o aspecto 1 de forma técnica e profunda...
@@ -143,7 +177,6 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
         resposta = modelo.generate_content(prompt)
         texto_ia = resposta.text
         
-        # Extrator Blindado: Puxa o conteúdo de cada caixa ignorando formatações que quebravam o JSON
         chaves = [
             "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
             "CONCEITOS_TEORICOS", "RESP_AUTORRESP", "RESP_PILARES", "RESP_SOLUCOES",
@@ -252,7 +285,6 @@ def index():
             except:
                 pass
                 
-        # Força o Flash robusto como primeira opção
         if "gemini-1.5-flash" not in modelos_disponiveis:
             modelos_disponiveis.insert(0, "gemini-1.5-flash")
             
@@ -283,7 +315,7 @@ def processar():
                 return send_file(
                     documento_pronto, 
                     as_attachment=True, 
-                    download_name="Desafio_Preenchido_Academico.docx",
+                    download_name="Desafio_Preenchido_Perfeito.docx",
                     mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
         
