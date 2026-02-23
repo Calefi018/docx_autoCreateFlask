@@ -21,6 +21,9 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-super-secreta-mud
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///clientes.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# SISTEMA ANTI-QUEDA PARA BANCOS SERVERLESS (NEON.TECH)
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True, "pool_recycle": 300}
+
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -154,7 +157,6 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     except Exception as e:
         raise Exception(f"Falha de geração na IA: {str(e)}")
 
-# --- NOVA FUNÇÃO DE CORREÇÃO ---
 def gerar_correcao_ia_tags(texto_tema, dicionario_antigo, critica, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
@@ -206,6 +208,11 @@ def gerar_correcao_ia_tags(texto_tema, dicionario_antigo, critica, nome_modelo):
         return dicionario_higienizado
     except Exception as e:
         raise Exception(f"Falha de geração na IA (Correção): {str(e)}")
+
+def extrair_texto_docx(arquivo_upload):
+    doc = Document(arquivo_upload)
+    texto_completo = [p.text for p in doc.paragraphs if p.text.strip()]
+    return "\n".join(texto_completo)
 
 def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
@@ -368,7 +375,7 @@ def processar():
                     "arquivo_base64": arquivo_base64, 
                     "nome_arquivo": "Desafio_Preenchido.docx", 
                     "memorial_texto": memorial_texto,
-                    "dicionario_gerado": json.dumps(respostas_geradas) # Adicionado para a revisão
+                    "dicionario_gerado": json.dumps(respostas_geradas) 
                 })
         elif ferramenta == 'gabarito':
             texto_do_template = extrair_texto_docx(arquivo_memoria)
@@ -376,9 +383,9 @@ def processar():
             if resposta_ia: return jsonify({"tipo": "texto", "conteudo": resposta_ia})
         return jsonify({"erro": "Opção inválida selecionada."}), 400
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
 
-# --- NOVAS ROTAS PARA REVISÃO ---
 @app.route('/avaliar', methods=['POST'])
 @login_required
 def avaliar():
@@ -420,6 +427,7 @@ def corrigir():
             "dicionario_gerado": json.dumps(respostas_geradas)
         })
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"erro": str(e)}), 500
 
 if __name__ == '__main__':
