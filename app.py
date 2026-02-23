@@ -21,7 +21,7 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-super-secreta-mud
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///clientes.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# SISTEMA ANTI-QUEDA PARA BANCOS SERVERLESS (NEON.TECH)
+# CORREÇÃO NEON.TECH: Evita que o banco de dados corte a conexão por inatividade
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True, "pool_recycle": 300}
 
 db = SQLAlchemy(app)
@@ -126,25 +126,26 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     TEMA/CASO DO DESAFIO (com as referências no final):
     {texto_tema}
     
-    GERAÇÃO OBRIGATÓRIA (Crie textos dentro de cada delimitador respeitando as regras acima e nada mais):
+    GERAÇÃO OBRIGATÓRIA:
+    (ATENÇÃO: É ESTRITAMENTE PROIBIDO COPIAR OU REPETIR AS INSTRUÇÕES ABAIXO DENTRO DA SUA RESPOSTA. FORNEÇA APENAS A SUA RESPOSTA FINAL DIRETO AO PONTO).
     
-    [START_ASPECTO_1] Descreva o aspecto 1 de forma técnica e profunda... [END_ASPECTO_1]
-    [START_POR_QUE_1] Justifique o aspecto 1 com uma análise densa de pelo menos 4 linhas... [END_POR_QUE_1]
-    [START_ASPECTO_2] Descreva o aspecto 2 de forma técnica... [END_ASPECTO_2]
-    [START_POR_QUE_2] Justifique o aspecto 2 com uma análise densa de pelo menos 4 linhas... [END_POR_QUE_2]
-    [START_ASPECTO_3] Descreva o aspecto 3 de forma técnica... [END_ASPECTO_3]
-    [START_POR_QUE_3] Justifique o aspecto 3 com uma análise densa de pelo menos 4 linhas... [END_POR_QUE_3]
-    [START_CONCEITOS_TEORICOS] - **[Nome do Conceito 1]:** [Explicação teórica detalhada sobre como se aplica ao caso]\n- **[Nome do Conceito 2]:** [Explicação teórica detalhada...] [END_CONCEITOS_TEORICOS]
-    [START_ANALISE_CONCEITO_1] Análise teórica profunda respondendo como o conceito principal explica o que aconteceu na situação... [END_ANALISE_CONCEITO_1]
-    [START_ENTENDIMENTO_TEORICO] Análise teórica densa respondendo o que a teoria ajuda a entender sobre o problema central... [END_ENTENDIMENTO_TEORICO]
-    [START_SOLUCOES_TEORICAS] Apresente um plano de ação robusto respondendo que soluções possíveis a teoria aponta e por que fazem sentido... [END_SOLUCOES_TEORICAS]
-    [START_RESUMO_MEMORIAL] Escreva EXATAMENTE 1 (um) parágrafo resumindo o que descobriu no caso. [END_RESUMO_MEMORIAL]
-    [START_CONTEXTO_MEMORIAL] Escreva EXATAMENTE 1 (um) parágrafo contextualizando (Quem? Onde? Qual a situação?). [END_CONTEXTO_MEMORIAL]
-    [START_ANALISE_MEMORIAL] Escreva EXATAMENTE 1 (um) parágrafo usando 2 a 3 conceitos da disciplina para explicar a situação com exemplos do caso. [END_ANALISE_MEMORIAL]
-    [START_PROPOSTAS_MEMORIAL] Escreva no MÁXIMO 2 (dois) parágrafos com propostas de solução. O que você recomenda? Por quê? Qual teoria apoia? [END_PROPOSTAS_MEMORIAL]
-    [START_CONCLUSAO_MEMORIAL] Escreva no MÁXIMO 2 (dois) parágrafos de conclusão reflexiva. O que você aprendeu com essa experiência? [END_CONCLUSAO_MEMORIAL]
-    [START_REFERENCIAS_ADICIONAIS] Localize as referências bibliográficas e fontes que foram informadas no texto do TEMA e liste-as rigorosamente no padrão ABNT. [END_REFERENCIAS_ADICIONAIS]
-    [START_AUTOAVALIACAO_MEMORIAL] Escreva EXATAMENTE 1 (um) parágrafo em primeira pessoa ("eu"). Reflita sobre o que você percebeu sobre seu próprio processo de estudo. É EXPRESSAMENTE PROIBIDO citar inteligência artificial, regras de formatação ou dar qualquer nota/pontuação a si mesmo. [END_AUTOAVALIACAO_MEMORIAL]
+    [START_ASPECTO_1] [Sua resposta técnica direta aqui, sem repetir o que eu pedi] [END_ASPECTO_1]
+    [START_POR_QUE_1] [Sua justificativa direta aqui] [END_POR_QUE_1]
+    [START_ASPECTO_2] [Sua resposta técnica direta aqui] [END_ASPECTO_2]
+    [START_POR_QUE_2] [Sua justificativa direta aqui] [END_POR_QUE_2]
+    [START_ASPECTO_3] [Sua resposta técnica direta aqui] [END_ASPECTO_3]
+    [START_POR_QUE_3] [Sua justificativa direta aqui - OBRIGATÓRIO PREENCHER] [END_POR_QUE_3]
+    [START_CONCEITOS_TEORICOS] - **[Nome]:** [Explicação]\n- **[Nome]:** [Explicação] [END_CONCEITOS_TEORICOS]
+    [START_ANALISE_CONCEITO_1] [Sua análise direta] [END_ANALISE_CONCEITO_1]
+    [START_ENTENDIMENTO_TEORICO] [Sua análise direta] [END_ENTENDIMENTO_TEORICO]
+    [START_SOLUCOES_TEORICAS] [Seu plano de ação direto] [END_SOLUCOES_TEORICAS]
+    [START_RESUMO_MEMORIAL] [Seu resumo final direto] [END_RESUMO_MEMORIAL]
+    [START_CONTEXTO_MEMORIAL] [Seu contexto final direto] [END_CONTEXTO_MEMORIAL]
+    [START_ANALISE_MEMORIAL] [Sua análise final direta] [END_ANALISE_MEMORIAL]
+    [START_PROPOSTAS_MEMORIAL] [Suas propostas diretas] [END_PROPOSTAS_MEMORIAL]
+    [START_CONCLUSAO_MEMORIAL] [Sua conclusão direta] [END_CONCLUSAO_MEMORIAL]
+    [START_REFERENCIAS_ADICIONAIS] [Referências em ABNT diretas] [END_REFERENCIAS_ADICIONAIS]
+    [START_AUTOAVALIACAO_MEMORIAL] [Sua autoavaliação direta] [END_AUTOAVALIACAO_MEMORIAL]
     """
     try:
         resposta = modelo.generate_content(prompt)
@@ -180,23 +181,26 @@ def gerar_correcao_ia_tags(texto_tema, dicionario_antigo, critica, nome_modelo):
     - LIMITE DE PARÁGRAFOS ESTRITO NA ETAPA 5: Respeite a regra (Resumo 1, Contexto 1, Análise 1, Propostas máx 2, Conclusão máx 2, Autoavaliação 1).
     - NÃO ATRIBUA NOTAS A SI MESMO.
     
-    [START_ASPECTO_1] Descreva o aspecto 1 de forma técnica e profunda... [END_ASPECTO_1]
-    [START_POR_QUE_1] Justifique o aspecto 1... [END_POR_QUE_1]
-    [START_ASPECTO_2] Descreva o aspecto 2... [END_ASPECTO_2]
-    [START_POR_QUE_2] Justifique o aspecto 2... [END_POR_QUE_2]
-    [START_ASPECTO_3] Descreva o aspecto 3... [END_ASPECTO_3]
-    [START_POR_QUE_3] Justifique o aspecto 3... [END_POR_QUE_3]
-    [START_CONCEITOS_TEORICOS] - **[Nome do Conceito 1]:** [Explicação]\n- **[Nome do Conceito 2]:** [Explicação] [END_CONCEITOS_TEORICOS]
-    [START_ANALISE_CONCEITO_1] Análise teórica profunda... [END_ANALISE_CONCEITO_1]
-    [START_ENTENDIMENTO_TEORICO] Análise teórica densa... [END_ENTENDIMENTO_TEORICO]
-    [START_SOLUCOES_TEORICAS] Plano de ação... [END_SOLUCOES_TEORICAS]
-    [START_RESUMO_MEMORIAL] EXATAMENTE 1 (um) parágrafo... [END_RESUMO_MEMORIAL]
-    [START_CONTEXTO_MEMORIAL] EXATAMENTE 1 (um) parágrafo... [END_CONTEXTO_MEMORIAL]
-    [START_ANALISE_MEMORIAL] EXATAMENTE 1 (um) parágrafo... [END_ANALISE_MEMORIAL]
-    [START_PROPOSTAS_MEMORIAL] MÁXIMO 2 (dois) parágrafos... [END_PROPOSTAS_MEMORIAL]
-    [START_CONCLUSAO_MEMORIAL] MÁXIMO 2 (dois) parágrafos... [END_CONCLUSAO_MEMORIAL]
-    [START_REFERENCIAS_ADICIONAIS] Referências em ABNT... [END_REFERENCIAS_ADICIONAIS]
-    [START_AUTOAVALIACAO_MEMORIAL] EXATAMENTE 1 (um) parágrafo em primeira pessoa. [END_AUTOAVALIACAO_MEMORIAL]
+    GERAÇÃO OBRIGATÓRIA:
+    (ATENÇÃO: É ESTRITAMENTE PROIBIDO COPIAR OU REPETIR AS INSTRUÇÕES ABAIXO DENTRO DA SUA RESPOSTA. FORNEÇA APENAS A SUA RESPOSTA FINAL DIRETO AO PONTO).
+    
+    [START_ASPECTO_1] [Sua resposta técnica direta aqui, sem repetir o que eu pedi] [END_ASPECTO_1]
+    [START_POR_QUE_1] [Sua justificativa direta aqui] [END_POR_QUE_1]
+    [START_ASPECTO_2] [Sua resposta técnica direta aqui] [END_ASPECTO_2]
+    [START_POR_QUE_2] [Sua justificativa direta aqui] [END_POR_QUE_2]
+    [START_ASPECTO_3] [Sua resposta técnica direta aqui] [END_ASPECTO_3]
+    [START_POR_QUE_3] [Sua justificativa direta aqui - OBRIGATÓRIO PREENCHER] [END_POR_QUE_3]
+    [START_CONCEITOS_TEORICOS] - **[Nome]:** [Explicação]\n- **[Nome]:** [Explicação] [END_CONCEITOS_TEORICOS]
+    [START_ANALISE_CONCEITO_1] [Sua análise direta] [END_ANALISE_CONCEITO_1]
+    [START_ENTENDIMENTO_TEORICO] [Sua análise direta] [END_ENTENDIMENTO_TEORICO]
+    [START_SOLUCOES_TEORICAS] [Seu plano de ação direto] [END_SOLUCOES_TEORICAS]
+    [START_RESUMO_MEMORIAL] [Seu resumo final direto] [END_RESUMO_MEMORIAL]
+    [START_CONTEXTO_MEMORIAL] [Seu contexto final direto] [END_CONTEXTO_MEMORIAL]
+    [START_ANALISE_MEMORIAL] [Sua análise final direta] [END_ANALISE_MEMORIAL]
+    [START_PROPOSTAS_MEMORIAL] [Suas propostas diretas] [END_PROPOSTAS_MEMORIAL]
+    [START_CONCLUSAO_MEMORIAL] [Sua conclusão direta] [END_CONCLUSAO_MEMORIAL]
+    [START_REFERENCIAS_ADICIONAIS] [Referências em ABNT diretas] [END_REFERENCIAS_ADICIONAIS]
+    [START_AUTOAVALIACAO_MEMORIAL] [Sua autoavaliação direta] [END_AUTOAVALIACAO_MEMORIAL]
     """
     try:
         resposta = modelo.generate_content(prompt)
@@ -208,11 +212,6 @@ def gerar_correcao_ia_tags(texto_tema, dicionario_antigo, critica, nome_modelo):
         return dicionario_higienizado
     except Exception as e:
         raise Exception(f"Falha de geração na IA (Correção): {str(e)}")
-
-def extrair_texto_docx(arquivo_upload):
-    doc = Document(arquivo_upload)
-    texto_completo = [p.text for p in doc.paragraphs if p.text.strip()]
-    return "\n".join(texto_completo)
 
 def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
@@ -375,6 +374,7 @@ def processar():
                     "arquivo_base64": arquivo_base64, 
                     "nome_arquivo": "Desafio_Preenchido.docx", 
                     "memorial_texto": memorial_texto,
+                    # CORREÇÃO UTF-8: avoid \u00e7 etc
                     "dicionario_gerado": json.dumps(respostas_geradas, ensure_ascii=False) 
                 })
         elif ferramenta == 'gabarito':
@@ -383,7 +383,6 @@ def processar():
             if resposta_ia: return jsonify({"tipo": "texto", "conteudo": resposta_ia})
         return jsonify({"erro": "Opção inválida selecionada."}), 400
     except Exception as e:
-        traceback.print_exc()
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
 
 @app.route('/avaliar', methods=['POST'])
@@ -394,7 +393,16 @@ def avaliar():
     modelo = request.form.get('modelo')
     
     m = genai.GenerativeModel(modelo)
-    prompt = f"Você é um professor avaliador rigoroso. Analise o TEMA: {tema}\nE as RESPOSTAS geradas: {dicionario}\nFaça uma crítica breve (máximo de 3 linhas) informando ao aluno se falta aprofundar algo, se algum ponto ficou raso ou se o trabalho já está excelente e pronto. Seja direto e não use formatações."
+    prompt = f"""Você é um professor avaliador extremamente rigoroso. 
+Analise o TEMA: {tema}
+E as RESPOSTAS geradas: {dicionario}
+
+Faça uma crítica breve (máximo de 3 linhas) focada estritamente nestes pilares:
+1. Conteúdo: Falta aprofundar algo? O texto está raso? A argumentação faz sentido para o caso?
+2. Formatação: Há códigos de máquina vazados (como \\u00e7 ou \\n)? A IA é proibida de aceitar textos com falhas de codificação.
+3. VAZAMENTO DE PROMPT (FALHA CRÍTICA): Verifique com lupa se a IA "vazou" regras do sistema no meio do texto (Exemplo: frases intrusas como "Escreva EXATAMENTE 1 parágrafo", "Descreva o aspecto de forma técnica", "Justifique com pelo menos 4 linhas", etc). 
+
+Se encontrar regras vazadas, códigos estranhos ou cortes abruptos (respostas em branco), EXIJA a correção imediata. Se o conteúdo e a formatação estiverem perfeitos, elogie e diga que está pronto para entrega. Seja direto e não use formatações na sua resposta."""
     try:
         critica = m.generate_content(prompt).text
         return jsonify({"critica": critica})
@@ -424,10 +432,10 @@ def corrigir():
             "arquivo_base64": arquivo_base64, 
             "nome_arquivo": "Desafio_Preenchido_Revisado.docx", 
             "memorial_texto": memorial_texto,
-            "dicionario_gerado": json.dumps(respostas_geradas)
+            # CORREÇÃO UTF-8: avoid \u00e7 etc
+            "dicionario_gerado": json.dumps(respostas_geradas, ensure_ascii=False)
         })
     except Exception as e:
-        traceback.print_exc()
         return jsonify({"erro": str(e)}), 500
 
 if __name__ == '__main__':
