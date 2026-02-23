@@ -375,7 +375,7 @@ def processar():
                     "arquivo_base64": arquivo_base64, 
                     "nome_arquivo": "Desafio_Preenchido.docx", 
                     "memorial_texto": memorial_texto,
-                    "dicionario_gerado": json.dumps(respostas_geradas) 
+                    "dicionario_gerado": json.dumps(respostas_geradas, ensure_ascii=False) 
                 })
         elif ferramenta == 'gabarito':
             texto_do_template = extrair_texto_docx(arquivo_memoria)
