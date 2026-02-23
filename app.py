@@ -3,6 +3,7 @@ import io
 import re
 import base64
 import traceback
+import json
 from datetime import datetime, date
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
@@ -36,14 +37,13 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), nullable=False, default='cliente') # 'admin', 'sub-admin', 'cliente'
+    role = db.Column(db.String(20), nullable=False, default='cliente') 
     expiration_date = db.Column(db.Date, nullable=True)
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Cria o banco de dados e o Admin Master ao iniciar o sistema
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(username='admin').first():
@@ -154,65 +154,67 @@ def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     except Exception as e:
         raise Exception(f"Falha de geração na IA: {str(e)}")
 
+# --- NOVA FUNÇÃO DE CORREÇÃO ---
+def gerar_correcao_ia_tags(texto_tema, dicionario_antigo, critica, nome_modelo):
+    modelo = genai.GenerativeModel(nome_modelo)
+    prompt = f"""
+    Você é um aluno universitário inteligente corrigindo e aprimorando seu próprio trabalho após receber um feedback do professor avaliador.
+    
+    TEMA DO DESAFIO:
+    {texto_tema}
+    
+    TRABALHO ANTERIOR GERADO:
+    {dicionario_antigo}
+    
+    CRÍTICA/FEEDBACK RECEBIDO PARA MELHORIA:
+    {critica}
+    
+    SUA TAREFA OBRIGATÓRIA:
+    Reescreva as respostas preenchendo as tags originais. Mantenha as partes que já estavam excelentes, MAS APLIQUE AS MELHORIAS sugeridas no feedback acima (adicione profundidade, corrija falhas, etc).
+    
+    REGRA DE OURO (LINGUAGEM HUMANA E LIMITES):
+    - É EXPRESSAMENTE PROIBIDO usar palavras robóticas de IA. Escreva de forma natural e acadêmica.
+    - NÃO USE FORMATO JSON. Retorne apenas os textos dentro das tags [START] e [END].
+    - LIMITE DE PARÁGRAFOS ESTRITO NA ETAPA 5: Respeite a regra (Resumo 1, Contexto 1, Análise 1, Propostas máx 2, Conclusão máx 2, Autoavaliação 1).
+    - NÃO ATRIBUA NOTAS A SI MESMO.
+    
+    [START_ASPECTO_1] Descreva o aspecto 1 de forma técnica e profunda... [END_ASPECTO_1]
+    [START_POR_QUE_1] Justifique o aspecto 1... [END_POR_QUE_1]
+    [START_ASPECTO_2] Descreva o aspecto 2... [END_ASPECTO_2]
+    [START_POR_QUE_2] Justifique o aspecto 2... [END_POR_QUE_2]
+    [START_ASPECTO_3] Descreva o aspecto 3... [END_ASPECTO_3]
+    [START_POR_QUE_3] Justifique o aspecto 3... [END_POR_QUE_3]
+    [START_CONCEITOS_TEORICOS] - **[Nome do Conceito 1]:** [Explicação]\n- **[Nome do Conceito 2]:** [Explicação] [END_CONCEITOS_TEORICOS]
+    [START_ANALISE_CONCEITO_1] Análise teórica profunda... [END_ANALISE_CONCEITO_1]
+    [START_ENTENDIMENTO_TEORICO] Análise teórica densa... [END_ENTENDIMENTO_TEORICO]
+    [START_SOLUCOES_TEORICAS] Plano de ação... [END_SOLUCOES_TEORICAS]
+    [START_RESUMO_MEMORIAL] EXATAMENTE 1 (um) parágrafo... [END_RESUMO_MEMORIAL]
+    [START_CONTEXTO_MEMORIAL] EXATAMENTE 1 (um) parágrafo... [END_CONTEXTO_MEMORIAL]
+    [START_ANALISE_MEMORIAL] EXATAMENTE 1 (um) parágrafo... [END_ANALISE_MEMORIAL]
+    [START_PROPOSTAS_MEMORIAL] MÁXIMO 2 (dois) parágrafos... [END_PROPOSTAS_MEMORIAL]
+    [START_CONCLUSAO_MEMORIAL] MÁXIMO 2 (dois) parágrafos... [END_CONCLUSAO_MEMORIAL]
+    [START_REFERENCIAS_ADICIONAIS] Referências em ABNT... [END_REFERENCIAS_ADICIONAIS]
+    [START_AUTOAVALIACAO_MEMORIAL] EXATAMENTE 1 (um) parágrafo em primeira pessoa. [END_AUTOAVALIACAO_MEMORIAL]
+    """
+    try:
+        resposta = modelo.generate_content(prompt)
+        chaves = ["ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS", "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"]
+        dicionario_higienizado = {}
+        for chave in chaves:
+            match = re.search(rf"\[START_{chave}\](.*?)\[END_{chave}\]", resposta.text, re.DOTALL)
+            dicionario_higienizado[f"{{{{{chave}}}}}"] = match.group(1).strip() if match else "" 
+        return dicionario_higienizado
+    except Exception as e:
+        raise Exception(f"Falha de geração na IA (Correção): {str(e)}")
+
 def gerar_resolucao_inteligente_gabarito(texto_template, texto_tema, nome_modelo):
     modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""
     Atue como um aluno universitário estudioso resolvendo um Desafio Profissional.
     TEMA/CASO (com as referências no final): {texto_tema}
     TEMPLATE: {texto_template}
-    
-    REGRA MÁXIMA DE COMPORTAMENTO E QUALIDADE:
-    - NÃO use NENHUMA saudação ou despedida. Vá DIRETO AO PONTO.
-    - LINGUAGEM HUMANA: É expressamente proibido usar palavras robóticas de IA (ex: "multifacetado", "tessitura", "arcabouços", "mergulhar").
-    - LIMITE DE PARÁGRAFOS ESTRITO (ETAPA 5): Respeite os limites exigidos nas rubricas (ex: 1 parágrafo para Resumo e Análise, Máximo de 2 para Conclusão). O texto total não pode passar de 5500 caracteres.
-    - É EXPRESSAMENTE PROIBIDO ATRIBUIR NOTAS NUMÉRICAS A SI MESMO NA AUTOAVALIAÇÃO.
-    
-    ESTRUTURA VISUAL OBRIGATÓRIA (SIGA ESTE PADRÃO MARKDOWN):
-    
-    Pré-visualização do Resultado:
-    Olá! Serei seu especialista acadêmico. Vamos preencher o template passo a passo.
-    
-    ---
-    **Na Etapa 1, você deve apenas ler e compreender o desafio.**
-    
-    ---
-    **Na Etapa 2 (Materiais de referência), escreva isso:**
-    
-    **1. O que chamou atenção:** **[Aspecto 1]**
-    - **Por quê:** [Justificativa de no mínimo 4 linhas]
-    
-    **2. O que chamou atenção:** **[Aspecto 2]**
-    - **Por quê:** [Justificativa]
-    
-    **3. O que chamou atenção:** **[Aspecto 3]**
-    - **Por quê:** [Justificativa]
-    
-    ---
-    **Na Etapa 3 (Levantamento de conceitos), escreva isso:**
-    
-    - **[Nome do Conceito 1]:** [Definição]
-    - **[Nome do Conceito 2]:** [Definição]
-    
-    ---
-    **Na Etapa 4 (Aplicação dos conceitos), escreva isso:**
-    
-    - **Como o conceito explica o que aconteceu?**
-      [Parágrafo analítico]
-    - **O que a teoria ajuda a entender sobre o problema?**
-      [Parágrafo conectando sintomas e teorias]
-    - **Que soluções a teoria aponta?**
-      [Propostas práticas detalhadas]
-      
-    ---
-    **Na Etapa 5 (Memorial Analítico), escreva isso:**
-    
-    **Resumo do que você descobriu:** [EXATAMENTE 1 Parágrafo]
-    **Contextualização do desafio:** [EXATAMENTE 1 Parágrafo: Quem? Onde? Qual a situação?]
-    **Análise:** [EXATAMENTE 1 Parágrafo utilizando conceitos]
-    **Propostas de solução:** [MÁXIMO 2 Parágrafos com recomendações]
-    **Conclusão reflexiva:** [MÁXIMO 2 Parágrafos sobre o que aprendeu]
-    **Referências:** [Extraia as referências do texto do tema e formate em padrão ABNT]
-    **Autoavaliação:** [EXATAMENTE 1 Parágrafo em primeira pessoa sobre o processo de estudo. NUNCA DÊ UMA NOTA A SI MESMO]
+    REGRA: NÃO use saudações. Proibido palavras robóticas. Respeite limites de parágrafos da Etapa 5 rigidamente.
+    ESTRUTURA: Siga o padrão das etapas com os títulos em negrito.
     """
     try:
         return modelo.generate_content(prompt).text
@@ -246,7 +248,6 @@ def mudar_senha():
     if request.method == 'POST':
         senha_atual = request.form.get('senha_atual')
         nova_senha = request.form.get('nova_senha')
-        
         if check_password_hash(current_user.password, senha_atual):
             current_user.password = generate_password_hash(nova_senha)
             db.session.commit()
@@ -254,25 +255,20 @@ def mudar_senha():
             return redirect(url_for('index'))
         else:
             flash('A senha atual está incorreta.', 'error')
-            
     return render_template('mudar_senha.html')
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
 def admin():
     if current_user.role not in ['admin', 'sub-admin']: abort(403)
-        
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         role = request.form.get('role')
         exp_date_str = request.form.get('expiration_date')
-        
-        # Trava: Sub-admins não podem criar novos admins ou sub-admins
         if current_user.role == 'sub-admin' and role != 'cliente':
             flash('Sub-admins só podem criar contas de nível Cliente.', 'error')
             return redirect(url_for('admin'))
-
         if User.query.filter_by(username=username).first():
             flash('Este nome de usuário já existe!', 'error')
         else:
@@ -282,7 +278,6 @@ def admin():
             db.session.add(new_user)
             db.session.commit()
             flash('Usuário criado com sucesso!', 'success')
-            
     users = User.query.all()
     return render_template('admin.html', users=users, hoje=date.today())
 
@@ -290,38 +285,23 @@ def admin():
 @login_required
 def edit_user(id):
     if current_user.role not in ['admin', 'sub-admin']: abort(403)
-    
     user_to_edit = User.query.get_or_404(id)
-    
-    # Trava: Sub-admin só pode editar quem for 'cliente'
     if current_user.role == 'sub-admin' and user_to_edit.role != 'cliente':
         flash('Acesso negado: Você só tem permissão para editar contas de clientes.', 'error')
         return redirect(url_for('admin'))
-        
     if request.method == 'POST':
-        # 1. Alteração de Senha (Admin e Sub-admin podem, dentro das regras)
         nova_senha = request.form.get('password')
-        if nova_senha:
-            user_to_edit.password = generate_password_hash(nova_senha)
-            
-        # 2. Alteração de Data de Expiração
+        if nova_senha: user_to_edit.password = generate_password_hash(nova_senha)
         exp_date_str = request.form.get('expiration_date')
-        if exp_date_str:
-            user_to_edit.expiration_date = datetime.strptime(exp_date_str, '%Y-%m-%d').date()
-        else:
-            user_to_edit.expiration_date = None # Deixa vitalício se apagar
-            
-        # 3. Alteração de Nível/Role (EXCLUSIVO do Admin Master)
+        if exp_date_str: user_to_edit.expiration_date = datetime.strptime(exp_date_str, '%Y-%m-%d').date()
+        else: user_to_edit.expiration_date = None 
         if current_user.role == 'admin':
             novo_nivel = request.form.get('role')
-            # Impede o admin master de rebaixar a si mesmo sem querer
             if novo_nivel and user_to_edit.username != 'admin': 
                 user_to_edit.role = novo_nivel
-                
         db.session.commit()
         flash(f'Dados do usuário {user_to_edit.username} atualizados com sucesso!', 'success')
         return redirect(url_for('admin'))
-        
     return render_template('edit_user.html', user=user_to_edit)
 
 @app.route('/delete_user/<int:id>')
@@ -329,12 +309,9 @@ def edit_user(id):
 def delete_user(id):
     if current_user.role not in ['admin', 'sub-admin']: abort(403)
     user_to_delete = User.query.get_or_404(id)
-    
-    # Trava: Sub-admin só pode apagar cliente
     if current_user.role == 'sub-admin' and user_to_delete.role != 'cliente':
         flash('Acesso negado: Você só tem permissão para apagar contas de clientes.', 'error')
         return redirect(url_for('admin'))
-        
     if user_to_delete.username == 'admin':
         flash('Não pode apagar o administrador principal!', 'error')
     else:
@@ -344,14 +321,13 @@ def delete_user(id):
     return redirect(url_for('admin'))
 
 # =========================================================
-# ROTAS PRINCIPAIS DA FERRAMENTA (Protegidas)
+# ROTAS PRINCIPAIS DA FERRAMENTA E REVISÃO
 # =========================================================
 @app.route('/')
 @login_required
 def index():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date:
         return render_template('expirado.html')
-
     modelos_disponiveis = []
     if CHAVE_API:
         try:
@@ -360,7 +336,6 @@ def index():
                     modelos_disponiveis.append(m.name.replace('models/', ''))
         except: pass
     if "gemini-1.5-flash" not in modelos_disponiveis: modelos_disponiveis.insert(0, "gemini-1.5-flash")
-        
     return render_template('index.html', modelos=modelos_disponiveis, role=current_user.role, user=current_user)
 
 @app.route('/processar', methods=['POST'])
@@ -368,21 +343,17 @@ def index():
 def processar():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date:
         return jsonify({"erro": "A sua subscrição expirou. Por favor, renove o acesso."}), 403
-
     try:
         ferramenta = request.form.get('ferramenta')
         modelo_escolhido = request.form.get('modelo')
         texto_tema = request.form.get('tema')
-        
-        if not texto_tema:
-            return jsonify({"erro": "O tema do desafio não foi enviado."}), 400
+        if not texto_tema: return jsonify({"erro": "O tema do desafio não foi enviado."}), 400
 
         caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
         if not os.path.exists(caminho_padrao):
-            return jsonify({"erro": "O arquivo TEMPLATE_COM_TAGS.docx não foi encontrado no servidor."}), 400
+            return jsonify({"erro": "O arquivo TEMPLATE_COM_TAGS.docx não foi encontrado na pasta raiz."}), 400
         
-        with open(caminho_padrao, 'rb') as f:
-            arquivo_memoria = io.BytesIO(f.read())
+        with open(caminho_padrao, 'rb') as f: arquivo_memoria = io.BytesIO(f.read())
 
         if ferramenta == 'preenchedor':
             respostas_geradas = gerar_respostas_ia_tags(texto_tema, modelo_escolhido)
@@ -390,18 +361,66 @@ def processar():
                 documento_pronto = preencher_template_com_tags(arquivo_memoria, respostas_geradas)
                 arquivo_bytes = documento_pronto.read()
                 arquivo_base64 = base64.b64encode(arquivo_bytes).decode('utf-8')
-                
                 memorial_texto = f"""### Memorial Analítico\n\n**Resumo do que você descobriu**\n{respostas_geradas.get('{{RESUMO_MEMORIAL}}', '')}\n\n**Contextualização do desafio**\n{respostas_geradas.get('{{CONTEXTO_MEMORIAL}}', '')}\n\n**Análise**\n{respostas_geradas.get('{{ANALISE_MEMORIAL}}', '')}\n\n**Propostas de solução**\n{respostas_geradas.get('{{PROPOSTAS_MEMORIAL}}', '')}\n\n**Conclusão reflexiva**\n{respostas_geradas.get('{{CONCLUSAO_MEMORIAL}}', '')}\n\n**Referências**\n{respostas_geradas.get('{{REFERENCIAS_ADICIONAIS}}', '')}\n\n**Autoavaliação**\n{respostas_geradas.get('{{AUTOAVALIACAO_MEMORIAL}}', '')}"""
-                return jsonify({"tipo": "sucesso_tags", "arquivo_base64": arquivo_base64, "nome_arquivo": "Desafio_Preenchido.docx", "memorial_texto": memorial_texto})
+                
+                return jsonify({
+                    "tipo": "sucesso_tags", 
+                    "arquivo_base64": arquivo_base64, 
+                    "nome_arquivo": "Desafio_Preenchido.docx", 
+                    "memorial_texto": memorial_texto,
+                    "dicionario_gerado": json.dumps(respostas_geradas) # Adicionado para a revisão
+                })
         elif ferramenta == 'gabarito':
             texto_do_template = extrair_texto_docx(arquivo_memoria)
             resposta_ia = gerar_resolucao_inteligente_gabarito(texto_do_template, texto_tema, modelo_escolhido)
             if resposta_ia: return jsonify({"tipo": "texto", "conteudo": resposta_ia})
-                
         return jsonify({"erro": "Opção inválida selecionada."}), 400
     except Exception as e:
-        traceback.print_exc()
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
+
+# --- NOVAS ROTAS PARA REVISÃO ---
+@app.route('/avaliar', methods=['POST'])
+@login_required
+def avaliar():
+    tema = request.form.get('tema')
+    dicionario = request.form.get('dicionario')
+    modelo = request.form.get('modelo')
+    
+    m = genai.GenerativeModel(modelo)
+    prompt = f"Você é um professor avaliador rigoroso. Analise o TEMA: {tema}\nE as RESPOSTAS geradas: {dicionario}\nFaça uma crítica breve (máximo de 3 linhas) informando ao aluno se falta aprofundar algo, se algum ponto ficou raso ou se o trabalho já está excelente e pronto. Seja direto e não use formatações."
+    try:
+        critica = m.generate_content(prompt).text
+        return jsonify({"critica": critica})
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+@app.route('/corrigir', methods=['POST'])
+@login_required
+def corrigir():
+    tema = request.form.get('tema')
+    dicionario = request.form.get('dicionario')
+    modelo = request.form.get('modelo')
+    critica = request.form.get('critica')
+    
+    try:
+        respostas_geradas = gerar_correcao_ia_tags(tema, dicionario, critica, modelo)
+        caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
+        with open(caminho_padrao, 'rb') as f: arquivo_memoria = io.BytesIO(f.read())
+            
+        documento_pronto = preencher_template_com_tags(arquivo_memoria, respostas_geradas)
+        arquivo_bytes = documento_pronto.read()
+        arquivo_base64 = base64.b64encode(arquivo_bytes).decode('utf-8')
+        
+        memorial_texto = f"""### Memorial Analítico (Revisado e Aprimorado) 🌟\n\n**Resumo do que você descobriu**\n{respostas_geradas.get('{{RESUMO_MEMORIAL}}', '')}\n\n**Contextualização do desafio**\n{respostas_geradas.get('{{CONTEXTO_MEMORIAL}}', '')}\n\n**Análise**\n{respostas_geradas.get('{{ANALISE_MEMORIAL}}', '')}\n\n**Propostas de solução**\n{respostas_geradas.get('{{PROPOSTAS_MEMORIAL}}', '')}\n\n**Conclusão reflexiva**\n{respostas_geradas.get('{{CONCLUSAO_MEMORIAL}}', '')}\n\n**Referências**\n{respostas_geradas.get('{{REFERENCIAS_ADICIONAIS}}', '')}\n\n**Autoavaliação**\n{respostas_geradas.get('{{AUTOAVALIACAO_MEMORIAL}}', '')}"""
+        
+        return jsonify({
+            "arquivo_base64": arquivo_base64, 
+            "nome_arquivo": "Desafio_Preenchido_Revisado.docx", 
+            "memorial_texto": memorial_texto,
+            "dicionario_gerado": json.dumps(respostas_geradas)
+        })
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
