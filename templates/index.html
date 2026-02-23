@@ -90,9 +90,15 @@
         }
         .btn-copiar { background-color: #4CAF50; }
         .btn-copiar:hover { background-color: #45a049; }
-        
         .btn-baixar { background-color: var(--btn-blue); }
         .btn-baixar:hover { background-color: #1976D2; }
+        .btn-avaliar { background-color: #9C27B0; }
+        .btn-avaliar:hover { background-color: #7B1FA2; }
+
+        /* Estilos da caixa de avaliação */
+        #box-avaliacao { display:none; background-color: #1e1e24; border: 1px solid #9C27B0; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        #box-avaliacao h3 { color: #E040FB; margin-top: 0; margin-bottom: 10px; }
+        #texto-critica { color: #FAFAFA; font-size: 0.95rem; line-height: 1.5; margin-bottom: 15px; }
 
         #resultado-texto { font-size: 0.95rem; line-height: 1.7; color: var(--text-color); }
         #resultado-texto h1, #resultado-texto h2, #resultado-texto h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600; }
@@ -164,7 +170,7 @@
 
         <div id="loading">
             <div class="spinner"></div>
-            <p class="loading-text">A IA está processando de forma aprofundada... Isso pode levar de 30 a 60 segundos.</p>
+            <p class="loading-text" id="loading-msg">A IA está processando de forma aprofundada... Isso pode levar de 30 a 60 segundos.</p>
         </div>
     </form>
 
@@ -174,10 +180,18 @@
         <div class="header-resultado">
             <h2 id="titulo-resultado">Texto Extraído:</h2>
             <div>
+                <button class="btn-action btn-avaliar" id="btn-revisar" style="display:none;" onclick="avaliarTrabalho()">🔍 Avaliar (IA)</button>
                 <button class="btn-action btn-baixar" id="btn-baixar" style="display:none;" onclick="baixarManual()">📥 Baixar DOCX</button>
-                <button class="btn-action btn-copiar" onclick="copiarTexto()">📋 Copiar Texto</button>
+                <button class="btn-action btn-copiar" onclick="copiarTexto()">📋 Copiar</button>
             </div>
         </div>
+
+        <div id="box-avaliacao">
+            <h3>Parecer do Professor (IA)</h3>
+            <p id="texto-critica"></p>
+            <button class="btn-primary" id="btn-corrigir" style="background-color: #9C27B0; margin-top: 0;" onclick="aplicarCorrecoes()">✨ Aplicar Melhorias e Regerar Trabalho</button>
+        </div>
+
         <div id="texto-oculto" style="display: none;"></div>
         <div id="resultado-texto"></div>
     </div>
@@ -186,6 +200,8 @@
 <script>
     let arquivoBase64Global = "";
     let nomeArquivoGlobal = "";
+    let dicionarioGlobal = null;
+    let criticaGlobal = null;
 
     function copiarTexto() {
         const texto = document.getElementById("texto-oculto").innerText;
@@ -206,13 +222,17 @@
         document.body.removeChild(link);
     }
 
+    // Geração Original
     document.getElementById('meuFormulario').addEventListener('submit', function(event) {
         event.preventDefault(); 
         document.getElementById('btn-submit').style.display = 'none';
         document.getElementById('loading').style.display = 'block';
+        document.getElementById('loading-msg').innerText = "A IA está processando de forma aprofundada... Isso pode levar de 30 a 60 segundos.";
         document.getElementById('msg-sucesso').style.display = 'none';
         document.getElementById('resultado-texto-container').style.display = 'none';
         document.getElementById('btn-baixar').style.display = 'none';
+        document.getElementById('btn-revisar').style.display = 'none';
+        document.getElementById('box-avaliacao').style.display = 'none';
 
         const formData = new FormData(this);
 
@@ -220,10 +240,7 @@
         .then(async response => {
             if (!response.ok) {
                 let errorMsg = "Erro desconhecido no servidor.";
-                try {
-                    const errData = await response.json();
-                    errorMsg = errData.erro || errorMsg;
-                } catch(e) {}
+                try { const errData = await response.json(); errorMsg = errData.erro || errorMsg; } catch(e) {}
                 throw new Error(errorMsg); 
             }
             return response.json(); 
@@ -237,11 +254,14 @@
             if (resultado.tipo === 'sucesso_tags') {
                 arquivoBase64Global = resultado.arquivo_base64;
                 nomeArquivoGlobal = resultado.nome_arquivo;
+                dicionarioGlobal = resultado.dicionario_gerado; // Salva para enviar na revisão
+                
                 baixarManual(); 
 
                 document.getElementById('btn-baixar').style.display = 'inline-block';
+                document.getElementById('btn-revisar').style.display = 'inline-block'; // Mostra botão de revisão
                 document.getElementById('msg-sucesso').style.display = 'block';
-                document.getElementById('msg-sucesso').innerText = "✅ Trabalho Gerado! Caso o download não tenha iniciado, clique no botão azul 'Baixar DOCX'.";
+                document.getElementById('msg-sucesso').innerText = "✅ Trabalho Gerado! Caso o download não tenha iniciado, clique no botão azul.";
                 document.getElementById('titulo-resultado').innerText = "Memorial Analítico para o Portal";
                 document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.memorial_texto);
                 document.getElementById('texto-oculto').innerText = resultado.memorial_texto.replace(/\*\*/g, ''); 
@@ -261,6 +281,81 @@
             alert("⚠️ " + error.message);
         });
     });
+
+    // Função de Avaliar o Trabalho
+    function avaliarTrabalho() {
+        if(!dicionarioGlobal) return;
+        const btnRevisar = document.getElementById('btn-revisar');
+        btnRevisar.innerText = "⏳ Lendo...";
+        btnRevisar.disabled = true;
+
+        const formData = new FormData();
+        formData.append('tema', document.getElementById('tema').value);
+        formData.append('dicionario', dicionarioGlobal);
+        formData.append('modelo', document.getElementById('modelo').value);
+
+        fetch('/avaliar', { method: 'POST', body: formData })
+        .then(res => res.json())
+        .then(res => {
+            btnRevisar.innerText = "🔍 Avaliar Novamente";
+            btnRevisar.disabled = false;
+            if(res.erro) { alert(res.erro); return; }
+            
+            criticaGlobal = res.critica;
+            document.getElementById('texto-critica').innerText = criticaGlobal;
+            document.getElementById('box-avaliacao').style.display = 'block';
+        })
+        .catch(err => {
+            btnRevisar.innerText = "🔍 Avaliar (IA)";
+            btnRevisar.disabled = false;
+            alert("Erro ao avaliar o trabalho.");
+        });
+    }
+
+    // Função de Aplicar as Correções sugeridas
+    function aplicarCorrecoes() {
+        const btnCorrigir = document.getElementById('btn-corrigir');
+        btnCorrigir.innerText = "⏳ Reescrevendo e Aprimorando...";
+        btnCorrigir.disabled = true;
+
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('loading-msg').innerText = "A IA está recriando o documento com as melhorias aplicadas...";
+
+        const formData = new FormData();
+        formData.append('tema', document.getElementById('tema').value);
+        formData.append('dicionario', dicionarioGlobal);
+        formData.append('modelo', document.getElementById('modelo').value);
+        formData.append('critica', criticaGlobal);
+
+        fetch('/corrigir', { method: 'POST', body: formData })
+        .then(res => res.json())
+        .then(res => {
+            btnCorrigir.innerText = "✨ Aplicar Melhorias e Regerar Trabalho";
+            btnCorrigir.disabled = false;
+            document.getElementById('loading').style.display = 'none';
+            
+            if(res.erro) { alert(res.erro); return; }
+
+            arquivoBase64Global = res.arquivo_base64;
+            nomeArquivoGlobal = res.nome_arquivo;
+            dicionarioGlobal = res.dicionario_gerado; // Atualiza com o novo dicionário corrigido
+
+            document.getElementById('resultado-texto').innerHTML = marked.parse(res.memorial_texto);
+            document.getElementById('texto-oculto').innerText = res.memorial_texto.replace(/\*\*/g, ''); 
+            
+            document.getElementById('box-avaliacao').style.display = 'none';
+            document.getElementById('msg-sucesso').style.backgroundColor = "#7B1FA2";
+            document.getElementById('msg-sucesso').innerText = "🌟 Trabalho Corrigido e Atualizado com Sucesso! Baixe o novo DOCX.";
+            
+            baixarManual();
+        })
+        .catch(err => {
+            btnCorrigir.innerText = "✨ Aplicar Melhorias e Regerar Trabalho";
+            btnCorrigir.disabled = false;
+            document.getElementById('loading').style.display = 'none';
+            alert("Erro ao tentar corrigir o documento.");
+        });
+    }
 </script>
 </body>
 </html>
