@@ -10,7 +10,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from docx import Document
-import google.generativeai as genai
+
+# NOVA BIBLIOTECA DO GOOGLE
+from google import genai 
 
 app = Flask(__name__)
 
@@ -27,9 +29,9 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "Por favor, faça login para acessar."
 
+# INICIALIZAÇÃO DO NOVO CLIENTE GEMINI
 CHAVE_API = os.environ.get("GEMINI_API_KEY")
-if CHAVE_API:
-    genai.configure(api_key=CHAVE_API)
+client = genai.Client(api_key=CHAVE_API) if CHAVE_API else None
 
 # =========================================================
 # MODELOS DO BANCO DE DADOS (CRM e Usuários)
@@ -122,13 +124,12 @@ def extrair_texto_docx(arquivo_bytes):
     doc = Document(arquivo_bytes)
     return "\n".join([p.text for p in doc.paragraphs])
 
-# PROMPT GLOBAL (Blindado contra vazamentos e com LIMITES SEVEROS)
+# PROMPT GLOBAL (Blindado e Rigoroso)
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO (LINGUAGEM HUMANA E LIMITES RIGOROSOS):
-    - PROIBIDO usar palavras robóticas de IA (ex: "multifacetado", "tessitura").
+    - PROIBIDO usar palavras robóticas de IA.
     - Escreva de forma natural e acadêmica.
     - NÃO USE FORMATO JSON.
-    - OBRIGATÓRIO: O texto TOTAL gerado nas tags do Memorial Analítico NÃO PODE ultrapassar 5500 caracteres de forma alguma.
     - OBRIGATÓRIO (LIMITE DE PARÁGRAFOS): 
       * Resumo: EXATAMENTE 1 parágrafo.
       * Contexto: EXATAMENTE 1 parágrafo.
@@ -160,16 +161,15 @@ PROMPT_REGRAS_BASE = """
 """
 
 def gerar_respostas_ia_tags(texto_tema, nome_modelo):
-    modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"TEMA/CASO DO DESAFIO:\n{texto_tema}\n\n{PROMPT_REGRAS_BASE}"
     try:
-        resposta = modelo.generate_content(prompt)
+        # Nova sintaxe da biblioteca Google
+        resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
         return extrair_dicionario(resposta.text)
     except Exception as e:
         raise Exception(f"Falha na IA: {str(e)}")
 
 def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
-    modelo = genai.GenerativeModel(nome_modelo)
     prompt = f"""Você é um aluno universitário corrigindo seu trabalho após feedback do professor.
     TEMA: {texto_tema}
     TRABALHO ATUAL: {texto_trabalho}
@@ -179,7 +179,8 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
     Lembre-se: Respeite rigorosamente o limite de caracteres e os limites exatos de parágrafos.
     {PROMPT_REGRAS_BASE}"""
     try:
-        resposta = modelo.generate_content(prompt)
+        # Nova sintaxe
+        resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
         return extrair_dicionario(resposta.text)
     except Exception as e:
         raise Exception(f"Falha na IA (Correção): {str(e)}")
@@ -195,15 +196,17 @@ def extrair_dicionario(texto_ia):
 # =========================================================
 # ROTAS PRINCIPAIS DA FERRAMENTA E CRM
 # =========================================================
+
+# Modelos Hardcoded para evitar erro de listagem na nova API
+MODELOS_DISPONIVEIS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+
 @app.route('/')
 @login_required
 def index():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date:
         return render_template('expirado.html')
-    modelos = [m.name.replace('models/', '') for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    if "gemini-1.5-flash" not in modelos: modelos.insert(0, "gemini-1.5-flash")
     alunos = Aluno.query.filter_by(user_id=current_user.id).all()
-    return render_template('index.html', modelos=modelos, alunos=alunos)
+    return render_template('index.html', modelos=MODELOS_DISPONIVEIS, alunos=alunos)
 
 @app.route('/processar', methods=['POST'])
 @login_required
@@ -302,9 +305,7 @@ def delete_doc(doc_id):
 @app.route('/revisao_avulsa')
 @login_required
 def revisao_avulsa():
-    modelos = [m.name.replace('models/', '') for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    if "gemini-1.5-flash" not in modelos: modelos.insert(0, "gemini-1.5-flash")
-    return render_template('revisao_avulsa.html', modelos=modelos)
+    return render_template('revisao_avulsa.html', modelos=MODELOS_DISPONIVEIS)
 
 @app.route('/avaliar_avulso', methods=['POST'])
 @login_required
@@ -318,15 +319,13 @@ def avaliar_avulso():
 
     texto_trabalho = extrair_texto_docx(arquivo)
     
-    m = genai.GenerativeModel(modelo)
     prompt = f"""Você é um professor avaliador extremamente rigoroso. 
 Analise o TEMA: {tema} \nE O TRABALHO DO ALUNO: {texto_trabalho}
 Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima (profundidade, conceitos, adequação). 
 REGRA: Seja direto, NUNCA use formatações como negrito (**), itálico, bullet points ou títulos. Responda apenas com texto limpo."""
     try:
-        critica = m.generate_content(prompt).text
-        # Remove markdown caso a IA desobedeça
-        critica_limpa = critica.replace('*', '').replace('#', '').strip()
+        resposta = client.models.generate_content(model=modelo, contents=prompt)
+        critica_limpa = resposta.text.replace('*', '').replace('#', '').strip()
         return jsonify({"critica": critica_limpa, "texto_extraido": texto_trabalho})
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
