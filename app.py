@@ -11,8 +11,8 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from docx import Document
 
-# NOVA BIBLIOTECA DO GOOGLE
 from google import genai 
+import openai # NOVA BIBLIOTECA DO CHATGPT
 
 app = Flask(__name__)
 
@@ -29,9 +29,11 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "Por favor, faça login para acessar."
 
-# INICIALIZAÇÃO DO NOVO CLIENTE GEMINI
-CHAVE_API = os.environ.get("GEMINI_API_KEY")
-client = genai.Client(api_key=CHAVE_API) if CHAVE_API else None
+# INICIALIZAÇÃO DOS CLIENTES DE IA
+CHAVE_API_GOOGLE = os.environ.get("GEMINI_API_KEY")
+client = genai.Client(api_key=CHAVE_API_GOOGLE) if CHAVE_API_GOOGLE else None
+
+CHAVE_API_OPENAI = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
 # MODELOS DO BANCO DE DADOS (CRM e Usuários)
@@ -51,6 +53,7 @@ class Aluno(db.Model):
     curso = db.Column(db.String(100))
     telefone = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='Pendente') # NOVO CAMPO: Pendente ou Pago
     documentos = db.relationship('Documento', backref='aluno', lazy=True, cascade="all, delete-orphan")
 
 class Documento(db.Model):
@@ -66,6 +69,13 @@ def load_user(user_id):
 
 with app.app_context():
     db.create_all()
+    # Script de atualização segura para adicionar a coluna 'status' em bases antigas sem quebrar
+    try:
+        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Pendente'"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback() # A coluna já existe, segue o jogo.
+
     if not User.query.filter_by(username='admin').first():
         hashed_pw = generate_password_hash('admin123')
         admin = User(username='admin', password=hashed_pw, role='admin')
@@ -75,6 +85,24 @@ with app.app_context():
 # =========================================================
 # FUNÇÕES DA IA E MANIPULAÇÃO DE WORD
 # =========================================================
+def chamar_ia(prompt, nome_modelo):
+    """Função central que decide se vai usar ChatGPT ou Google (Gemini/Gemma)"""
+    if "gpt" in nome_modelo.lower():
+        if not CHAVE_API_OPENAI:
+            raise Exception("A Chave da API da OpenAI (ChatGPT) não foi configurada no sistema.")
+        oai_client = openai.OpenAI(api_key=CHAVE_API_OPENAI)
+        response = oai_client.chat.completions.create(
+            model=nome_modelo,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    else:
+        if not client:
+            raise Exception("A Chave da API do Google não foi configurada no sistema.")
+        resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
+        return resposta.text
+
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
     doc = Document(arquivo_template)
     def processar_paragrafo(paragrafo):
@@ -124,7 +152,7 @@ def extrair_texto_docx(arquivo_bytes):
     doc = Document(arquivo_bytes)
     return "\n".join([p.text for p in doc.paragraphs])
 
-# PROMPT GLOBAL (Blindado e Rigoroso)
+# PROMPT GLOBAL (INTOCADO)
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO (LINGUAGEM HUMANA E LIMITES RIGOROSOS):
     - PROIBIDO usar palavras robóticas de IA.
@@ -163,9 +191,8 @@ PROMPT_REGRAS_BASE = """
 def gerar_respostas_ia_tags(texto_tema, nome_modelo):
     prompt = f"TEMA/CASO DO DESAFIO:\n{texto_tema}\n\n{PROMPT_REGRAS_BASE}"
     try:
-        # Nova sintaxe da biblioteca Google
-        resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
-        return extrair_dicionario(resposta.text)
+        texto_resposta = chamar_ia(prompt, nome_modelo)
+        return extrair_dicionario(texto_resposta)
     except Exception as e:
         raise Exception(f"Falha na IA: {str(e)}")
 
@@ -179,9 +206,8 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
     Lembre-se: Respeite rigorosamente o limite de caracteres e os limites exatos de parágrafos.
     {PROMPT_REGRAS_BASE}"""
     try:
-        # Nova sintaxe
-        resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
-        return extrair_dicionario(resposta.text)
+        texto_resposta = chamar_ia(prompt, nome_modelo)
+        return extrair_dicionario(texto_resposta)
     except Exception as e:
         raise Exception(f"Falha na IA (Correção): {str(e)}")
 
@@ -197,15 +223,16 @@ def extrair_dicionario(texto_ia):
 # ROTAS PRINCIPAIS DA FERRAMENTA E CRM
 # =========================================================
 
-# Modelos Hardcoded para evitar erro de listagem na nova API
-MODELOS_DISPONIVEIS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+# Os 3 modelos específicos solicitados
+MODELOS_DISPONIVEIS = ["gpt-4o-mini", "gemini-2.5-flash", "gemma-3-27b-it"]
 
 @app.route('/')
 @login_required
 def index():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date:
         return render_template('expirado.html')
-    alunos = Aluno.query.filter_by(user_id=current_user.id).all()
+    # Na tela principal, só mostramos os clientes que estão Pendentes para não poluir
+    alunos = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
     return render_template('index.html', modelos=MODELOS_DISPONIVEIS, alunos=alunos)
 
 @app.route('/processar', methods=['POST'])
@@ -248,15 +275,31 @@ def clientes():
             user_id=current_user.id,
             nome=request.form.get('nome'),
             curso=request.form.get('curso'),
-            telefone=request.form.get('telefone')
+            telefone=request.form.get('telefone'),
+            status='Pendente'
         )
         db.session.add(novo_aluno)
         db.session.commit()
         flash('Cliente cadastrado com sucesso!', 'success')
         return redirect(url_for('clientes'))
         
-    alunos = Aluno.query.filter_by(user_id=current_user.id).all()
-    return render_template('clientes.html', alunos=alunos)
+    # Separação para o visual limpo
+    alunos_pendentes = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
+    alunos_pagos = Aluno.query.filter_by(user_id=current_user.id, status='Pago').all()
+    
+    return render_template('clientes.html', alunos_pendentes=alunos_pendentes, alunos_pagos=alunos_pagos)
+
+@app.route('/toggle_status/<int:id>', methods=['POST'])
+@login_required
+def toggle_status(id):
+    aluno = Aluno.query.get_or_404(id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
+    
+    # Alterna entre Pendente e Pago
+    aluno.status = 'Pago' if aluno.status == 'Pendente' else 'Pendente'
+    db.session.commit()
+    flash(f"Status de {aluno.nome} atualizado para {aluno.status}!", "success")
+    return redirect(url_for('clientes'))
 
 @app.route('/cliente/<int:id>', methods=['GET'])
 @login_required
@@ -324,8 +367,8 @@ Analise o TEMA: {tema} \nE O TRABALHO DO ALUNO: {texto_trabalho}
 Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima (profundidade, conceitos, adequação). 
 REGRA: Seja direto, NUNCA use formatações como negrito (**), itálico, bullet points ou títulos. Responda apenas com texto limpo."""
     try:
-        resposta = client.models.generate_content(model=modelo, contents=prompt)
-        critica_limpa = resposta.text.replace('*', '').replace('#', '').strip()
+        texto_resposta = chamar_ia(prompt, modelo)
+        critica_limpa = texto_resposta.replace('*', '').replace('#', '').strip()
         return jsonify({"critica": critica_limpa, "texto_extraido": texto_trabalho})
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
