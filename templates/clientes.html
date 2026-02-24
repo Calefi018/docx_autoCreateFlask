@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="margin-top:0;">Meus Clientes</h1>
+    
+    <div class="card">
+        <h3 style="margin-top: 0;">Cadastrar Novo Cliente</h3>
+        <form method="POST" style="display: flex; gap: 10px;">
+            <input type="text" name="nome" placeholder="Nome do Aluno" required>
+            <input type="text" name="curso" placeholder="Curso/Disciplina">
+            <input type="text" name="telefone" placeholder="WhatsApp">
+            <button type="submit" class="btn btn-green" style="height: 42px;">Cadastrar</button>
+        </form>
+    </div>
+
+    <h3>Lista de Clientes Ativos</h3>
+    {% for aluno in alunos %}
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h4 style="margin: 0; color: #2196F3;">{{ aluno.nome }}</h4>
+                <small style="color: #9E9E9E;">{{ aluno.curso }} | {{ aluno.telefone }}</small>
+            </div>
+            <a href="/cliente/{{ aluno.id }}" class="btn">Abrir Pasta ({{ aluno.documentos|length }} Docs)</a>
+        </div>
+    {% else %}
+        <p style="color: #9E9E9E;">Você ainda não tem clientes cadastrados.</p>
+    {% endfor %}
+{% endblock %}
