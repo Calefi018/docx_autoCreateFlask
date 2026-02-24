@@ -40,7 +40,6 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='cliente') 
     expiration_date = db.Column(db.Date, nullable=True)
-    # Relação: Um usuário (você) atende vários alunos (clientes finais)
     alunos = db.relationship('Aluno', backref='responsavel', lazy=True)
 
 class Aluno(db.Model):
@@ -50,14 +49,13 @@ class Aluno(db.Model):
     curso = db.Column(db.String(100))
     telefone = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
-    # Relação: Um aluno tem vários documentos salvos
     documentos = db.relationship('Documento', backref='aluno', lazy=True, cascade="all, delete-orphan")
 
 class Documento(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     aluno_id = db.Column(db.Integer, db.ForeignKey('aluno.id'), nullable=False)
     nome_arquivo = db.Column(db.String(255), nullable=False)
-    dados_arquivo = db.Column(db.LargeBinary, nullable=False) # Salva o DOCX no banco!
+    dados_arquivo = db.Column(db.LargeBinary, nullable=False) 
     data_upload = db.Column(db.DateTime, default=datetime.utcnow)
 
 @login_manager.user_loader
@@ -124,17 +122,23 @@ def extrair_texto_docx(arquivo_bytes):
     doc = Document(arquivo_bytes)
     return "\n".join([p.text for p in doc.paragraphs])
 
-# PROMPT GLOBAL (Blindado contra vazamentos)
+# PROMPT GLOBAL (Blindado contra vazamentos e com LIMITES SEVEROS)
 PROMPT_REGRAS_BASE = """
-    REGRA DE OURO (LINGUAGEM HUMANA):
+    REGRA DE OURO (LINGUAGEM HUMANA E LIMITES RIGOROSOS):
     - PROIBIDO usar palavras robóticas de IA (ex: "multifacetado", "tessitura").
     - Escreva de forma natural e acadêmica.
     - NÃO USE FORMATO JSON.
-    - LIMITE DE PARÁGRAFOS ESTRITO: Respeite os limites exigidos nas rubricas do Memorial Analítico.
-    - NÃO ATRIBUA NOTAS A SI MESMO.
+    - OBRIGATÓRIO: O texto TOTAL gerado nas tags do Memorial Analítico NÃO PODE ultrapassar 5500 caracteres de forma alguma.
+    - OBRIGATÓRIO (LIMITE DE PARÁGRAFOS): 
+      * Resumo: EXATAMENTE 1 parágrafo.
+      * Contexto: EXATAMENTE 1 parágrafo.
+      * Análise: EXATAMENTE 1 parágrafo.
+      * Propostas de solução: MÁXIMO de 2 parágrafos.
+      * Conclusão reflexiva: MÁXIMO de 2 parágrafos.
+      * Autoavaliação: EXATAMENTE 1 parágrafo (sem atribuir nota a si mesmo).
     
     GERAÇÃO OBRIGATÓRIA:
-    (ATENÇÃO: É ESTRITAMENTE PROIBIDO COPIAR OU REPETIR AS INSTRUÇÕES ABAIXO DENTRO DA SUA RESPOSTA. FORNEÇA APENAS A SUA RESPOSTA FINAL).
+    (ATENÇÃO: É ESTRITAMENTE PROIBIDO COPIAR OU REPETIR AS INSTRUÇÕES ABAIXO DENTRO DA SUA RESPOSTA. FORNEÇA APENAS A SUA RESPOSTA FINAL DIRETAMENTE).
     
     [START_ASPECTO_1] [Resposta direta aqui] [END_ASPECTO_1]
     [START_POR_QUE_1] [Resposta direta aqui] [END_POR_QUE_1]
@@ -172,6 +176,7 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
     CRÍTICA RECEBIDA: {critica}
     
     TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. 
+    Lembre-se: Respeite rigorosamente o limite de caracteres e os limites exatos de parágrafos.
     {PROMPT_REGRAS_BASE}"""
     try:
         resposta = modelo.generate_content(prompt)
@@ -216,7 +221,6 @@ def processar():
         arquivo_bytes = documento_pronto.read()
         arquivo_base64 = base64.b64encode(arquivo_bytes).decode('utf-8')
         
-        # Se selecionou um cliente, salva o DOCX no Banco de Dados automaticamente!
         if aluno_id:
             novo_doc = Documento(aluno_id=aluno_id, nome_arquivo=f"Trabalho_{datetime.now().strftime('%d%m%Y')}.docx", dados_arquivo=arquivo_bytes)
             db.session.add(novo_doc)
@@ -317,10 +321,13 @@ def avaliar_avulso():
     m = genai.GenerativeModel(modelo)
     prompt = f"""Você é um professor avaliador extremamente rigoroso. 
 Analise o TEMA: {tema} \nE O TRABALHO DO ALUNO: {texto_trabalho}
-Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima (profundidade, conceitos, adequação)."""
+Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima (profundidade, conceitos, adequação). 
+REGRA: Seja direto, NUNCA use formatações como negrito (**), itálico, bullet points ou títulos. Responda apenas com texto limpo."""
     try:
         critica = m.generate_content(prompt).text
-        return jsonify({"critica": critica, "texto_extraido": texto_trabalho})
+        # Remove markdown caso a IA desobedeça
+        critica_limpa = critica.replace('*', '').replace('#', '').strip()
+        return jsonify({"critica": critica_limpa, "texto_extraido": texto_trabalho})
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
