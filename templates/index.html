@@ -1,14 +1,49 @@
-<script>
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="margin-top:0;">Gerador de Trabalhos</h1>
+    <p style="color: #9E9E9E; margin-bottom: 30px;">Gere o documento e vincule automaticamente a um cliente.</p>
+
+    <form id="formGerar">
+        <label><b>1. Para qual Cliente é este trabalho?</b></label>
+        <select name="aluno_id">
+            <option value="">Não vincular a nenhum cliente (Apenas Baixar)</option>
+            {% for aluno in alunos %}
+                <option value="{{ aluno.id }}">{{ aluno.nome }} - {{ aluno.curso }}</option>
+            {% endfor %}
+        </select>
+
+        <label><b>2. Tema do Desafio</b></label>
+        <textarea name="tema" rows="6" placeholder="Cole aqui o texto do portal..." required></textarea>
+
+        <label><b>3. Inteligência Artificial</b></label>
+        <select name="modelo">
+            {% for modelo in modelos %}<option value="{{ modelo }}">{{ modelo }}</option>{% endfor %}
+        </select>
+
+        <button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem;" id="btn-submit">🚀 Gerar e Salvar Documento</button>
+        <p id="loading" style="display:none; text-align:center; color:#2196F3;">A IA está construindo o documento de forma aprofundada... Isso pode levar cerca de 1 minuto.</p>
+    </form>
+
+    <div id="resultado" class="card" style="display:none; margin-top: 30px;">
+        <h3 style="color: #57D2A9; margin-top: 0;">✅ Trabalho Gerado com Sucesso!</h3>
+        <p>Se você selecionou um cliente, o DOCX já foi salvo permanentemente na pasta dele.</p>
+        <button class="btn btn-blue" onclick="baixarDoc()">📥 Baixar DOCX Agora</button>
+    </div>
+
+    <script>
         let base64Doc = "";
+        
         function baixarDoc() {
             const link = document.createElement('a');
             link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + base64Doc;
-            link.download = "Desafio_Gerado.docx"; link.click();
+            link.download = "Desafio_Gerado.docx"; 
+            link.click();
         }
 
         document.getElementById('formGerar').onsubmit = function(e) {
             e.preventDefault();
             document.getElementById('btn-submit').style.display = 'none';
+            document.getElementById('resultado').style.display = 'none';
             document.getElementById('loading').style.display = 'block';
             
             fetch('/processar', { method: 'POST', body: new FormData(this) })
@@ -19,7 +54,12 @@
             .then(data => {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('btn-submit').style.display = 'block';
-                if(data.erro) { alert(data.erro); return; }
+                
+                if(data.erro) { 
+                    alert("Erro na IA: " + data.erro); 
+                    return; 
+                }
+                
                 base64Doc = data.arquivo_base64;
                 document.getElementById('resultado').style.display = 'block';
                 baixarDoc();
@@ -31,3 +71,4 @@
             });
         };
     </script>
+{% endblock %}
