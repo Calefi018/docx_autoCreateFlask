@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from docx import Document
 
 from google import genai 
-import openai # NOVA BIBLIOTECA DO CHATGPT
+import openai # A Groq usa a mesma biblioteca da OpenAI!
 
 app = Flask(__name__)
 
@@ -33,7 +33,8 @@ login_manager.login_message = "Por favor, faça login para acessar."
 CHAVE_API_GOOGLE = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=CHAVE_API_GOOGLE) if CHAVE_API_GOOGLE else None
 
-CHAVE_API_OPENAI = os.environ.get("OPENAI_API_KEY")
+# Nova Chave da Groq
+CHAVE_API_GROQ = os.environ.get("GROQ_API_KEY")
 
 # =========================================================
 # MODELOS DO BANCO DE DADOS (CRM e Usuários)
@@ -53,7 +54,7 @@ class Aluno(db.Model):
     curso = db.Column(db.String(100))
     telefone = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(20), default='Pendente') # NOVO CAMPO: Pendente ou Pago
+    status = db.Column(db.String(20), default='Pendente') 
     documentos = db.relationship('Documento', backref='aluno', lazy=True, cascade="all, delete-orphan")
 
 class Documento(db.Model):
@@ -69,12 +70,11 @@ def load_user(user_id):
 
 with app.app_context():
     db.create_all()
-    # Script de atualização segura para adicionar a coluna 'status' em bases antigas sem quebrar
     try:
         db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Pendente'"))
         db.session.commit()
     except Exception:
-        db.session.rollback() # A coluna já existe, segue o jogo.
+        db.session.rollback()
 
     if not User.query.filter_by(username='admin').first():
         hashed_pw = generate_password_hash('admin123')
@@ -86,20 +86,23 @@ with app.app_context():
 # FUNÇÕES DA IA E MANIPULAÇÃO DE WORD
 # =========================================================
 def chamar_ia(prompt, nome_modelo):
-    """Função central que decide se vai usar ChatGPT ou Google (Gemini/Gemma)"""
-    if "gpt" in nome_modelo.lower():
-        if not CHAVE_API_OPENAI:
-            raise Exception("A Chave da API da OpenAI (ChatGPT) não foi configurada no sistema.")
-        oai_client = openai.OpenAI(api_key=CHAVE_API_OPENAI)
-        response = oai_client.chat.completions.create(
+    """Encaminha o pedido para a Groq (Llama) ou Google (Gemini/Gemma)"""
+    if "llama" in nome_modelo.lower():
+        if not CHAVE_API_GROQ:
+            raise Exception("A Chave da API da Groq (GROQ_API_KEY) não foi configurada.")
+        
+        # A Groq é 100% compatível com a biblioteca da OpenAI
+        groq_client = openai.OpenAI(api_key=CHAVE_API_GROQ, base_url="https://api.groq.com/openai/v1")
+        response = groq_client.chat.completions.create(
             model=nome_modelo,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
         return response.choices[0].message.content
     else:
+        # Tudo que não for Llama (Gemini e Gemma) vai para o Google
         if not client:
-            raise Exception("A Chave da API do Google não foi configurada no sistema.")
+            raise Exception("A Chave da API do Google (GEMINI_API_KEY) não foi configurada.")
         resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
         return resposta.text
 
@@ -223,15 +226,14 @@ def extrair_dicionario(texto_ia):
 # ROTAS PRINCIPAIS DA FERRAMENTA E CRM
 # =========================================================
 
-# Os 3 modelos específicos solicitados
-MODELOS_DISPONIVEIS = ["gpt-4o-mini", "gemini-2.5-flash", "gemma-3-27b-it"]
+# Os 3 modelos específicos (Llama 3 no lugar do GPT, Gemini e Gemma)
+MODELOS_DISPONIVEIS = ["llama3-70b-8192", "gemini-2.5-flash", "gemma-3-27b-it"]
 
 @app.route('/')
 @login_required
 def index():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date:
         return render_template('expirado.html')
-    # Na tela principal, só mostramos os clientes que estão Pendentes para não poluir
     alunos = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
     return render_template('index.html', modelos=MODELOS_DISPONIVEIS, alunos=alunos)
 
@@ -283,7 +285,6 @@ def clientes():
         flash('Cliente cadastrado com sucesso!', 'success')
         return redirect(url_for('clientes'))
         
-    # Separação para o visual limpo
     alunos_pendentes = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
     alunos_pagos = Aluno.query.filter_by(user_id=current_user.id, status='Pago').all()
     
@@ -295,7 +296,6 @@ def toggle_status(id):
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     
-    # Alterna entre Pendente e Pago
     aluno.status = 'Pago' if aluno.status == 'Pendente' else 'Pendente'
     db.session.commit()
     flash(f"Status de {aluno.nome} atualizado para {aluno.status}!", "success")
