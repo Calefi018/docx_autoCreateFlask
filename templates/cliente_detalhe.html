@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+    <a href="/clientes" style="color: #9E9E9E; text-decoration: none;">&larr; Voltar para Clientes</a>
+    <h1 style="color: #2196F3; margin-bottom: 5px;">{{ aluno.nome }}</h1>
+    <p style="color: #9E9E9E; margin-top: 0;">Curso: {{ aluno.curso }} | Tel: {{ aluno.telefone }}</p>
+
+    <div class="card">
+        <h3 style="margin-top: 0;">📎 Anexar Trabalho Externo (DOCX)</h3>
+        <p style="font-size: 0.9rem; color: #9E9E9E;">Faça upload de trabalhos que o aluno enviou ou que você fez por fora.</p>
+        <form action="/upload_doc/{{ aluno.id }}" method="POST" enctype="multipart/form-data" style="display: flex; gap: 10px;">
+            <input type="file" name="arquivo" accept=".docx" required style="padding: 6px;">
+            <button type="submit" class="btn btn-green">Subir Arquivo</button>
+        </form>
+    </div>
+
+    <h3>Trabalhos Salvos</h3>
+    {% for doc in aluno.documentos %}
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="margin: 0;">📄 {{ doc.nome_arquivo }}</h4>
+                <div>
+                    <a href="/download_doc/{{ doc.id }}" class="btn btn-blue">Baixar</a>
+                    <a href="/delete_doc/{{ doc.id }}" class="btn" style="background: #FF4B4B;" onclick="return confirm('Apagar este arquivo para sempre?')">Apagar</a>
+                </div>
+            </div>
+            
+            <form action="/rename_doc/{{ doc.id }}" method="POST" style="margin-top: 15px; display: flex; gap: 10px;">
+                <input type="text" name="novo_nome" value="{{ doc.nome_arquivo.replace('.docx', '') }}" required style="margin-bottom: 0;">
+                <button type="submit" class="btn" style="background: #444C56;">Renomear</button>
+            </form>
+        </div>
+    {% else %}
+        <p>Nenhum documento salvo para este cliente.</p>
+    {% endfor %}
+{% endblock %}
