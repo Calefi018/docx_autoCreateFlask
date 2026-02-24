@@ -1,6 +1,6 @@
 flask
 python-docx
-google-generativeai
+google-genai
 flask-sqlalchemy
 flask-login
 werkzeug
