@@ -102,6 +102,7 @@ def limpar_texto_ia(texto):
 
 def chamar_ia(prompt, nome_modelo):
     """Encaminha o pedido para o OpenRouter (IAs gratuitas) ou Google"""
+    # Se o nome tem "free" ou "/", vai pro OpenRouter
     if "free" in nome_modelo.lower() or "/" in nome_modelo:
         if not CHAVE_OPENROUTER:
             raise Exception("A Chave da API do OpenRouter (OPENAI_API_KEY) não foi configurada no Koyeb.")
@@ -118,6 +119,7 @@ def chamar_ia(prompt, nome_modelo):
         texto_sujo = response.choices[0].message.content
         return limpar_texto_ia(texto_sujo)
     else:
+        # Tudo que não tiver a barra vai para o Google de forma nativa
         if not client:
             raise Exception("A Chave da API do Google não foi configurada.")
         resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
@@ -243,14 +245,14 @@ def extrair_dicionario(texto_ia):
 # ROTAS PRINCIPAIS DA FERRAMENTA E CRM
 # =========================================================
 
-# Os Modelos 100% Seguros (Sem erros 404)
+# Os Modelos Renomeados com precisão cirúrgica para garantir Cotas Novas e Evitar Erros 404
 MODELOS_DISPONIVEIS = [
-    "gemini-1.5-pro",                               # Potência máxima do Google
-    "gemini-2.0-flash",                             # Super rápido do Google
-    "gemini-1.5-flash",                             # O Google Clássico
-    "meta-llama/llama-3.1-8b-instruct:free",        # Llama 3 (OpenRouter 100% Gratuito e testado)
-    "google/gemma-2-9b-it:free",                    # Gemma (OpenRouter 100% Gratuito e testado)
-    "qwen/qwen-2.5-7b-instruct:free"                # Qwen (OpenRouter 100% Gratuito e testado)
+    "gemini-1.5-flash-8b",                          # Cota Nova 1: O modelo mais leve e rápido do Google
+    "gemini-2.0-flash-lite-preview-02-05",          # Cota Nova 2: Lançamento do Google (Cota inteira livre)
+    "gemini-1.5-pro-002",                           # Cota Nova 3: A versão exata do Pro para fugir do 404
+    "gemini-1.5-flash-002",                         # Cota Nova 4: A versão exata do Flash para fugir do 404
+    "deepseek/deepseek-r1:free",                    # OpenRouter (O R1 costuma ter os servidores mais estáveis)
+    "meta-llama/llama-3.3-70b-instruct:free"        # OpenRouter (Llama 3.3)
 ]
 
 @app.route('/')
