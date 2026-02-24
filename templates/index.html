@@ -1,36 +1,4 @@
-{% extends "base.html" %}
-{% block content %}
-    <h1 style="margin-top:0;">Gerador de Trabalhos</h1>
-    <p style="color: #9E9E9E; margin-bottom: 30px;">Gere o documento e vincule automaticamente a um cliente.</p>
-
-    <form id="formGerar">
-        <label><b>1. Para qual Cliente é este trabalho?</b></label>
-        <select name="aluno_id">
-            <option value="">Não vincular a nenhum cliente (Apenas Baixar)</option>
-            {% for aluno in alunos %}
-                <option value="{{ aluno.id }}">{{ aluno.nome }} - {{ aluno.curso }}</option>
-            {% endfor %}
-        </select>
-
-        <label><b>2. Tema do Desafio</b></label>
-        <textarea name="tema" rows="6" required></textarea>
-
-        <label><b>3. Inteligência Artificial</b></label>
-        <select name="modelo">
-            {% for modelo in modelos %}<option value="{{ modelo }}">{{ modelo }}</option>{% endfor %}
-        </select>
-
-        <button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem;" id="btn-submit">🚀 Gerar e Salvar Documento</button>
-        <p id="loading" style="display:none; text-align:center; color:#2196F3;">A IA está construindo o documento. Aguarde...</p>
-    </form>
-
-    <div id="resultado" class="card" style="display:none; margin-top: 30px;">
-        <h3 style="color: #57D2A9; margin-top: 0;">✅ Trabalho Gerado com Sucesso!</h3>
-        <p>Se você selecionou um cliente, o DOCX já foi salvo permanentemente no painel dele.</p>
-        <button class="btn btn-blue" onclick="baixarDoc()">📥 Baixar DOCX Agora</button>
-    </div>
-
-    <script>
+<script>
         let base64Doc = "";
         function baixarDoc() {
             const link = document.createElement('a');
@@ -44,7 +12,10 @@
             document.getElementById('loading').style.display = 'block';
             
             fetch('/processar', { method: 'POST', body: new FormData(this) })
-            .then(res => res.json())
+            .then(async res => {
+                if (!res.ok) throw new Error("Tempo limite excedido ou servidor caiu. Tente novamente.");
+                return res.json();
+            })
             .then(data => {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('btn-submit').style.display = 'block';
@@ -52,7 +23,11 @@
                 base64Doc = data.arquivo_base64;
                 document.getElementById('resultado').style.display = 'block';
                 baixarDoc();
+            })
+            .catch(err => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('btn-submit').style.display = 'block';
+                alert("Erro de conexão: " + err.message);
             });
         };
     </script>
-{% endblock %}
