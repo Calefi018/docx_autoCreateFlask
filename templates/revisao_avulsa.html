@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="margin-top:0;">Revisão de Trabalhos Externos</h1>
+    <p style="color: #9E9E9E;">O aluno mandou um trabalho ruim? Envie o DOCX aqui. A IA vai ler, criticar e reconstruir no padrão oficial da faculdade.</p>
+
+    <div class="card">
+        <form id="formRevisao" enctype="multipart/form-data">
+            <label><b>1. Tema / Enunciado do Desafio</b></label>
+            <textarea name="tema" rows="4" required></textarea>
+
+            <label><b>2. Arquivo do Aluno (.docx)</b></label>
+            <input type="file" name="arquivo_trabalho" accept=".docx" required style="padding: 7px;">
+
+            <label><b>3. Modelo IA</b></label>
+            <select name="modelo">{% for m in modelos %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select>
+
+            <button type="submit" class="btn" style="background: #9C27B0; width: 100%;" id="btn-avaliar">🔍 Analisar Trabalho</button>
+            <p id="loading-rev" style="display:none; text-align:center; color:#9C27B0;">O Professor IA está lendo o DOCX...</p>
+        </form>
+    </div>
+
+    <div id="resultado-avaliacao" class="card" style="display:none; border-color: #9C27B0;">
+        <h3 style="color: #E040FB; margin-top: 0;">Parecer do Professor</h3>
+        <p id="texto-critica"></p>
+        
+        <button class="btn" style="background: #9C27B0; width: 100%;" id="btn-corrigir" onclick="corrigirTrabalho()">✨ Aplicar Melhorias e Formatar no Padrão</button>
+        <p id="loading-corrigir" style="display:none; text-align:center;">Reescrevendo o documento inteiro...</p>
+    </div>
+
+    <script>
+        let textoExtraidoGlobal = "";
+        let criticaGlobal = "";
+        
+        document.getElementById('formRevisao').onsubmit = function(e) {
+            e.preventDefault();
+            document.getElementById('btn-avaliar').style.display = 'none';
+            document.getElementById('loading-rev').style.display = 'block';
+            
+            fetch('/avaliar_avulso', { method: 'POST', body: new FormData(this) })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loading-rev').style.display = 'none';
+                if(data.erro) { alert(data.erro); document.getElementById('btn-avaliar').style.display = 'block'; return; }
+                
+                textoExtraidoGlobal = data.texto_extraido;
+                criticaGlobal = data.critica;
+                document.getElementById('texto-critica').innerText = criticaGlobal;
+                document.getElementById('resultado-avaliacao').style.display = 'block';
+            });
+        };
+
+        function corrigirTrabalho() {
+            document.getElementById('btn-corrigir').style.display = 'none';
+            document.getElementById('loading-corrigir').style.display = 'block';
+            
+            const fd = new FormData();
+            fd.append('tema', document.querySelector('[name="tema"]').value);
+            fd.append('texto_extraido', textoExtraidoGlobal);
+            fd.append('critica', criticaGlobal);
+            fd.append('modelo', document.querySelector('[name="modelo"]').value);
+
+            fetch('/corrigir_avulso', { method: 'POST', body: fd })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loading-corrigir').style.display = 'none';
+                if(data.erro) { alert(data.erro); return; }
+                
+                const link = document.createElement('a');
+                link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + data.arquivo_base64;
+                link.download = data.nome_arquivo; link.click();
+                
+                document.getElementById('btn-corrigir').innerText = "✅ Documento Recriado! Baixando...";
+                document.getElementById('btn-corrigir').style.display = 'block';
+            });
+        }
+    </script>
+{% endblock %}
