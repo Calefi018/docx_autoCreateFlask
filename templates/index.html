@@ -1,361 +1,58 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hub de Desafios Profissionais</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="margin-top:0;">Gerador de Trabalhos</h1>
+    <p style="color: #9E9E9E; margin-bottom: 30px;">Gere o documento e vincule automaticamente a um cliente.</p>
 
-    <style>
-        :root {
-            --primary-color: #FF4B4B; 
-            --bg-color: #0E1117; 
-            --bg-secondary: #262730; 
-            --text-color: #FAFAFA; 
-            --border-color: #444C56;
-            --success-bg: #0E3A2F;
-            --success-text: #57D2A9;
-            --btn-blue: #2196F3;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .top-nav {
-            width: 100%; max-width: 730px; text-align: right; padding: 15px 0; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem;
-        }
-        .top-nav a { text-decoration: none; font-weight: 600; margin-left: 15px; }
-
-        .st-container { width: 100%; max-width: 730px; padding: 0 1.5rem 3rem 1.5rem; }
-        h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 0.5rem; }
-        p.subtitle { font-size: 1rem; color: #9E9E9E; margin-bottom: 2rem; }
-
-        .form-group { margin-bottom: 1.5rem; }
-        label.main-label { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; display: block; }
-
-        select, textarea {
-            width: 100%; background-color: var(--bg-secondary); border: 1px solid var(--border-color);
-            border-radius: 8px; padding: 0.75rem 1rem; font-size: 1rem; color: var(--text-color);
-            font-family: 'Inter', sans-serif; box-sizing: border-box;
-        }
-        select:focus, textarea:focus { outline: none; border-color: var(--primary-color); }
-
-        .radio-group { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
-        .radio-option { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; }
-        .radio-option input[type="radio"] { accent-color: var(--primary-color); width: 1.1rem; height: 1.1rem; margin-top: 3px; cursor: pointer; }
-        .radio-title { font-size: 1rem; font-weight: 600; color: var(--text-color); }
-        .radio-desc { font-size: 0.85rem; color: #9E9E9E; }
-
-        .btn-primary {
-            background-color: var(--primary-color); color: #FFFFFF; border: none; border-radius: 8px;
-            padding: 0.75rem 1rem; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%;
-            transition: all 0.2s; margin-top: 1rem;
-        }
-        .btn-primary:hover { background-color: #ff3333; }
-
-        #loading { display: none; text-align: center; margin-top: 2rem; }
-        .spinner {
-            border: 4px solid var(--bg-secondary); width: 36px; height: 36px; border-radius: 50%;
-            border-left-color: var(--primary-color); animation: spin 1s linear infinite; margin: 0 auto;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .loading-text { margin-top: 1rem; font-size: 0.9rem; color: #9E9E9E; }
-
-        .success-box {
-            background-color: var(--success-bg); color: var(--success-text); border: 1px solid #144f3f;
-            padding: 1rem; border-radius: 8px; margin-top: 1.5rem; display: none; font-weight: 600;
-        }
-
-        #resultado-texto-container { display: none; margin-top: 2rem; }
-        
-        .header-resultado {
-            display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem;
-            flex-wrap: wrap; gap: 10px;
-        }
-        .header-resultado h2 { margin: 0; font-size: 1.5rem;}
-        
-        .btn-action {
-            color: white; border: none; border-radius: 4px; padding: 6px 12px; 
-            font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
-        }
-        .btn-copiar { background-color: #4CAF50; }
-        .btn-copiar:hover { background-color: #45a049; }
-        .btn-baixar { background-color: var(--btn-blue); }
-        .btn-baixar:hover { background-color: #1976D2; }
-        .btn-avaliar { background-color: #9C27B0; }
-        .btn-avaliar:hover { background-color: #7B1FA2; }
-
-        /* Estilos da caixa de avaliação */
-        #box-avaliacao { display:none; background-color: #1e1e24; border: 1px solid #9C27B0; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        #box-avaliacao h3 { color: #E040FB; margin-top: 0; margin-bottom: 10px; }
-        #texto-critica { color: #FAFAFA; font-size: 0.95rem; line-height: 1.5; margin-bottom: 15px; }
-
-        #resultado-texto { font-size: 0.95rem; line-height: 1.7; color: var(--text-color); }
-        #resultado-texto h1, #resultado-texto h2, #resultado-texto h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600; }
-        #resultado-texto hr { border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0; }
-        #resultado-texto ul { padding-left: 1.5rem; margin-bottom: 1.5rem; }
-        #resultado-texto li { margin-bottom: 0.5rem; }
-        #resultado-texto strong { color: #FFFFFF; font-weight: 700; }
-    </style>
-</head>
-<body>
-
-<div class="top-nav">
-    <span style="color: #9E9E9E; font-size: 0.9rem; margin-right: 15px;">Olá, {{ user.username }}</span>
-    <a href="/mudar_senha" style="color: #2196F3; margin-right: 15px;">Mudar Senha</a>
-    {% if role in ['admin', 'sub-admin'] %}
-        <a href="/admin" style="color: #57D2A9; margin-right: 15px;">⚙️ Painel Admin</a>
-    {% endif %}
-    <a href="/logout" style="color: #FF4B4B;">Sair</a>
-</div>
-
-<div class="st-container">
-    <h1>Hub de Desafios</h1>
-    <p class="subtitle">Gere trabalhos universitários originais de forma 100% automatizada.</p>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div style="color: #57D2A9; background-color: #0E3A2F; padding: 10px; border-radius: 5px; margin-bottom: 15px;">{{ message }}</div>
+    <form id="formGerar">
+        <label><b>1. Para qual Cliente é este trabalho?</b></label>
+        <select name="aluno_id">
+            <option value="">Não vincular a nenhum cliente (Apenas Baixar)</option>
+            {% for aluno in alunos %}
+                <option value="{{ aluno.id }}">{{ aluno.nome }} - {{ aluno.curso }}</option>
             {% endfor %}
-        {% endif %}
-    {% endwith %}
+        </select>
 
-    <form id="meuFormulario">
-        <div class="form-group">
-            <label class="main-label">1. Escolha a Ferramenta:</label>
-            <div class="radio-group">
-                <label class="radio-option">
-                    <input type="radio" name="ferramenta" value="preenchedor" checked>
-                    <div>
-                        <span class="radio-title">Preenchedor via Tags Automático</span><br>
-                        <span class="radio-desc">Gera o DOCX a partir do template e extrai o texto para o portal.</span>
-                    </div>
-                </label>
-                <label class="radio-option">
-                    <input type="radio" name="ferramenta" value="gabarito">
-                    <div>
-                        <span class="radio-title">Gerador de Gabarito</span><br>
-                        <span class="radio-desc">Escreve todo o passo a passo na tela para visualização rápida.</span>
-                    </div>
-                </label>
-            </div>
-        </div>
+        <label><b>2. Tema do Desafio</b></label>
+        <textarea name="tema" rows="6" required></textarea>
 
-        <div class="form-group">
-            <label class="main-label" for="tema">2. Cole o Tema do Desafio</label>
-            <textarea id="tema" name="tema" rows="8" placeholder="Cole aqui o texto do portal..." required></textarea>
-        </div>
+        <label><b>3. Inteligência Artificial</b></label>
+        <select name="modelo">
+            {% for modelo in modelos %}<option value="{{ modelo }}">{{ modelo }}</option>{% endfor %}
+        </select>
 
-        <div class="form-group">
-            <label class="main-label" for="modelo">3. Selecione a IA</label>
-            <select id="modelo" name="modelo">
-                {% for modelo in modelos %}
-                    <option value="{{ modelo }}">{{ modelo }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <button type="submit" class="btn-primary" id="btn-submit">🚀 Gerar Trabalho</button>
-
-        <div id="loading">
-            <div class="spinner"></div>
-            <p class="loading-text" id="loading-msg">A IA está processando de forma aprofundada... Isso pode levar de 30 a 60 segundos.</p>
-        </div>
+        <button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem;" id="btn-submit">🚀 Gerar e Salvar Documento</button>
+        <p id="loading" style="display:none; text-align:center; color:#2196F3;">A IA está construindo o documento. Aguarde...</p>
     </form>
 
-    <div class="success-box" id="msg-sucesso"></div>
-
-    <div id="resultado-texto-container">
-        <div class="header-resultado">
-            <h2 id="titulo-resultado">Texto Extraído:</h2>
-            <div>
-                <button class="btn-action btn-avaliar" id="btn-revisar" style="display:none;" onclick="avaliarTrabalho()">🔍 Avaliar (IA)</button>
-                <button class="btn-action btn-baixar" id="btn-baixar" style="display:none;" onclick="baixarManual()">📥 Baixar DOCX</button>
-                <button class="btn-action btn-copiar" onclick="copiarTexto()">📋 Copiar</button>
-            </div>
-        </div>
-
-        <div id="box-avaliacao">
-            <h3>Parecer do Professor (IA)</h3>
-            <p id="texto-critica"></p>
-            <button class="btn-primary" id="btn-corrigir" style="background-color: #9C27B0; margin-top: 0;" onclick="aplicarCorrecoes()">✨ Aplicar Melhorias e Regerar Trabalho</button>
-        </div>
-
-        <div id="texto-oculto" style="display: none;"></div>
-        <div id="resultado-texto"></div>
+    <div id="resultado" class="card" style="display:none; margin-top: 30px;">
+        <h3 style="color: #57D2A9; margin-top: 0;">✅ Trabalho Gerado com Sucesso!</h3>
+        <p>Se você selecionou um cliente, o DOCX já foi salvo permanentemente no painel dele.</p>
+        <button class="btn btn-blue" onclick="baixarDoc()">📥 Baixar DOCX Agora</button>
     </div>
-</div>
 
-<script>
-    let arquivoBase64Global = "";
-    let nomeArquivoGlobal = "";
-    let dicionarioGlobal = null;
-    let criticaGlobal = null;
+    <script>
+        let base64Doc = "";
+        function baixarDoc() {
+            const link = document.createElement('a');
+            link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + base64Doc;
+            link.download = "Desafio_Gerado.docx"; link.click();
+        }
 
-    function copiarTexto() {
-        const texto = document.getElementById("texto-oculto").innerText;
-        navigator.clipboard.writeText(texto).then(() => {
-            alert("✅ Texto copiado para a área de transferência!");
-        }).catch(err => {
-            alert("Erro ao copiar o texto.");
-        });
-    }
-
-    function baixarManual() {
-        if(!arquivoBase64Global) return;
-        const link = document.createElement('a');
-        link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + arquivoBase64Global;
-        link.download = nomeArquivoGlobal;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-
-    // Geração Original
-    document.getElementById('meuFormulario').addEventListener('submit', function(event) {
-        event.preventDefault(); 
-        document.getElementById('btn-submit').style.display = 'none';
-        document.getElementById('loading').style.display = 'block';
-        document.getElementById('loading-msg').innerText = "A IA está processando de forma aprofundada... Isso pode levar de 30 a 60 segundos.";
-        document.getElementById('msg-sucesso').style.display = 'none';
-        document.getElementById('resultado-texto-container').style.display = 'none';
-        document.getElementById('btn-baixar').style.display = 'none';
-        document.getElementById('btn-revisar').style.display = 'none';
-        document.getElementById('box-avaliacao').style.display = 'none';
-
-        const formData = new FormData(this);
-
-        fetch('/processar', { method: 'POST', body: formData })
-        .then(async response => {
-            if (!response.ok) {
-                let errorMsg = "Erro desconhecido no servidor.";
-                try { const errData = await response.json(); errorMsg = errData.erro || errorMsg; } catch(e) {}
-                throw new Error(errorMsg); 
-            }
-            return response.json(); 
-        })
-        .then(resultado => {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('btn-submit').style.display = 'block';
-
-            if (resultado.erro) { alert("Erro: " + resultado.erro); return; }
-
-            if (resultado.tipo === 'sucesso_tags') {
-                arquivoBase64Global = resultado.arquivo_base64;
-                nomeArquivoGlobal = resultado.nome_arquivo;
-                dicionarioGlobal = resultado.dicionario_gerado; // Salva para enviar na revisão
-                
-                baixarManual(); 
-
-                document.getElementById('btn-baixar').style.display = 'inline-block';
-                document.getElementById('btn-revisar').style.display = 'inline-block'; // Mostra botão de revisão
-                document.getElementById('msg-sucesso').style.display = 'block';
-                document.getElementById('msg-sucesso').innerText = "✅ Trabalho Gerado! Caso o download não tenha iniciado, clique no botão azul.";
-                document.getElementById('titulo-resultado').innerText = "Memorial Analítico para o Portal";
-                document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.memorial_texto);
-                document.getElementById('texto-oculto').innerText = resultado.memorial_texto.replace(/\*\*/g, ''); 
-                document.getElementById('resultado-texto-container').style.display = 'block';
-            } else if (resultado.tipo === 'texto') {
-                document.getElementById('msg-sucesso').style.display = 'block';
-                document.getElementById('msg-sucesso').innerText = "✅ Gabarito gerado com sucesso!";
-                document.getElementById('titulo-resultado').innerText = "Pré-visualização do Gabarito";
-                document.getElementById('resultado-texto').innerHTML = marked.parse(resultado.conteudo);
-                document.getElementById('texto-oculto').innerText = resultado.conteudo.replace(/\*\*/g, '');
-                document.getElementById('resultado-texto-container').style.display = 'block';
-            }
-        })
-        .catch(error => {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('btn-submit').style.display = 'block';
-            alert("⚠️ " + error.message);
-        });
-    });
-
-    // Função de Avaliar o Trabalho
-    function avaliarTrabalho() {
-        if(!dicionarioGlobal) return;
-        const btnRevisar = document.getElementById('btn-revisar');
-        btnRevisar.innerText = "⏳ Lendo...";
-        btnRevisar.disabled = true;
-
-        const formData = new FormData();
-        formData.append('tema', document.getElementById('tema').value);
-        formData.append('dicionario', dicionarioGlobal);
-        formData.append('modelo', document.getElementById('modelo').value);
-
-        fetch('/avaliar', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .then(res => {
-            btnRevisar.innerText = "🔍 Avaliar Novamente";
-            btnRevisar.disabled = false;
-            if(res.erro) { alert(res.erro); return; }
+        document.getElementById('formGerar').onsubmit = function(e) {
+            e.preventDefault();
+            document.getElementById('btn-submit').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
             
-            criticaGlobal = res.critica;
-            document.getElementById('texto-critica').innerText = criticaGlobal;
-            document.getElementById('box-avaliacao').style.display = 'block';
-        })
-        .catch(err => {
-            btnRevisar.innerText = "🔍 Avaliar (IA)";
-            btnRevisar.disabled = false;
-            alert("Erro ao avaliar o trabalho.");
-        });
-    }
-
-    // Função de Aplicar as Correções sugeridas
-    function aplicarCorrecoes() {
-        const btnCorrigir = document.getElementById('btn-corrigir');
-        btnCorrigir.innerText = "⏳ Reescrevendo e Aprimorando...";
-        btnCorrigir.disabled = true;
-
-        document.getElementById('loading').style.display = 'block';
-        document.getElementById('loading-msg').innerText = "A IA está recriando o documento com as melhorias aplicadas...";
-
-        const formData = new FormData();
-        formData.append('tema', document.getElementById('tema').value);
-        formData.append('dicionario', dicionarioGlobal);
-        formData.append('modelo', document.getElementById('modelo').value);
-        formData.append('critica', criticaGlobal);
-
-        fetch('/corrigir', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .then(res => {
-            btnCorrigir.innerText = "✨ Aplicar Melhorias e Regerar Trabalho";
-            btnCorrigir.disabled = false;
-            document.getElementById('loading').style.display = 'none';
-            
-            if(res.erro) { alert(res.erro); return; }
-
-            arquivoBase64Global = res.arquivo_base64;
-            nomeArquivoGlobal = res.nome_arquivo;
-            dicionarioGlobal = res.dicionario_gerado; // Atualiza com o novo dicionário corrigido
-
-            document.getElementById('resultado-texto').innerHTML = marked.parse(res.memorial_texto);
-            document.getElementById('texto-oculto').innerText = res.memorial_texto.replace(/\*\*/g, ''); 
-            
-            document.getElementById('box-avaliacao').style.display = 'none';
-            document.getElementById('msg-sucesso').style.backgroundColor = "#7B1FA2";
-            document.getElementById('msg-sucesso').innerText = "🌟 Trabalho Corrigido e Atualizado com Sucesso! Baixe o novo DOCX.";
-            
-            baixarManual();
-        })
-        .catch(err => {
-            btnCorrigir.innerText = "✨ Aplicar Melhorias e Regerar Trabalho";
-            btnCorrigir.disabled = false;
-            document.getElementById('loading').style.display = 'none';
-            alert("Erro ao tentar corrigir o documento.");
-        });
-    }
-</script>
-</body>
-</html>
+            fetch('/processar', { method: 'POST', body: new FormData(this) })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('btn-submit').style.display = 'block';
+                if(data.erro) { alert(data.erro); return; }
+                base64Doc = data.arquivo_base64;
+                document.getElementById('resultado').style.display = 'block';
+                baixarDoc();
+            });
+        };
+    </script>
+{% endblock %}
