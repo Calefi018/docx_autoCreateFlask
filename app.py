@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from docx import Document
 
 from google import genai 
-import openai # A Groq usa a mesma biblioteca da OpenAI!
+import openai # Vamos usar a biblioteca da OpenAI para falar com o OpenRouter
 
 app = Flask(__name__)
 
@@ -33,8 +33,8 @@ login_manager.login_message = "Por favor, faça login para acessar."
 CHAVE_API_GOOGLE = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=CHAVE_API_GOOGLE) if CHAVE_API_GOOGLE else None
 
-# Nova Chave da Groq
-CHAVE_API_GROQ = os.environ.get("GROQ_API_KEY")
+# Chave do OpenRouter (registrada no Koyeb como OPENAI_API_KEY)
+CHAVE_OPENROUTER = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
 # MODELOS DO BANCO DE DADOS (CRM e Usuários)
@@ -86,23 +86,27 @@ with app.app_context():
 # FUNÇÕES DA IA E MANIPULAÇÃO DE WORD
 # =========================================================
 def chamar_ia(prompt, nome_modelo):
-    """Encaminha o pedido para a Groq (Llama) ou Google (Gemini/Gemma)"""
-    if "llama" in nome_modelo.lower():
-        if not CHAVE_API_GROQ:
-            raise Exception("A Chave da API da Groq (GROQ_API_KEY) não foi configurada.")
+    """Encaminha o pedido para o OpenRouter (IAs gratuitas) ou Google"""
+    # Se o nome do modelo tiver 'free' (modelos do OpenRouter), usamos a ponte
+    if "free" in nome_modelo.lower() or "llama" in nome_modelo.lower() or "gemma" in nome_modelo.lower():
+        if not CHAVE_OPENROUTER:
+            raise Exception("A Chave da API do OpenRouter não foi configurada.")
         
-        # A Groq é 100% compatível com a biblioteca da OpenAI
-        groq_client = openai.OpenAI(api_key=CHAVE_API_GROQ, base_url="https://api.groq.com/openai/v1")
-        response = groq_client.chat.completions.create(
+        # Conectando ao OpenRouter usando a biblioteca da OpenAI
+        or_client = openai.OpenAI(
+            api_key=CHAVE_OPENROUTER, 
+            base_url="https://openrouter.ai/api/v1"
+        )
+        response = or_client.chat.completions.create(
             model=nome_modelo,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
         return response.choices[0].message.content
     else:
-        # Tudo que não for Llama (Gemini e Gemma) vai para o Google
+        # Se for o Gemini normal, vai direto pelo Google
         if not client:
-            raise Exception("A Chave da API do Google (GEMINI_API_KEY) não foi configurada.")
+            raise Exception("A Chave da API do Google não foi configurada.")
         resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
         return resposta.text
 
@@ -155,7 +159,7 @@ def extrair_texto_docx(arquivo_bytes):
     doc = Document(arquivo_bytes)
     return "\n".join([p.text for p in doc.paragraphs])
 
-# PROMPT GLOBAL (INTOCADO)
+# PROMPT GLOBAL (INTOCADO E RIGOROSO)
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO (LINGUAGEM HUMANA E LIMITES RIGOROSOS):
     - PROIBIDO usar palavras robóticas de IA.
@@ -226,8 +230,8 @@ def extrair_dicionario(texto_ia):
 # ROTAS PRINCIPAIS DA FERRAMENTA E CRM
 # =========================================================
 
-# Os 3 modelos específicos (Llama 3 no lugar do GPT, Gemini e Gemma)
-MODELOS_DISPONIVEIS = ["llama3-70b-8192", "gemini-2.5-flash", "gemma-3-27b-it"]
+# Os 3 modelos (Gemini Oficial + Os gratuitos e potentes do OpenRouter)
+MODELOS_DISPONIVEIS = ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free", "gemini-2.5-flash"]
 
 @app.route('/')
 @login_required
