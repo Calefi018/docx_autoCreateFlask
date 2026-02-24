@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from docx import Document
 
 from google import genai 
-import openai # Vamos usar a biblioteca da OpenAI para falar com o OpenRouter
+import openai 
 
 app = Flask(__name__)
 
@@ -22,7 +22,13 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-super-secreta-mude-depois')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///clientes.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True, "pool_recycle": 300}
+
+# CORREÇÃO DEFINITIVA NEON.TECH: Recicla a ligação a cada 60s para evitar o erro SSL
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    "pool_pre_ping": True, 
+    "pool_recycle": 60, 
+    "pool_timeout": 30
+}
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -33,7 +39,7 @@ login_manager.login_message = "Por favor, faça login para acessar."
 CHAVE_API_GOOGLE = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=CHAVE_API_GOOGLE) if CHAVE_API_GOOGLE else None
 
-# Chave do OpenRouter (registrada no Koyeb como OPENAI_API_KEY)
+# Chave do OpenRouter (onde estão as IAs gratuitas)
 CHAVE_OPENROUTER = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
@@ -85,14 +91,22 @@ with app.app_context():
 # =========================================================
 # FUNÇÕES DA IA E MANIPULAÇÃO DE WORD
 # =========================================================
+
+def limpar_texto_ia(texto):
+    """Vacina contra IAs que cospem códigos unicode (ex: \\u00e7 em vez de ç)"""
+    try:
+        texto = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), texto)
+    except:
+        pass
+    return texto
+
 def chamar_ia(prompt, nome_modelo):
     """Encaminha o pedido para o OpenRouter (IAs gratuitas) ou Google"""
-    # Se o nome do modelo tiver 'free' (modelos do OpenRouter), usamos a ponte
-    if "free" in nome_modelo.lower() or "llama" in nome_modelo.lower() or "gemma" in nome_modelo.lower():
+    # Se tiver 'free' ou '/' no nome do modelo, vai para o OpenRouter
+    if "free" in nome_modelo.lower() or "/" in nome_modelo:
         if not CHAVE_OPENROUTER:
-            raise Exception("A Chave da API do OpenRouter não foi configurada.")
+            raise Exception("A Chave da API do OpenRouter (OPENAI_API_KEY) não foi configurada no Koyeb.")
         
-        # Conectando ao OpenRouter usando a biblioteca da OpenAI
         or_client = openai.OpenAI(
             api_key=CHAVE_OPENROUTER, 
             base_url="https://openrouter.ai/api/v1"
@@ -102,13 +116,14 @@ def chamar_ia(prompt, nome_modelo):
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
-        return response.choices[0].message.content
+        texto_sujo = response.choices[0].message.content
+        return limpar_texto_ia(texto_sujo)
     else:
-        # Se for o Gemini normal, vai direto pelo Google
+        # Tudo o resto (gemini oficial) vai para o Google
         if not client:
             raise Exception("A Chave da API do Google não foi configurada.")
         resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
-        return resposta.text
+        return limpar_texto_ia(resposta.text)
 
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
     doc = Document(arquivo_template)
@@ -230,8 +245,15 @@ def extrair_dicionario(texto_ia):
 # ROTAS PRINCIPAIS DA FERRAMENTA E CRM
 # =========================================================
 
-# Os 3 modelos (Gemini Oficial + Os gratuitos e potentes do OpenRouter)
-MODELOS_DISPONIVEIS = ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free", "gemini-2.5-flash"]
+# Tropa de Elite das IAs Gratuitas
+MODELOS_DISPONIVEIS = [
+    "gemini-2.5-flash",                             # Rápido e Oficial do Google
+    "deepseek/deepseek-chat:free",                  # DeepSeek V3 (Inteligência Absurda)
+    "meta-llama/llama-3.3-70b-instruct:free",       # Llama 3.3 (Potência da Meta)
+    "qwen/qwen-2.5-72b-instruct:free",              # Qwen 72B (Incrível para Português)
+    "nvidia/llama-3.1-nemotron-70b-instruct:free",  # Nemotron 70B (Segue ordens como ninguém)
+    "google/gemma-2-9b-it:free"                     # O Gemma do Google
+]
 
 @app.route('/')
 @login_required
