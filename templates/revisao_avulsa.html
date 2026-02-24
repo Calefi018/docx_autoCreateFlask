@@ -24,7 +24,7 @@
         <p id="texto-critica"></p>
         
         <button class="btn" style="background: #9C27B0; width: 100%;" id="btn-corrigir" onclick="corrigirTrabalho()">✨ Aplicar Melhorias e Formatar no Padrão</button>
-        <p id="loading-corrigir" style="display:none; text-align:center;">Reescrevendo o documento inteiro...</p>
+        <p id="loading-corrigir" style="display:none; text-align:center;">Reescrevendo o documento inteiro... Isso pode levar 1 minuto.</p>
     </div>
 
     <script>
@@ -37,15 +37,23 @@
             document.getElementById('loading-rev').style.display = 'block';
             
             fetch('/avaliar_avulso', { method: 'POST', body: new FormData(this) })
-            .then(res => res.json())
+            .then(async res => {
+                if (!res.ok) throw new Error("Erro de conexão com o servidor. Tente novamente.");
+                return res.json();
+            })
             .then(data => {
                 document.getElementById('loading-rev').style.display = 'none';
-                if(data.erro) { alert(data.erro); document.getElementById('btn-avaliar').style.display = 'block'; return; }
+                if(data.erro) { alert("Erro da IA: " + data.erro); document.getElementById('btn-avaliar').style.display = 'block'; return; }
                 
                 textoExtraidoGlobal = data.texto_extraido;
                 criticaGlobal = data.critica;
                 document.getElementById('texto-critica').innerText = criticaGlobal;
                 document.getElementById('resultado-avaliacao').style.display = 'block';
+            })
+            .catch(err => {
+                document.getElementById('loading-rev').style.display = 'none';
+                document.getElementById('btn-avaliar').style.display = 'block';
+                alert(err.message);
             });
         };
 
@@ -60,10 +68,17 @@
             fd.append('modelo', document.querySelector('[name="modelo"]').value);
 
             fetch('/corrigir_avulso', { method: 'POST', body: fd })
-            .then(res => res.json())
+            .then(async res => {
+                if (!res.ok) throw new Error("Tempo limite excedido ou erro de servidor. Tente novamente.");
+                return res.json();
+            })
             .then(data => {
                 document.getElementById('loading-corrigir').style.display = 'none';
-                if(data.erro) { alert(data.erro); return; }
+                if(data.erro) { 
+                    alert("Erro ao recriar: " + data.erro); 
+                    document.getElementById('btn-corrigir').style.display = 'block';
+                    return; 
+                }
                 
                 const link = document.createElement('a');
                 link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + data.arquivo_base64;
@@ -71,6 +86,11 @@
                 
                 document.getElementById('btn-corrigir').innerText = "✅ Documento Recriado! Baixando...";
                 document.getElementById('btn-corrigir').style.display = 'block';
+            })
+            .catch(err => {
+                document.getElementById('loading-corrigir').style.display = 'none';
+                document.getElementById('btn-corrigir').style.display = 'block';
+                alert(err.message);
             });
         }
     </script>
