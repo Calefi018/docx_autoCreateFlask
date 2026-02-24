@@ -11,30 +11,43 @@
             --primary: #FF4B4B; --bg: #0E1117; --bg-sec: #262730; 
             --text: #FAFAFA; --border: #444C56; --blue: #2196F3;
         }
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; display: flex; min-height: 100vh;}
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; display: flex; min-height: 100vh; overflow-x: hidden; }
+        
+        /* Botão Hambúrguer (Oculto no PC) */
+        .menu-btn { display: none; position: fixed; top: 15px; left: 15px; z-index: 1000; background: var(--bg-sec); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 1.2rem; font-weight: bold;}
         
         /* Sidebar Styles */
-        .sidebar { width: 250px; background-color: var(--bg-sec); padding: 20px 0; border-right: 1px solid var(--border); display: flex; flex-direction: column;}
-        .sidebar h2 { text-align: center; color: var(--primary); margin-bottom: 30px; font-size: 1.5rem;}
+        .sidebar { width: 250px; background-color: var(--bg-sec); padding: 20px 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 999; }
+        .sidebar h2 { text-align: center; color: var(--primary); margin-bottom: 30px; font-size: 1.5rem; margin-top: 10px;}
         .sidebar a { color: #9E9E9E; text-decoration: none; padding: 15px 25px; font-weight: 600; display: block; transition: 0.2s; border-left: 3px solid transparent;}
         .sidebar a:hover, .sidebar a.active { background-color: #1c1d24; color: var(--text); border-left-color: var(--primary);}
         .sidebar .bottom-links { margin-top: auto; border-top: 1px solid var(--border); padding-top: 10px;}
         
         /* Main Content Styles */
-        .main-content { flex: 1; padding: 40px; overflow-y: auto; }
+        .main-content { flex: 1; padding: 40px; overflow-y: auto; transition: margin-left 0.3s ease; width: 100%; box-sizing: border-box;}
         .container { max-width: 800px; margin: 0 auto; }
         
         /* Common Components */
         input, select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); padding: 10px; color: var(--text); border-radius: 5px; box-sizing: border-box; margin-bottom: 15px; font-family: 'Inter';}
-        .btn { background: var(--primary); color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; text-decoration: none; display: inline-block;}
+        .btn { background: var(--primary); color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; text-decoration: none; display: inline-block; text-align: center;}
         .btn-blue { background: var(--blue); }
         .btn-green { background: #4CAF50; }
         .card { background: var(--bg-sec); padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px;}
+
+        /* Responsividade para Celulares (A Mágica do Hambúrguer) */
+        @media (max-width: 768px) {
+            .menu-btn { display: block; }
+            .sidebar { position: fixed; height: 100vh; transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); box-shadow: 2px 0 10px rgba(0,0,0,0.5);}
+            .main-content { padding: 60px 20px 20px 20px; } /* Dá espaço para o botão no topo */
+        }
     </style>
 </head>
 <body>
 
-    <div class="sidebar">
+    <button class="menu-btn" onclick="toggleMenu()">☰ Menu</button>
+
+    <div class="sidebar" id="sidebar">
         <h2>HubMaster</h2>
         <a href="/">🚀 Novo Trabalho</a>
         <a href="/clientes">👥 Clientes (CRM)</a>
@@ -49,12 +62,12 @@
         </div>
     </div>
 
-    <div class="main-content">
+    <div class="main-content" id="main-content">
         <div class="container">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        <div style="background:#0E3A2F; color:#57D2A9; padding:15px; border-radius:5px; margin-bottom:20px;">{{ message }}</div>
+                        <div style="background:#0E3A2F; color:#57D2A9; padding:15px; border-radius:5px; margin-bottom:20px; font-weight:bold;">{{ message }}</div>
                     {% endfor %}
                 {% endif %}
             {% endwith %}
@@ -63,5 +76,18 @@
         </div>
     </div>
 
+    <script>
+        function toggleMenu() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
+        
+        // Fecha o menu se clicar fora dele (UX de mobile)
+        document.getElementById('main-content').addEventListener('click', function() {
+            var sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+            }
+        });
+    </script>
 </body>
 </html>
