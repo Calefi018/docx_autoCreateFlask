@@ -23,7 +23,7 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-super-secreta-mud
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///clientes.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# CORREÇÃO DEFINITIVA NEON.TECH: Recicla a ligação a cada 60s para evitar o erro SSL
+# CORREÇÃO DEFINITIVA NEON.TECH: Recicla a ligação a cada 60s
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     "pool_pre_ping": True, 
     "pool_recycle": 60, 
@@ -102,7 +102,6 @@ def limpar_texto_ia(texto):
 
 def chamar_ia(prompt, nome_modelo):
     """Encaminha o pedido para o OpenRouter (IAs gratuitas) ou Google"""
-    # Se tiver 'free' ou '/' no nome do modelo, vai para o OpenRouter
     if "free" in nome_modelo.lower() or "/" in nome_modelo:
         if not CHAVE_OPENROUTER:
             raise Exception("A Chave da API do OpenRouter (OPENAI_API_KEY) não foi configurada no Koyeb.")
@@ -119,7 +118,6 @@ def chamar_ia(prompt, nome_modelo):
         texto_sujo = response.choices[0].message.content
         return limpar_texto_ia(texto_sujo)
     else:
-        # Tudo o resto (gemini oficial) vai para o Google
         if not client:
             raise Exception("A Chave da API do Google não foi configurada.")
         resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
@@ -245,14 +243,12 @@ def extrair_dicionario(texto_ia):
 # ROTAS PRINCIPAIS DA FERRAMENTA E CRM
 # =========================================================
 
-# Tropa de Elite das IAs Gratuitas
+# A Tropa de Elite dos Titãs Gratuitos
 MODELOS_DISPONIVEIS = [
-    "gemini-2.5-flash",                             # Rápido e Oficial do Google
-    "deepseek/deepseek-chat:free",                  # DeepSeek V3 (Inteligência Absurda)
-    "meta-llama/llama-3.3-70b-instruct:free",       # Llama 3.3 (Potência da Meta)
-    "qwen/qwen-2.5-72b-instruct:free",              # Qwen 72B (Incrível para Português)
-    "nvidia/llama-3.1-nemotron-70b-instruct:free",  # Nemotron 70B (Segue ordens como ninguém)
-    "google/gemma-2-9b-it:free"                     # O Gemma do Google
+    "deepseek/deepseek-chat:free",                  # DeepSeek V3 (A mais inteligente atualmente)
+    "meta-llama/llama-3.3-70b-instruct:free",       # Llama 3.3 70B (Potência pesada da Meta)
+    "qwen/qwen-2.5-72b-instruct:free",              # Qwen 72B (Incrível raciocínio em Português)
+    "gemini-2.5-flash"                              # Opção rápida caso esteja com pressa
 ]
 
 @app.route('/')
