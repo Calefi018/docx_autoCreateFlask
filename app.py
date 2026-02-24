@@ -102,6 +102,7 @@ def limpar_texto_ia(texto):
 
 def chamar_ia(prompt, nome_modelo):
     """Encaminha o pedido para o OpenRouter (IAs gratuitas) ou Google"""
+    # A MÁGICA ACONTECE AQUI: Se o nome tem "free" ou "/", vai pro OpenRouter. Se não, vai pro Google.
     if "free" in nome_modelo.lower() or "/" in nome_modelo:
         if not CHAVE_OPENROUTER:
             raise Exception("A Chave da API do OpenRouter (OPENAI_API_KEY) não foi configurada no Koyeb.")
@@ -118,6 +119,7 @@ def chamar_ia(prompt, nome_modelo):
         texto_sujo = response.choices[0].message.content
         return limpar_texto_ia(texto_sujo)
     else:
+        # Aqui ele vai processar o gemini-2.5-flash e o gemma-2-27b-it usando a chave do Google
         if not client:
             raise Exception("A Chave da API do Google não foi configurada.")
         resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
@@ -243,12 +245,15 @@ def extrair_dicionario(texto_ia):
 # ROTAS PRINCIPAIS DA FERRAMENTA E CRM
 # =========================================================
 
-# A Tropa de Elite dos Titãs Gratuitos
+# A Tropa de Elite (Com o Gemma 27B no topo para usar via Google)
 MODELOS_DISPONIVEIS = [
-    "deepseek/deepseek-chat:free",                  # DeepSeek V3 (A mais inteligente atualmente)
+    "gemma-2-27b-it",                               # A VERSÃO MAIS FORTE DO GEMMA (Puxa direto da chave do Google)
+    "gemini-2.5-flash",                             # O seu campeão principal do Google (limite atingido)
+    "deepseek/deepseek-chat:free",                  # DeepSeek V3 (Inteligência Absurda)
     "meta-llama/llama-3.3-70b-instruct:free",       # Llama 3.3 70B (Potência pesada da Meta)
     "qwen/qwen-2.5-72b-instruct:free",              # Qwen 72B (Incrível raciocínio em Português)
-    "gemini-2.5-flash"                              # Opção rápida caso esteja com pressa
+    "nvidia/llama-3.1-nemotron-70b-instruct:free",  # Nemotron 70B (Segue ordens complexas à risca)
+    "google/gemma-2-9b-it:free"                     # O Gemma do Google via OpenRouter (Versão mais leve)
 ]
 
 @app.route('/')
