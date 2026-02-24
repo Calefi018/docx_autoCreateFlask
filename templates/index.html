@@ -21,13 +21,20 @@
         </select>
 
         <button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem;" id="btn-submit">🚀 Gerar e Salvar Documento</button>
-        <p id="loading" style="display:none; text-align:center; color:#2196F3;">A IA está construindo o documento de forma aprofundada... Isso pode levar cerca de 1 minuto.</p>
+        
+        <div id="progress-container" style="display:none; margin-top: 20px;">
+            <p id="progress-text" style="text-align:center; color:#2196F3; font-weight: bold; margin-bottom: 5px;">Iniciando IA...</p>
+            <div style="width: 100%; background-color: #262730; border-radius: 5px; overflow: hidden; height: 15px; border: 1px solid #444C56;">
+                <div id="progress-bar-fill" style="width: 0%; height: 100%; background-color: #2196F3; transition: width 0.5s ease;"></div>
+            </div>
+            <p style="text-align:center; font-size: 0.8rem; color: #9E9E9E; margin-top: 5px;">IAs de 70 Bilhões de parâmetros podem levar até 2 minutos para estruturar o raciocínio profundo.</p>
+        </div>
     </form>
 
-    <div id="resultado" class="card" style="display:none; margin-top: 30px;">
+    <div id="resultado" class="card" style="display:none; margin-top: 30px; border-left: 5px solid #57D2A9;">
         <h3 style="color: #57D2A9; margin-top: 0;">✅ Trabalho Gerado com Sucesso!</h3>
         <p>Se você selecionou um cliente, o DOCX já foi salvo permanentemente na pasta dele.</p>
-        <button class="btn btn-blue" onclick="baixarDoc()">📥 Baixar DOCX Agora</button>
+        <button class="btn btn-blue" onclick="baixarDoc()">📥 Baixar DOCX Novamente</button>
     </div>
 
     <script>
@@ -44,30 +51,64 @@
             e.preventDefault();
             document.getElementById('btn-submit').style.display = 'none';
             document.getElementById('resultado').style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
+            
+            // Controle da Barra de Progresso
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar-fill');
+            const progressText = document.getElementById('progress-text');
+            
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressBar.style.backgroundColor = '#2196F3';
+            let width = 0;
+            
+            // Simula o carregamento lentamente até 95%
+            const progressInterval = setInterval(() => {
+                if (width < 95) {
+                    width += 1;
+                    progressBar.style.width = width + '%';
+                    progressText.innerText = `Lendo referências e redigindo... ${width}%`;
+                }
+            }, 1000); // Sobe 1% a cada 1 segundo (ideal para os modelos Titãs)
             
             fetch('/processar', { method: 'POST', body: new FormData(this) })
             .then(async res => {
-                if (!res.ok) throw new Error("Tempo limite excedido ou servidor caiu. Tente novamente.");
-                return res.json();
+                const data = await res.json().catch(() => null);
+                if (!res.ok) {
+                    if (data && data.erro) throw new Error(data.erro);
+                    throw new Error("O servidor da IA demorou demais ou está fora do ar no momento.");
+                }
+                return data;
             })
             .then(data => {
-                document.getElementById('loading').style.display = 'none';
+                clearInterval(progressInterval);
                 document.getElementById('btn-submit').style.display = 'block';
                 
                 if(data.erro) { 
+                    progressBar.style.backgroundColor = '#FF4B4B';
+                    progressText.innerText = "Falha na Geração!";
+                    progressText.style.color = '#FF4B4B';
                     alert("Erro na IA: " + data.erro); 
                     return; 
                 }
+                
+                // Sucesso Total
+                progressBar.style.width = '100%';
+                progressBar.style.backgroundColor = '#57D2A9';
+                progressText.innerText = "Concluído com Sucesso! 100%";
+                progressText.style.color = '#57D2A9';
                 
                 base64Doc = data.arquivo_base64;
                 document.getElementById('resultado').style.display = 'block';
                 baixarDoc();
             })
             .catch(err => {
-                document.getElementById('loading').style.display = 'none';
+                clearInterval(progressInterval);
                 document.getElementById('btn-submit').style.display = 'block';
-                alert("Erro de conexão: " + err.message);
+                progressBar.style.backgroundColor = '#FF4B4B';
+                progressText.innerText = "Erro!";
+                progressText.style.color = '#FF4B4B';
+                alert("Aviso: " + err.message);
             });
         };
     </script>
