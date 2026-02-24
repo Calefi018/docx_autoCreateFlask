@@ -4,24 +4,49 @@
     
     <div class="card">
         <h3 style="margin-top: 0;">Cadastrar Novo Cliente</h3>
-        <form method="POST" style="display: flex; gap: 10px;">
-            <input type="text" name="nome" placeholder="Nome do Aluno" required>
-            <input type="text" name="curso" placeholder="Curso/Disciplina">
-            <input type="text" name="telefone" placeholder="WhatsApp">
+        <form method="POST" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" name="nome" placeholder="Nome do Aluno" required style="flex: 1; min-width: 200px;">
+            <input type="text" name="curso" placeholder="Curso/Disciplina" style="flex: 1; min-width: 150px;">
+            <input type="text" name="telefone" placeholder="WhatsApp" style="flex: 1; min-width: 150px;">
             <button type="submit" class="btn btn-green" style="height: 42px;">Cadastrar</button>
         </form>
     </div>
 
-    <h3>Lista de Clientes Ativos</h3>
-    {% for aluno in alunos %}
-        <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="color: #FF4B4B;">⏳ Trabalhos Pendentes / Ativos</h3>
+    {% for aluno in alunos_pendentes %}
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #FF4B4B;">
             <div>
                 <h4 style="margin: 0; color: #2196F3;">{{ aluno.nome }}</h4>
                 <small style="color: #9E9E9E;">{{ aluno.curso }} | {{ aluno.telefone }}</small>
             </div>
-            <a href="/cliente/{{ aluno.id }}" class="btn">Abrir Pasta ({{ aluno.documentos|length }} Docs)</a>
+            <div style="display: flex; gap: 10px;">
+                <form action="/toggle_status/{{ aluno.id }}" method="POST">
+                    <button type="submit" class="btn btn-green" title="Marcar como Pago e Arquivar">💰 Recebido</button>
+                </form>
+                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue">Abrir Pasta</a>
+            </div>
         </div>
     {% else %}
-        <p style="color: #9E9E9E;">Você ainda não tem clientes cadastrados.</p>
+        <p style="color: #9E9E9E;">Nenhum trabalho pendente no momento.</p>
+    {% endfor %}
+
+    <hr style="border: 0; border-top: 1px solid var(--border); margin: 30px 0;">
+
+    <h3 style="color: #57D2A9;">✅ Clientes Pagos (Arquivados)</h3>
+    {% for aluno in alunos_pagos %}
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #57D2A9; opacity: 0.7;">
+            <div>
+                <h4 style="margin: 0; color: #2196F3;">{{ aluno.nome }}</h4>
+                <small style="color: #9E9E9E;">{{ aluno.curso }} | {{ aluno.telefone }}</small>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <form action="/toggle_status/{{ aluno.id }}" method="POST">
+                    <button type="submit" class="btn" style="background: #444C56;" title="Desarquivar">↩️ Desfazer</button>
+                </form>
+                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue">Abrir Pasta</a>
+            </div>
+        </div>
+    {% else %}
+        <p style="color: #9E9E9E;">Nenhum cliente arquivado ainda.</p>
     {% endfor %}
 {% endblock %}
