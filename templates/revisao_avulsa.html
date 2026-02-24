@@ -14,8 +14,8 @@
             <label><b>3. Modelo IA</b></label>
             <select name="modelo">{% for m in modelos %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select>
 
-            <button type="submit" class="btn" style="background: #9C27B0; width: 100%;" id="btn-avaliar">🔍 Analisar Trabalho</button>
-            <p id="loading-rev" style="display:none; text-align:center; color:#9C27B0;">O Professor IA está lendo o DOCX...</p>
+            <button type="submit" class="btn" style="background: #9C27B0; width: 100%; padding: 15px;" id="btn-avaliar">🔍 Analisar Trabalho</button>
+            <p id="loading-rev" style="display:none; text-align:center; color:#9C27B0; font-weight: bold;">O Professor IA está lendo o DOCX...</p>
         </form>
     </div>
 
@@ -23,8 +23,15 @@
         <h3 style="color: #E040FB; margin-top: 0;">Parecer do Professor</h3>
         <p id="texto-critica"></p>
         
-        <button class="btn" style="background: #9C27B0; width: 100%;" id="btn-corrigir" onclick="corrigirTrabalho()">✨ Aplicar Melhorias e Formatar no Padrão</button>
-        <p id="loading-corrigir" style="display:none; text-align:center;">Reescrevendo o documento inteiro... Isso pode levar 1 minuto.</p>
+        <button class="btn" style="background: #9C27B0; width: 100%; padding: 15px;" id="btn-corrigir" onclick="corrigirTrabalho()">✨ Aplicar Melhorias e Formatar no Padrão</button>
+        
+        <div id="progress-container-rev" style="display:none; margin-top: 20px;">
+            <p id="progress-text-rev" style="text-align:center; color:#E040FB; font-weight: bold; margin-bottom: 5px;">Reescrevendo o documento...</p>
+            <div style="width: 100%; background-color: #262730; border-radius: 5px; overflow: hidden; height: 15px; border: 1px solid #444C56;">
+                <div id="progress-bar-fill-rev" style="width: 0%; height: 100%; background-color: #E040FB; transition: width 0.5s ease;"></div>
+            </div>
+            <p style="text-align:center; font-size: 0.8rem; color: #9E9E9E; margin-top: 5px;">A IA está reestruturando o texto profundamente com base na crítica.</p>
+        </div>
     </div>
 
     <script>
@@ -38,8 +45,9 @@
             
             fetch('/avaliar_avulso', { method: 'POST', body: new FormData(this) })
             .then(async res => {
-                if (!res.ok) throw new Error("Erro de conexão com o servidor. Tente novamente.");
-                return res.json();
+                const data = await res.json().catch(() => null);
+                if (!res.ok) throw new Error(data && data.erro ? data.erro : "Erro de conexão com o servidor.");
+                return data;
             })
             .then(data => {
                 document.getElementById('loading-rev').style.display = 'none';
@@ -59,7 +67,23 @@
 
         function corrigirTrabalho() {
             document.getElementById('btn-corrigir').style.display = 'none';
-            document.getElementById('loading-corrigir').style.display = 'block';
+            
+            const progressContainer = document.getElementById('progress-container-rev');
+            const progressBar = document.getElementById('progress-bar-fill-rev');
+            const progressText = document.getElementById('progress-text-rev');
+            
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressBar.style.backgroundColor = '#E040FB';
+            let width = 0;
+            
+            const progressInterval = setInterval(() => {
+                if (width < 95) {
+                    width += 1;
+                    progressBar.style.width = width + '%';
+                    progressText.innerText = `Reescrevendo e formatando... ${width}%`;
+                }
+            }, 1000);
             
             const fd = new FormData();
             fd.append('tema', document.querySelector('[name="tema"]').value);
@@ -69,27 +93,37 @@
 
             fetch('/corrigir_avulso', { method: 'POST', body: fd })
             .then(async res => {
-                if (!res.ok) throw new Error("Tempo limite excedido ou erro de servidor. Tente novamente.");
-                return res.json();
+                const data = await res.json().catch(() => null);
+                if (!res.ok) throw new Error(data && data.erro ? data.erro : "Tempo limite excedido.");
+                return data;
             })
             .then(data => {
-                document.getElementById('loading-corrigir').style.display = 'none';
+                clearInterval(progressInterval);
+                
                 if(data.erro) { 
-                    alert("Erro ao recriar: " + data.erro); 
+                    progressBar.style.backgroundColor = '#FF4B4B';
+                    progressText.innerText = "Falha!";
+                    progressText.style.color = '#FF4B4B';
                     document.getElementById('btn-corrigir').style.display = 'block';
+                    alert("Erro ao recriar: " + data.erro); 
                     return; 
                 }
+                
+                progressBar.style.width = '100%';
+                progressBar.style.backgroundColor = '#57D2A9';
+                progressText.innerText = "Documento Recriado com Sucesso! Baixando...";
+                progressText.style.color = '#57D2A9';
                 
                 const link = document.createElement('a');
                 link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + data.arquivo_base64;
                 link.download = data.nome_arquivo; link.click();
-                
-                document.getElementById('btn-corrigir').innerText = "✅ Documento Recriado! Baixando...";
-                document.getElementById('btn-corrigir').style.display = 'block';
             })
             .catch(err => {
-                document.getElementById('loading-corrigir').style.display = 'none';
+                clearInterval(progressInterval);
                 document.getElementById('btn-corrigir').style.display = 'block';
+                progressBar.style.backgroundColor = '#FF4B4B';
+                progressText.innerText = "Erro na IA";
+                progressText.style.color = '#FF4B4B';
                 alert(err.message);
             });
         }
