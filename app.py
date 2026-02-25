@@ -17,17 +17,12 @@ import openai
 app = Flask(__name__)
 
 # =========================================================
-# CONFIGURAÇÕES DO BANCO DE DADOS E SEGURANÇA
+# CONFIGURAÇÕES DO BANCO DE DADOS
 # =========================================================
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-super-secreta-mude-depois')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///clientes.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    "pool_pre_ping": True, 
-    "pool_recycle": 60, 
-    "pool_timeout": 30
-}
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True, "pool_recycle": 60, "pool_timeout": 30}
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -40,7 +35,7 @@ client = genai.Client(api_key=CHAVE_API_GOOGLE) if CHAVE_API_GOOGLE else None
 CHAVE_OPENROUTER = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
-# MODELOS DO BANCO DE DADOS (CRM, Usuários, Prompts e Métricas)
+# MODELOS DE DADOS
 # =========================================================
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -58,7 +53,7 @@ class Aluno(db.Model):
     telefone = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='Pendente') 
-    valor = db.Column(db.Float, default=70.0) # Novo Campo Financeiro
+    valor = db.Column(db.Float, default=70.0) 
     documentos = db.relationship('Documento', backref='aluno', lazy=True, cascade="all, delete-orphan")
 
 class Documento(db.Model):
@@ -98,8 +93,6 @@ PROMPT_REGRAS_BASE = """
       * Autoavaliação: EXATAMENTE 1 parágrafo (sem atribuir nota a si mesmo).
     
     GERAÇÃO OBRIGATÓRIA:
-    (ATENÇÃO: É ESTRITAMENTE PROIBIDO COPIAR OU REPETIR AS INSTRUÇÕES ABAIXO DENTRO DA SUA RESPOSTA. FORNEÇA APENAS A SUA RESPOSTA FINAL DIRETAMENTE).
-    
     [START_ASPECTO_1] [Resposta direta aqui] [END_ASPECTO_1]
     [START_POR_QUE_1] [Resposta direta aqui] [END_POR_QUE_1]
     [START_ASPECTO_2] [Resposta direta aqui] [END_ASPECTO_2]
@@ -121,7 +114,6 @@ PROMPT_REGRAS_BASE = """
 
 with app.app_context():
     db.create_all()
-    # Scripts seguros de atualização do BD
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Pendente'"))
     except: pass
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN valor FLOAT DEFAULT 70.0"))
@@ -129,8 +121,7 @@ with app.app_context():
     db.session.commit()
 
     if not User.query.filter_by(username='admin').first():
-        hashed_pw = generate_password_hash('admin123')
-        admin = User(username='admin', password=hashed_pw, role='admin')
+        admin = User(username='admin', password=generate_password_hash('admin123'), role='admin')
         db.session.add(admin)
         
     if not PromptConfig.query.first():
@@ -140,24 +131,21 @@ with app.app_context():
     db.session.commit()
 
 # =========================================================
-# FUNÇÕES DA IA E MANIPULAÇÃO DE WORD
+# FUNÇÕES DA IA E WORD
 # =========================================================
-
 def limpar_texto_ia(texto):
-    try:
-        texto = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), texto)
-    except:
-        pass
+    try: texto = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), texto)
+    except: pass
     return texto
 
 def chamar_ia(prompt, nome_modelo):
     if "free" in nome_modelo.lower() or "/" in nome_modelo:
-        if not CHAVE_OPENROUTER: raise Exception("A Chave da API do OpenRouter não foi configurada no Koyeb.")
+        if not CHAVE_OPENROUTER: raise Exception("Chave do OpenRouter não configurada.")
         or_client = openai.OpenAI(api_key=CHAVE_OPENROUTER, base_url="https://openrouter.ai/api/v1")
         response = or_client.chat.completions.create(model=nome_modelo, messages=[{"role": "user", "content": prompt}], temperature=0.7)
         return limpar_texto_ia(response.choices[0].message.content)
     else:
-        if not client: raise Exception("A Chave da API do Google não foi configurada.")
+        if not client: raise Exception("Chave do Google não configurada.")
         resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
         return limpar_texto_ia(resposta.text)
 
@@ -173,12 +161,10 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
         if tem_tag:
             titulos_memorial = ["Resumo", "Contextualização do desafio", "Análise", "Propostas de solução", "Conclusão reflexiva", "Referências", "Autoavaliação"]
             for t in titulos_memorial:
-                if texto_original.strip().startswith(t):
-                    texto_original = texto_original.replace(t, f"**{t}**\n", 1)
+                if texto_original.strip().startswith(t): texto_original = texto_original.replace(t, f"**{t}**\n", 1)
             titulos_aspectos = ["Aspecto 1:", "Aspecto 2:", "Aspecto 3:", "Por quê:"]
             for t in titulos_aspectos:
-                if t in texto_original:
-                    texto_original = texto_original.replace(t, f"\n**{t}** " if "Por quê:" in t else f"**{t}** ")
+                if t in texto_original: texto_original = texto_original.replace(t, f"\n**{t}** " if "Por quê:" in t else f"**{t}** ")
             if "?" in texto_original and "Por quê:" not in texto_original:
                 partes = texto_original.split("?", 1)
                 pergunta = partes[0].strip()
@@ -219,11 +205,10 @@ def extrair_dicionario(texto_ia):
     return dic
 
 def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
-    # Puxa o prompt padrão do banco para usar como base nas correções
     config = PromptConfig.query.filter_by(is_default=True).first()
     regras = config.texto if config else PROMPT_REGRAS_BASE
     
-    prompt = f"""Você é um professor avaliador extremamente rigoroso corrigindo um trabalho.
+    prompt = f"""Você é um professor avaliador extremamente rigoroso.
     TEMA: {texto_tema}
     TRABALHO ATUAL: {texto_trabalho}
     CRÍTICA RECEBIDA: {critica}
@@ -238,7 +223,7 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
         raise Exception(f"Falha na IA (Correção): {str(e)}")
 
 # =========================================================
-# ROTAS PRINCIPAIS: GERADOR COM EDIÇÃO E FALLBACK
+# ROTAS PRINCIPAIS: GERADOR E DASHBOARD
 # =========================================================
 
 MODELOS_DISPONIVEIS = [
@@ -246,7 +231,7 @@ MODELOS_DISPONIVEIS = [
     "gemini-2.5-pro",                               
     "gemini-2.5-flash-lite",                        
     "openrouter/auto",                              
-    "meta-llama/llama-3.1-8b-instruct:free",        
+    "meta-llama/llama-4-maverick:free",        
     "deepseek/deepseek-r1:free"                     
 ]
 
@@ -259,7 +244,6 @@ def index():
     prompts = PromptConfig.query.all()
     return render_template('index.html', modelos=MODELOS_DISPONIVEIS, alunos=alunos, prompts=prompts)
 
-# Passo 1 do Novo Sistema: Tenta a IA e permite Fallback se falhar
 @app.route('/gerar_rascunho', methods=['POST'])
 @login_required
 def gerar_rascunho():
@@ -275,30 +259,22 @@ def gerar_rascunho():
         texto_resposta = chamar_ia(prompt_completo, modelo)
         dicionario = extrair_dicionario(texto_resposta)
         
-        # Validação para ver se a IA não retornou lixo
         if not any(dicionario.values()):
             raise Exception("A IA não retornou o formato de tags esperado.")
             
-        # Regista uso para o Dashboard
         db.session.add(RegistroUso(modelo_usado=modelo))
         db.session.commit()
-        
         return jsonify({"sucesso": True, "dicionario": dicionario})
         
     except Exception as e:
-        # SISTEMA DE FALLBACK INTELIGENTE
-        # Pega o próximo modelo da lista para sugerir
-        try: 
-            next_model = MODELOS_DISPONIVEIS[(MODELOS_DISPONIVEIS.index(modelo) + 1) % len(MODELOS_DISPONIVEIS)]
-        except: 
-            next_model = MODELOS_DISPONIVEIS[0]
+        try: next_model = MODELOS_DISPONIVEIS[(MODELOS_DISPONIVEIS.index(modelo) + 1) % len(MODELOS_DISPONIVEIS)]
+        except: next_model = MODELOS_DISPONIVEIS[0]
         
         return jsonify({
             "sucesso": False, "erro": str(e), 
             "fallback": True, "failed_model": modelo, "suggested_model": next_model
         })
 
-# Passo 2 do Novo Sistema: Recebe a edição do cliente e cria o Word
 @app.route('/gerar_docx_final', methods=['POST'])
 @login_required
 def gerar_docx_final():
@@ -322,19 +298,15 @@ def gerar_docx_final():
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
 
-
-# =========================================================
-# NOVAS FUNCIONALIDADES DE NEGÓCIO (Dashboard e Prompts)
-# =========================================================
-
 @app.route('/dashboard')
 @login_required
 def dashboard():
     alunos_pendentes = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
     alunos_pagos = Aluno.query.filter_by(user_id=current_user.id, status='Pago').all()
     
-    a_receber = sum(a.valor for a in alunos_pendentes)
-    receita_realizada = sum(a.valor for a in alunos_pagos)
+    # Vacina contra valores Nulos (assume 70.0 se não tiver valor)
+    a_receber = sum((a.valor or 70.0) for a in alunos_pendentes)
+    receita_realizada = sum((a.valor or 70.0) for a in alunos_pagos)
     
     documentos_ids = [d.id for a in alunos_pendentes+alunos_pagos for d in a.documentos]
     total_trabalhos = len(documentos_ids)
@@ -365,9 +337,8 @@ def delete_prompt(id):
         db.session.commit()
     return redirect(url_for('gerenciar_prompts'))
 
-
 # =========================================================
-# CRM E GESTÃO DE CLIENTES (Intacto)
+# CRM E REVISÃO
 # =========================================================
 
 @app.route('/clientes', methods=['GET', 'POST'])
@@ -389,7 +360,6 @@ def clientes():
         
     alunos_pendentes = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
     alunos_pagos = Aluno.query.filter_by(user_id=current_user.id, status='Pago').all()
-    
     return render_template('clientes.html', alunos_pendentes=alunos_pendentes, alunos_pagos=alunos_pagos)
 
 @app.route('/toggle_status/<int:id>', methods=['POST'])
@@ -444,11 +414,6 @@ def delete_doc(doc_id):
     db.session.commit()
     return redirect(url_for('cliente_detalhe', id=aluno_id))
 
-
-# =========================================================
-# REVISÃO AVULSA (Intacto)
-# =========================================================
-
 @app.route('/revisao_avulsa')
 @login_required
 def revisao_avulsa():
@@ -460,22 +425,14 @@ def avaliar_avulso():
     tema = request.form.get('tema')
     modelo = request.form.get('modelo')
     arquivo = request.files.get('arquivo_trabalho')
-    
-    if not arquivo or not arquivo.filename.endswith('.docx'):
-        return jsonify({"erro": "Envie um arquivo .docx válido."}), 400
-
+    if not arquivo or not arquivo.filename.endswith('.docx'): return jsonify({"erro": "Envie um arquivo .docx válido."}), 400
     texto_trabalho = extrair_texto_docx(arquivo)
     
-    prompt = f"""Você é um professor avaliador extremamente rigoroso. 
-Analise o TEMA: {tema} \nE O TRABALHO DO ALUNO: {texto_trabalho}
-Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima. 
-REGRA: Seja direto, NUNCA use formatações como negrito (**), itálico, bullet points ou títulos. Responda apenas com texto limpo."""
+    prompt = f"Você é um professor avaliador extremamente rigoroso.\nAnalise o TEMA: {tema} \nE O TRABALHO DO ALUNO: {texto_trabalho}\nFaça uma crítica de 3 linhas apontando o que falta para tirar nota máxima.\nREGRA: Seja direto, NUNCA use formatações como negrito (**), itálico, bullet points ou títulos. Responda apenas com texto limpo."
     try:
         texto_resposta = chamar_ia(prompt, modelo)
-        critica_limpa = texto_resposta.replace('*', '').replace('#', '').strip()
-        return jsonify({"critica": critica_limpa, "texto_extraido": texto_trabalho})
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+        return jsonify({"critica": texto_resposta.replace('*', '').replace('#', '').strip(), "texto_extraido": texto_trabalho})
+    except Exception as e: return jsonify({"erro": str(e)}), 500
 
 @app.route('/corrigir_avulso', methods=['POST'])
 @login_required
@@ -495,12 +452,10 @@ def corrigir_avulso():
         arquivo_base64 = base64.b64encode(arquivo_bytes).decode('utf-8')
         
         return jsonify({"arquivo_base64": arquivo_base64, "nome_arquivo": "Trabalho_Revisado_IA.docx"})
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
-
+    except Exception as e: return jsonify({"erro": str(e)}), 500
 
 # =========================================================
-# ADMINISTRAÇÃO E LOGIN (Intacto)
+# LOGIN E ADMINISTRAÇÃO
 # =========================================================
 
 @app.route('/login', methods=['GET', 'POST'])
