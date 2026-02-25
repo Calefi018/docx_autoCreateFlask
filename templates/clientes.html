@@ -1,22 +1,61 @@
 {% extends "base.html" %}
 {% block content %}
     <style>
-        /* Estilos do Quadro Kanban */
-        .kanban-board { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 20px; align-items: flex-start; }
-        .kanban-col { flex: 1; min-width: 320px; background: rgba(30, 33, 48, 0.4); border-radius: 12px; padding: 15px; border: 1px dashed var(--border); }
-        .kanban-items { min-height: 400px; padding: 10px 0; }
-        .kanban-card { background: var(--card-bg); padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid var(--border); cursor: grab; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-        .kanban-card:active { cursor: grabbing; opacity: 0.8; transform: scale(0.98); }
+        /* O NOVO KANBAN: Adaptativo, sem scroll horizontal no PC e empilhado no telemóvel */
+        .kanban-board { 
+            display: grid; 
+            grid-template-columns: repeat(3, minmax(0, 1fr)); /* 3 colunas iguais que se adaptam à tela */
+            gap: 20px; 
+            align-items: start; 
+            padding-bottom: 20px;
+        }
+        .kanban-col { 
+            background: rgba(30, 33, 48, 0.4); 
+            border-radius: 12px; 
+            padding: 15px; 
+            border: 1px dashed var(--border); 
+        }
+        .kanban-items { 
+            min-height: 200px; /* Área para soltar os cartões */
+            padding: 10px 0; 
+        }
+        .kanban-card { 
+            background: var(--card-bg); 
+            padding: 15px; 
+            border-radius: 10px; 
+            margin-bottom: 15px; 
+            border-left: 4px solid var(--border); 
+            cursor: grab; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
+            transition: transform 0.2s, opacity 0.2s;
+        }
+        .kanban-card:active { 
+            cursor: grabbing; 
+            opacity: 0.8; 
+            transform: scale(0.98); 
+        }
         
         /* Cores de status das cartas */
         .k-producao { border-left-color: var(--warning); }
         .k-pendente { border-left-color: var(--danger); }
         .k-pago { border-left-color: var(--success); opacity: 0.7; }
+
+        /* Media Query: Se a tela for pequena (Tablets e Telemóveis), empilha as colunas */
+        @media (max-width: 992px) {
+            .kanban-board {
+                grid-template-columns: 1fr; /* 1 coluna ocupando 100% do espaço */
+            }
+            .kanban-items {
+                min-height: 50px; /* Reduz o espaço em branco no celular */
+            }
+        }
     </style>
 
     <h1 style="margin-top:0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
         CRM de Clientes 
-        <button class="btn btn-green" onclick="document.getElementById('formNovo').style.display='block'"><i class="ph-bold ph-plus"></i> Cliente Avulso</button>
+        <button class="btn btn-green" onclick="document.getElementById('formNovo').style.display='block'">
+            <i class="ph-bold ph-plus"></i> Cliente Avulso
+        </button>
     </h1>
     
     <div id="formNovo" class="card" style="display: none; border-top: 4px solid var(--primary);">
@@ -25,7 +64,7 @@
             <input type="text" name="nome" placeholder="Nome do Aluno" required style="flex: 2; min-width: 150px;">
             <input type="text" name="curso" placeholder="Curso/Disciplina" style="flex: 2; min-width: 150px;">
             <input type="text" name="telefone" placeholder="WhatsApp (Apenas Números)" style="flex: 2; min-width: 150px;">
-            <input type="number" name="valor" placeholder="R$ 70.0" value="70.00" step="0.01" required style="flex: 1; min-width: 100px;">
+            <input type="number" name="valor" placeholder="R$ 70.00" value="70.00" step="0.01" required style="flex: 1; min-width: 100px;">
             <button type="submit" class="btn btn-primary" style="height: 44px; margin-top: 8px;">Salvar na Produção</button>
             <button type="button" class="btn btn-danger" style="height: 44px; margin-top: 8px;" onclick="document.getElementById('formNovo').style.display='none'">Cancelar</button>
         </form>
@@ -35,11 +74,11 @@
         
         <div class="kanban-col">
             <h3 style="margin: 0; color: var(--warning); display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-gear"></i> Em Produção</h3>
-            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px; margin-bottom: 15px;">A IA ainda não gerou o documento.</p>
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px; margin-bottom: 15px;">Trabalhos em desenvolvimento.</p>
             
             <div class="kanban-items" data-status="Produção">
                 {% for aluno in alunos %}
-                {% if aluno.status == 'Produção' or (aluno.status == 'Pendente' and not 'Pago' in aluno.status and loop.index is odd) %}
+                {% if aluno.status == 'Produção' %}
                 <div class="kanban-card k-producao" data-id="{{ aluno.id }}">
                     <h4 style="margin: 0 0 10px 0; color: #fff;">{{ aluno.nome }}</h4>
                     <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">
@@ -51,16 +90,18 @@
                         <button onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }})" class="btn" style="background: var(--border); padding: 6px 10px;"><i class="ph-bold ph-pencil"></i></button>
                     </div>
                 </div>
-                {% endif %}{% endfor %}
+                {% endif %}
+                {% endfor %}
             </div>
         </div>
 
         <div class="kanban-col">
             <h3 style="margin: 0; color: var(--danger); display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-hourglass"></i> Aguardando Pix</h3>
-            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px; margin-bottom: 15px;">Documento pronto. Liberar só após pagamento.</p>
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px; margin-bottom: 15px;">Pronto. Liberar só após pagamento.</p>
             
             <div class="kanban-items" data-status="Pendente">
-                {% for aluno in alunos %}{% if aluno.status == 'Pendente' %}
+                {% for aluno in alunos %}
+                {% if aluno.status == 'Pendente' %}
                 <div class="kanban-card k-pendente" data-id="{{ aluno.id }}">
                     <h4 style="margin: 0 0 10px 0; color: #fff;">{{ aluno.nome }}</h4>
                     <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">
@@ -74,7 +115,8 @@
                         <button onclick="cobrarWhatsapp('{{ aluno.telefone }}', '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.valor or 70.0 }}')" class="btn btn-green" style="padding: 6px 10px; font-size: 0.8rem; flex: 1;"><i class="ph-bold ph-whatsapp-logo"></i> Cobrar</button>
                     </div>
                 </div>
-                {% endif %}{% endfor %}
+                {% endif %}
+                {% endfor %}
             </div>
         </div>
 
@@ -83,7 +125,8 @@
             <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px; margin-bottom: 15px;">Disponível no Portal do Aluno.</p>
             
             <div class="kanban-items" data-status="Pago">
-                {% for aluno in alunos %}{% if aluno.status == 'Pago' %}
+                {% for aluno in alunos %}
+                {% if aluno.status == 'Pago' %}
                 <div class="kanban-card k-pago" data-id="{{ aluno.id }}">
                     <h4 style="margin: 0 0 10px 0; color: #fff;">{{ aluno.nome }}</h4>
                     <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">
@@ -94,7 +137,8 @@
                         <a href="/cliente/{{ aluno.id }}" class="btn btn-blue" style="padding: 6px 10px; font-size: 0.8rem; flex: 1;"><i class="ph-bold ph-folder"></i> Ver Arquivos</a>
                     </div>
                 </div>
-                {% endif %}{% endfor %}
+                {% endif %}
+                {% endfor %}
             </div>
         </div>
     </div>
@@ -113,7 +157,7 @@
                     let novoStatus = evt.to.parentElement.dataset.status;
                     let idAluno = item.dataset.id;
                     
-                    // Altera as cores imediatamente no ecrã para feedback visual
+                    // Altera as cores imediatamente na tela para feedback visual
                     item.classList.remove('k-producao', 'k-pendente', 'k-pago');
                     if(novoStatus == 'Produção') item.classList.add('k-producao');
                     if(novoStatus == 'Pendente') item.classList.add('k-pendente');
