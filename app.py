@@ -332,8 +332,8 @@ def dashboard():
     a_receber = sum((a.valor or 70.0) for a in alunos_pendentes)
     receita_realizada = sum((a.valor or 70.0) for a in alunos_pagos)
     
-    documentos_ids = [d.id for a in alunos_pendentes+alunos_pagos for d in a.documentos]
-    total_trabalhos = len(documentos_ids)
+    # CORREÇÃO DA MÉTRICA: Agora conta o total real de clientes/trabalhos registados
+    total_trabalhos = len(alunos_pendentes) + len(alunos_pagos)
     
     uso_modelos = db.session.query(RegistroUso.modelo_usado, db.func.count(RegistroUso.id)).group_by(RegistroUso.modelo_usado).order_by(db.func.count(RegistroUso.id).desc()).all()
     return render_template('dashboard.html', a_receber=a_receber, receita_realizada=receita_realizada, total_trabalhos=total_trabalhos, uso_modelos=uso_modelos)
@@ -383,7 +383,6 @@ def clientes():
     alunos_pagos = Aluno.query.filter_by(user_id=current_user.id, status='Pago').all()
     return render_template('clientes.html', alunos_pendentes=alunos_pendentes, alunos_pagos=alunos_pagos)
 
-# NOVA ROTA: Editar o valor financeiro do cliente dinamicamente
 @app.route('/editar_valor/<int:id>', methods=['POST'])
 @login_required
 def editar_valor(id):
