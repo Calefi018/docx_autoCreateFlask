@@ -2,84 +2,99 @@
 {% block content %}
     <h1 style="margin-top:0;">Meus Clientes</h1>
     
-    <div class="card">
-        <h3 style="margin-top: 0;">Cadastrar Novo Cliente</h3>
+    <div class="card" style="border-top: 4px solid var(--primary);">
+        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-user-plus"></i> Cadastrar Novo</h3>
         <form method="POST" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <input type="text" name="nome" placeholder="Nome do Aluno" required style="flex: 2; min-width: 150px;">
             <input type="text" name="curso" placeholder="Curso/Disciplina" style="flex: 2; min-width: 150px;">
             <input type="text" name="telefone" placeholder="WhatsApp" style="flex: 2; min-width: 150px;">
             <input type="number" name="valor" placeholder="Valor (R$)" value="70.0" step="0.01" required style="flex: 1; min-width: 100px;">
-            <button type="submit" class="btn btn-green" style="height: 42px;">Cadastrar</button>
+            <button type="submit" class="btn btn-green" style="height: 44px; margin-top: 8px;"><i class="ph-bold ph-plus"></i> Cadastrar</button>
         </form>
     </div>
 
-    <h3 style="color: #FF4B4B;">⏳ Trabalhos a Receber (Pendentes)</h3>
+    <h3 style="color: var(--danger); display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-hourglass-high"></i> Trabalhos a Receber</h3>
     {% for aluno in alunos_pendentes %}
-        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #FF4B4B;">
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--danger); padding: 20px;">
             <div>
-                <h4 style="margin: 0; color: #2196F3;">{{ aluno.nome }}</h4>
-                <small style="color: #9E9E9E; display: flex; align-items: center;">
-                    {{ aluno.curso }} | {{ aluno.telefone }} | 
-                    <b style="margin-left: 5px;">R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b>
-                    
-                    <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; padding: 0 5px; font-size: 1.1rem;" title="Editar Valor do Trabalho">✏️</button>
-                </small>
+                <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
+                <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 5px; font-size: 0.9rem;">
+                    <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                    <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                    <span style="display: flex; align-items: center; background: rgba(99, 102, 241, 0.1); padding: 4px 10px; border-radius: 6px; color: var(--primary); font-weight: bold;">
+                        R$ {{ "%.2f"|format(aluno.valor or 70.0) }}
+                        <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; color: var(--text-muted); margin-left: 8px; transition: color 0.2s;"><i class="ph-fill ph-pencil-simple"></i></button>
+                    </span>
+                </div>
             </div>
             <div style="display: flex; gap: 10px;">
                 <form action="/toggle_status/{{ aluno.id }}" method="POST">
-                    <button type="submit" class="btn btn-green" title="Marcar como Pago">💰 Marcar Pago</button>
+                    <button type="submit" class="btn btn-green"><i class="ph-bold ph-currency-dollar"></i> Recebido</button>
                 </form>
-                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue">Abrir Pasta</a>
+                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
             </div>
         </div>
     {% else %}
-        <p style="color: #9E9E9E;">Nenhum trabalho pendente.</p>
+        <p style="color: var(--text-muted);"><i class="ph ph-info"></i> Nenhum trabalho pendente.</p>
     {% endfor %}
 
-    <hr style="border: 0; border-top: 1px solid var(--border); margin: 30px 0;">
+    <hr style="border: 0; border-top: 1px solid var(--border); margin: 40px 0;">
 
-    <h3 style="color: #57D2A9;">✅ Clientes Pagos (Recebidos)</h3>
+    <h3 style="color: var(--success); display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-check-circle"></i> Clientes Pagos</h3>
     {% for aluno in alunos_pagos %}
-        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #57D2A9; opacity: 0.7;">
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--success); opacity: 0.6; padding: 20px;">
             <div>
-                <h4 style="margin: 0; color: #2196F3;">{{ aluno.nome }}</h4>
-                <small style="color: #9E9E9E; display: flex; align-items: center;">
-                    {{ aluno.curso }} | {{ aluno.telefone }} | 
-                    <b style="margin-left: 5px;">R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b>
-                    
-                    <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; padding: 0 5px; font-size: 1.1rem;" title="Editar Valor do Trabalho">✏️</button>
-                </small>
+                <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
+                <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 5px; font-size: 0.9rem;">
+                    <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                    <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                    <span style="display: flex; align-items: center;">
+                        <b>R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b>
+                        <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; color: var(--text-muted); margin-left: 8px;"><i class="ph-fill ph-pencil-simple"></i></button>
+                    </span>
+                </div>
             </div>
             <div style="display: flex; gap: 10px;">
                 <form action="/toggle_status/{{ aluno.id }}" method="POST">
-                    <button type="submit" class="btn" style="background: #444C56;" title="Desarquivar">↩️ Estornar</button>
+                    <button type="submit" class="btn" style="background: var(--border);"><i class="ph-bold ph-arrow-u-up-left"></i> Estornar</button>
                 </form>
-                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue">Abrir Pasta</a>
+                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
             </div>
         </div>
     {% else %}
-        <p style="color: #9E9E9E;">Nenhum cliente recebido ainda.</p>
+        <p style="color: var(--text-muted);"><i class="ph ph-info"></i> Nenhum cliente recebido ainda.</p>
     {% endfor %}
 
     <script>
         function editarValor(idAluno, valorAtual) {
-            let novoValor = prompt("Digite o novo valor corrigido para este trabalho (ex: 85.50):", valorAtual);
-            
-            if (novoValor !== null && novoValor.trim() !== "") {
-                // Cria um formulário rápido e envia para o Python atualizar no banco de dados
-                let form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '/editar_valor/' + idAluno;
-                
-                let input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'novo_valor';
-                input.value = novoValor;
-                
-                form.appendChild(input);
-                document.body.appendChild(form);
-                form.submit();
-            }
+            Swal.fire({
+                title: 'Editar Valor do Trabalho',
+                input: 'text',
+                inputValue: valorAtual,
+                inputLabel: 'Introduza o novo valor em Reais',
+                showCancelButton: true,
+                confirmButtonText: 'Salvar Novo Valor',
+                cancelButtonText: 'Cancelar',
+                background: '#1e2130',
+                color: '#e2e8f0',
+                confirmButtonColor: '#6366f1',
+                inputValidator: (value) => {
+                    if (!value || isNaN(value.replace(',', '.'))) return 'Por favor, insira um número válido!'
+                }
+            }).then((result) => {
+                if (result.isConfirmed && result.value) {
+                    let form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/editar_valor/' + idAluno;
+                    let input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'novo_valor';
+                    input.value = result.value;
+                    form.appendChild(input);
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
         }
     </script>
 {% endblock %}
