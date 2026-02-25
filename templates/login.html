@@ -1,37 +1,119 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <title>Login - Hub de Desafios</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+{% extends "base.html" %}
+{% block content %}
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0E1117; color: #FAFAFA; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-box { background-color: #262730; padding: 2.5rem; border-radius: 8px; width: 100%; max-width: 350px; text-align: center; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
-        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 5px; border: 1px solid #444C56; background: #0E1117; color: white; box-sizing: border-box; }
-        input:focus { outline: none; border-color: #FF4B4B; }
-        button { width: 100%; padding: 12px; margin-top: 15px; background-color: #FF4B4B; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.2s;}
-        button:hover { background-color: #ff3333; }
-        .error { color: #FF4B4B; font-size: 0.9rem; margin-bottom: 15px; font-weight: bold; }
-        h2 { margin-top: 0; }
+        /* Estilos exclusivos para centralizar e embelezar a tela de Login */
+        .login-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh; /* Ocupa a altura da tela para centralizar perfeitamente */
+        }
+        
+        .login-card {
+            width: 100%;
+            max-width: 420px; /* Largura ideal para não ficar esticado */
+            padding: 40px 30px;
+            text-align: center;
+            border-top: 4px solid var(--primary); /* Linha de destaque no topo */
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+            background: linear-gradient(145deg, var(--card-bg), #1a1d2a);
+        }
+
+        .login-card h2 {
+            margin-top: 0;
+            font-size: 1.8rem;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* O círculo iluminado ao redor do ícone do planeta */
+        .login-card h2 i {
+            font-size: 3.5rem;
+            color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+            padding: 15px;
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+
+        .login-card p {
+            color: var(--text-muted);
+            margin-bottom: 35px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* O truque para colocar os ícones DENTRO da caixa de texto */
+        .login-input-group {
+            position: relative;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .login-input-group i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            transition: color 0.3s ease;
+        }
+
+        /* Empurra o texto para a direita para não ficar por cima do ícone */
+        .login-input-group input {
+            padding-left: 45px; 
+            margin: 0;
+            background: rgba(15, 17, 26, 0.8);
+        }
+
+        /* Quando clica na caixa de texto, o ícone acende com a cor principal */
+        .login-input-group input:focus + i,
+        .login-input-group input:focus ~ i {
+            color: var(--primary);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.1rem;
+            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
     </style>
-</head>
-<body>
-    <div class="login-box">
-        <h2>Acesso Restrito</h2>
-        
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="error">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
-        <form method="POST">
-            <input type="text" name="username" placeholder="Nome de Usuário" required>
-            <input type="password" name="password" placeholder="Senha" required>
-            <button type="submit">Entrar na Ferramenta</button>
-        </form>
+
+    <div class="login-wrapper">
+        <div class="card login-card">
+            
+            <h2>
+                <i class="ph-fill ph-planet"></i>
+                HubMaster
+            </h2>
+            <p>Bem-vindo de volta! Insira as suas credenciais para aceder à plataforma.</p>
+            
+            <form method="POST" action="/login">
+                
+                <div class="login-input-group">
+                    <input type="text" name="username" placeholder="Nome de Usuário" required autocomplete="username">
+                    <i class="ph-fill ph-user"></i>
+                </div>
+                
+                <div class="login-input-group">
+                    <input type="password" name="password" placeholder="Senha de Acesso" required autocomplete="current-password">
+                    <i class="ph-fill ph-lock-key"></i>
+                </div>
+                
+                <button type="submit" class="btn login-btn">
+                    Entrar no Sistema <i class="ph-bold ph-arrow-right"></i>
+                </button>
+
+            </form>
+
+        </div>
     </div>
-</body>
-</html>
+{% endblock %}
