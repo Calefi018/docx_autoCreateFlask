@@ -3,91 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hub de Desafios - CRM</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <title>HubMaster - Assessoria Acadêmica</title>
     <style>
         :root {
-            --primary: #FF4B4B; --bg: #0E1117; --bg-sec: #262730; 
-            --text: #FAFAFA; --border: #444C56; --blue: #2196F3;
+            --bg-color: #0E1117;
+            --sidebar-bg: #1A1C23;
+            --text-color: #E1E4E8;
+            --primary: #FF4B4B;
+            --secondary: #2196F3;
+            --success: #57D2A9;
+            --border: #262730;
         }
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; display: flex; min-height: 100vh; overflow-x: hidden; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-color); color: var(--text-color); display: flex; min-height: 100vh; }
+        .sidebar { width: 250px; background: var(--sidebar-bg); padding: 20px; border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 1000; }
+        .sidebar h2 { color: var(--primary); text-align: center; margin-bottom: 30px; font-size: 1.5rem; }
+        .sidebar a { color: var(--text-color); text-decoration: none; padding: 12px 15px; margin-bottom: 8px; border-radius: 5px; display: block; transition: background 0.2s; font-weight: 500; }
+        .sidebar a:hover { background: var(--border); color: var(--primary); }
+        .content { flex: 1; padding: 40px; overflow-y: auto; }
+        .card { background: var(--sidebar-bg); padding: 25px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        input, select, textarea { width: 100%; padding: 12px; margin: 8px 0 20px 0; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-color); color: var(--text-color); font-family: inherit; box-sizing: border-box; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: opacity 0.2s; text-decoration: none; display: inline-block; text-align: center; }
+        .btn:hover { opacity: 0.8; }
+        .btn-blue { background: var(--secondary); }
+        .btn-green { background: var(--success); color: #000; }
+        .flash-msg { padding: 15px; margin-bottom: 20px; border-radius: 5px; text-align: center; font-weight: bold; }
+        .flash-success { background: rgba(87, 210, 169, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .flash-error { background: rgba(255, 75, 75, 0.2); color: var(--primary); border: 1px solid var(--primary); }
+        .menu-toggle { display: none; background: var(--sidebar-bg); color: var(--text-color); border: 1px solid var(--border); padding: 10px; border-radius: 5px; cursor: pointer; margin-bottom: 20px; font-size: 1rem; }
         
-        /* Botão Hambúrguer (Oculto no PC) */
-        .menu-btn { display: none; position: fixed; top: 15px; left: 15px; z-index: 1000; background: var(--bg-sec); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 1.2rem; font-weight: bold;}
-        
-        /* Sidebar Styles */
-        .sidebar { width: 250px; background-color: var(--bg-sec); padding: 20px 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 999; }
-        .sidebar h2 { text-align: center; color: var(--primary); margin-bottom: 30px; font-size: 1.5rem; margin-top: 10px;}
-        .sidebar a { color: #9E9E9E; text-decoration: none; padding: 15px 25px; font-weight: 600; display: block; transition: 0.2s; border-left: 3px solid transparent;}
-        .sidebar a:hover, .sidebar a.active { background-color: #1c1d24; color: var(--text); border-left-color: var(--primary);}
-        .sidebar .bottom-links { margin-top: auto; border-top: 1px solid var(--border); padding-top: 10px;}
-        
-        /* Main Content Styles */
-        .main-content { flex: 1; padding: 40px; overflow-y: auto; transition: margin-left 0.3s ease; width: 100%; box-sizing: border-box;}
-        .container { max-width: 800px; margin: 0 auto; }
-        
-        /* Common Components */
-        input, select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); padding: 10px; color: var(--text); border-radius: 5px; box-sizing: border-box; margin-bottom: 15px; font-family: 'Inter';}
-        .btn { background: var(--primary); color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; text-decoration: none; display: inline-block; text-align: center;}
-        .btn-blue { background: var(--blue); }
-        .btn-green { background: #4CAF50; }
-        .card { background: var(--bg-sec); padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px;}
-
-        /* Responsividade para Celulares (A Mágica do Hambúrguer) */
         @media (max-width: 768px) {
-            .menu-btn { display: block; }
-            .sidebar { position: fixed; height: 100vh; transform: translateX(-100%); }
-            .sidebar.open { transform: translateX(0); box-shadow: 2px 0 10px rgba(0,0,0,0.5);}
-            .main-content { padding: 60px 20px 20px 20px; } /* Dá espaço para o botão no topo */
+            body { flex-direction: column; }
+            .sidebar { position: fixed; height: 100vh; transform: translateX(-100%); width: 250px; }
+            .sidebar.active { transform: translateX(0); }
+            .content { padding: 20px; width: 100%; box-sizing: border-box; }
+            .menu-toggle { display: block; }
         }
     </style>
 </head>
 <body>
-
-    <button class="menu-btn" onclick="toggleMenu()">☰ Menu</button>
 
     <div class="sidebar" id="sidebar">
         <h2>HubMaster</h2>
         <a href="/">🚀 Novo Trabalho</a>
         <a href="/clientes">👥 Clientes (CRM)</a>
         <a href="/revisao_avulsa">🔍 Revisão Externa</a>
+        <hr style="border-color: var(--border); margin: 15px 0;">
+        <a href="/dashboard">💰 Financeiro</a>
+        <a href="/prompts">⚙️ Prompts da IA</a>
+        <hr style="border-color: var(--border); margin: 15px 0;">
+        {% if current_user.role == 'admin' %}
+            <a href="/admin">⚙️ Painel Admin</a>
+        {% endif %}
+        <a href="/mudar_senha" style="color: #FFC107;">🔑 Senha</a>
+        <a href="/logout" style="color: var(--primary); margin-top: auto;">🚪 Sair</a>
+    </div>
+
+    <div class="content">
+        <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('active')">☰ Menu</button>
         
-        <div class="bottom-links">
-            {% if current_user.role in ['admin', 'sub-admin'] %}
-            <a href="/admin" style="color: #57D2A9;">⚙️ Painel Admin</a>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-msg flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
             {% endif %}
-            <a href="/mudar_senha" style="color: var(--blue);">🔑 Senha</a>
-            <a href="/logout" style="color: var(--primary);">🚪 Sair</a>
-        </div>
+        {% endwith %}
+
+        {% block content %}{% endblock %}
     </div>
 
-    <div class="main-content" id="main-content">
-        <div class="container">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div style="background:#0E3A2F; color:#57D2A9; padding:15px; border-radius:5px; margin-bottom:20px; font-weight:bold;">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-            
-            {% block content %}{% endblock %}
-        </div>
-    </div>
-
-    <script>
-        function toggleMenu() {
-            document.getElementById('sidebar').classList.toggle('open');
-        }
-        
-        // Fecha o menu se clicar fora dele (UX de mobile)
-        document.getElementById('main-content').addEventListener('click', function() {
-            var sidebar = document.getElementById('sidebar');
-            if (sidebar.classList.contains('open')) {
-                sidebar.classList.remove('open');
-            }
-        });
-    </script>
 </body>
 </html>
