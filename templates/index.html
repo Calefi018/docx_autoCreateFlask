@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
     <h1 style="margin-top:0;">Gerador de Trabalhos</h1>
-    <p style="color: #9E9E9E; margin-bottom: 30px;">Gere o documento e vincule automaticamente a um cliente.</p>
+    <p style="color: #9E9E9E; margin-bottom: 30px;">Gere o documento, edite se necessário, e vincule a um cliente.</p>
 
     <form id="formGerar">
         <label><b>1. Para qual Cliente é este trabalho?</b></label>
-        <select name="aluno_id">
+        <select name="aluno_id" id="aluno_id">
             <option value="">Não vincular a nenhum cliente (Apenas Baixar)</option>
             {% for aluno in alunos %}
                 <option value="{{ aluno.id }}">{{ aluno.nome }} - {{ aluno.curso }}</option>
@@ -15,101 +15,169 @@
         <label><b>2. Tema do Desafio</b></label>
         <textarea name="tema" rows="6" placeholder="Cole aqui o texto do portal..." required></textarea>
 
-        <label><b>3. Inteligência Artificial</b></label>
-        <select name="modelo">
-            {% for modelo in modelos %}<option value="{{ modelo }}">{{ modelo }}</option>{% endfor %}
-        </select>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div style="flex:1; min-width: 250px;">
+                <label><b>3. Padrão / Cérebro da IA</b></label>
+                <select name="prompt_id">
+                    {% for p in prompts %}
+                        <option value="{{ p.id }}">{{ p.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="flex:1; min-width: 250px;">
+                <label><b>4. Inteligência Artificial</b></label>
+                <select name="modelo" id="select_modelo">
+                    {% for modelo in modelos %}<option value="{{ modelo }}">{{ modelo }}</option>{% endfor %}
+                </select>
+            </div>
+        </div>
 
-        <button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem;" id="btn-submit">🚀 Gerar e Salvar Documento</button>
+        <button type="button" class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top:20px;" id="btn-submit" onclick="iniciarGeracao()">🚀 1º Passo: Gerar Rascunho com a IA</button>
         
-        <div id="progress-container" style="display:none; margin-top: 20px;">
-            <p id="progress-text" style="text-align:center; color:#2196F3; font-weight: bold; margin-bottom: 5px;">Iniciando IA...</p>
-            <div style="width: 100%; background-color: #262730; border-radius: 5px; overflow: hidden; height: 15px; border: 1px solid #444C56;">
+        <div id="loading" style="display:none; text-align:center; color:#2196F3; margin-top: 20px;">
+            <p id="progress-text" style="font-weight: bold; margin-bottom: 5px;">A IA está construindo o raciocínio...</p>
+            <div style="width: 100%; background-color: #262730; border-radius: 5px; height: 15px;">
                 <div id="progress-bar-fill" style="width: 0%; height: 100%; background-color: #2196F3; transition: width 0.5s ease;"></div>
             </div>
-            <p style="text-align:center; font-size: 0.8rem; color: #9E9E9E; margin-top: 5px;">IAs de 70 Bilhões de parâmetros podem levar até 2 minutos para estruturar o raciocínio profundo.</p>
+            <small style="color: #9E9E9E;">Aguarde. Modelos robustos podem levar até 2 minutos.</small>
         </div>
     </form>
 
-    <div id="resultado" class="card" style="display:none; margin-top: 30px; border-left: 5px solid #57D2A9;">
-        <h3 style="color: #57D2A9; margin-top: 0;">✅ Trabalho Gerado com Sucesso!</h3>
-        <p>Se você selecionou um cliente, o DOCX já foi salvo permanentemente na pasta dele.</p>
-        <button class="btn btn-blue" onclick="baixarDoc()">📥 Baixar DOCX Novamente</button>
+    <div id="area-edicao" class="card" style="display:none; margin-top: 30px; border-color: #E040FB;">
+        <h3 style="color: #E040FB; margin-top:0;">✏️ Pré-visualização e Edição Manual</h3>
+        <p style="color: #9E9E9E; font-size: 0.9em;">Revise os blocos gerados pela IA. Se algo estiver estranho, você pode digitar e consertar agora mesmo. Quando estiver perfeito, clique no botão verde abaixo para montar o DOCX.</p>
+        
+        <div id="caixas-texto"></div> <button class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">✅ 2º Passo: Aprovar Rascunho e Baixar DOCX Final</button>
     </div>
 
     <script>
-        let base64Doc = "";
-        
-        function baixarDoc() {
-            const link = document.createElement('a');
-            link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + base64Doc;
-            link.download = "Desafio_Gerado.docx"; 
-            link.click();
+        let dicionarioEditavel = {};
+        let progressInterval;
+
+        function animarCarregamento() {
+            let width = 0;
+            const bar = document.getElementById('progress-bar-fill');
+            const txt = document.getElementById('progress-text');
+            bar.style.width = '0%';
+            bar.style.backgroundColor = '#2196F3';
+            progressInterval = setInterval(() => {
+                if (width < 95) { width += 1; bar.style.width = width + '%'; txt.innerText = `Processando referências... ${width}%`; }
+            }, 1000);
         }
 
-        document.getElementById('formGerar').onsubmit = function(e) {
-            e.preventDefault();
+        function pararCarregamento() {
+            clearInterval(progressInterval);
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('btn-submit').style.display = 'block';
+        }
+
+        function iniciarGeracao(modeloSubstituto = null) {
+            const form = document.getElementById('formGerar');
+            const formdata = new FormData(form);
+            
+            if(modeloSubstituto) {
+                formdata.set('modelo', modeloSubstituto);
+                document.getElementById('select_modelo').value = modeloSubstituto;
+            }
+
             document.getElementById('btn-submit').style.display = 'none';
-            document.getElementById('resultado').style.display = 'none';
+            document.getElementById('area-edicao').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            animarCarregamento();
             
-            // Controle da Barra de Progresso
-            const progressContainer = document.getElementById('progress-container');
-            const progressBar = document.getElementById('progress-bar-fill');
-            const progressText = document.getElementById('progress-text');
-            
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
-            progressBar.style.backgroundColor = '#2196F3';
-            let width = 0;
-            
-            // Simula o carregamento lentamente até 95%
-            const progressInterval = setInterval(() => {
-                if (width < 95) {
-                    width += 1;
-                    progressBar.style.width = width + '%';
-                    progressText.innerText = `Lendo referências e redigindo... ${width}%`;
-                }
-            }, 1000); // Sobe 1% a cada 1 segundo (ideal para os modelos Titãs)
-            
-            fetch('/processar', { method: 'POST', body: new FormData(this) })
-            .then(async res => {
-                const data = await res.json().catch(() => null);
-                if (!res.ok) {
-                    if (data && data.erro) throw new Error(data.erro);
-                    throw new Error("O servidor da IA demorou demais ou está fora do ar no momento.");
-                }
-                return data;
-            })
+            fetch('/gerar_rascunho', { method: 'POST', body: formdata })
+            .then(res => res.json())
             .then(data => {
-                clearInterval(progressInterval);
-                document.getElementById('btn-submit').style.display = 'block';
-                
-                if(data.erro) { 
-                    progressBar.style.backgroundColor = '#FF4B4B';
-                    progressText.innerText = "Falha na Geração!";
-                    progressText.style.color = '#FF4B4B';
-                    alert("Erro na IA: " + data.erro); 
-                    return; 
+                pararCarregamento();
+
+                if(!data.sucesso) {
+                    if(data.fallback) {
+                        // SISTEMA DE FALLBACK AUTOMÁTICO
+                        let msg = `⚠️ A IA selecionada (${data.failed_model}) falhou ou os servidores estão superlotados.\n\nMotivo: ${data.erro}\n\nDeseja que o sistema tente novamente agora usando a IA substituta: ${data.suggested_model}?`;
+                        if(confirm(msg)) {
+                            iniciarGeracao(data.suggested_model);
+                        }
+                    } else {
+                        alert("Erro fatal: " + data.erro);
+                    }
+                    return;
                 }
-                
-                // Sucesso Total
-                progressBar.style.width = '100%';
-                progressBar.style.backgroundColor = '#57D2A9';
-                progressText.innerText = "Concluído com Sucesso! 100%";
-                progressText.style.color = '#57D2A9';
-                
-                base64Doc = data.arquivo_base64;
-                document.getElementById('resultado').style.display = 'block';
-                baixarDoc();
+
+                // Exibe as caixas de edição
+                dicionarioEditavel = data.dicionario;
+                montarEditor(dicionarioEditavel);
+                document.getElementById('area-edicao').style.display = 'block';
+                window.scrollTo({ top: document.getElementById('area-edicao').offsetTop, behavior: 'smooth' });
             })
             .catch(err => {
-                clearInterval(progressInterval);
-                document.getElementById('btn-submit').style.display = 'block';
-                progressBar.style.backgroundColor = '#FF4B4B';
-                progressText.innerText = "Erro!";
-                progressText.style.color = '#FF4B4B';
-                alert("Aviso: " + err.message);
+                pararCarregamento();
+                alert("Erro de conexão com o servidor. Tente novamente.");
             });
-        };
+        }
+
+        function montarEditor(dic) {
+            const container = document.getElementById('caixas-texto');
+            container.innerHTML = ''; 
+            
+            for (const [chave, texto] of Object.entries(dic)) {
+                if (texto.trim() === "") continue; 
+                
+                let tituloAmigavel = chave.replace('{{', '').replace('}}', '').replace(/_/g, ' ');
+                let wrapper = document.createElement('div');
+                wrapper.style.marginBottom = '15px';
+                
+                let label = document.createElement('label');
+                label.innerHTML = `<b>${tituloAmigavel}</b>`;
+                label.style.color = "#2196F3";
+                label.style.display = "block";
+                label.style.marginBottom = "5px";
+                
+                let textarea = document.createElement('textarea');
+                textarea.rows = 5;
+                textarea.value = texto;
+                textarea.dataset.chave = chave;
+                textarea.onchange = (e) => { dicionarioEditavel[e.target.dataset.chave] = e.target.value; };
+                
+                wrapper.appendChild(label);
+                wrapper.appendChild(textarea);
+                container.appendChild(wrapper);
+            }
+        }
+
+        function salvarEDocx() {
+            document.getElementById('btn-docx').innerText = "Aguarde, gerando documento...";
+            document.getElementById('btn-docx').disabled = true;
+
+            const textareas = document.querySelectorAll('#caixas-texto textarea');
+            textareas.forEach(ta => { dicionarioEditavel[ta.dataset.chave] = ta.value; });
+
+            const alunoId = document.getElementById('aluno_id').value;
+
+            fetch('/gerar_docx_final', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dicionario: dicionarioEditavel, aluno_id: alunoId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('btn-docx').innerText = "✅ 2º Passo: Aprovar Rascunho e Baixar DOCX Final";
+                document.getElementById('btn-docx').disabled = false;
+
+                if(!data.sucesso) { alert("Erro ao gerar Word: " + data.erro); return; }
+                
+                const link = document.createElement('a');
+                link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + data.arquivo_base64;
+                link.download = "Desafio_Finalizado.docx"; 
+                link.click();
+                
+                document.getElementById('area-edicao').style.display = 'none';
+                alert("✅ Word gerado perfeitamente! Se você selecionou um cliente, o documento já foi salvo na pasta dele.");
+            })
+            .catch(err => {
+                document.getElementById('btn-docx').innerText = "✅ 2º Passo: Aprovar Rascunho e Baixar DOCX Final";
+                document.getElementById('btn-docx').disabled = false;
+                alert("Erro ao conectar com o gerador de DOCX.");
+            });
+        }
     </script>
 {% endblock %}
