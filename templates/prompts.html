@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="margin-top:0;">⚙️ Engenharia de Prompts</h1>
+    <p style="color: #9E9E9E;">Crie múltiplos "Cérebros" ou padrões de comportamento para a sua Inteligência Artificial sem precisar de alterar o código do sistema.</p>
+
+    <div class="card">
+        <h3 style="margin-top: 0;">➕ Criar Novo Padrão de IA</h3>
+        <form method="POST">
+            <input type="text" name="nome" placeholder="Nome do Padrão. Ex: Padrão Administração (Foco em Lucros)" required style="width: 100%; margin-bottom: 10px;">
+            <textarea name="texto" rows="10" placeholder="Cole aqui todas as suas regras de comportamento e as TAGS obrigatórias para preencher o Word (ex: [START_RESUMO_MEMORIAL]...)" required></textarea>
+            <button type="submit" class="btn btn-blue" style="width: 100%; margin-top: 10px; padding: 15px; font-size: 1.1rem;">💾 Salvar Novo Cérebro</button>
+        </form>
+    </div>
+
+    <h3 style="margin-top: 30px;">🧠 Cérebros Ativos no Banco de Dados</h3>
+    {% for p in prompts %}
+        <div class="card" style="{% if p.is_default %}border-left: 4px solid #FFC107;{% endif %}">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="margin: 0; color: #57D2A9;">
+                    {{ p.nome }} 
+                    {% if p.is_default %}<span style="color: #FFC107; font-size: 0.8em;">(Padrão Original do Sistema)</span>{% endif %}
+                </h4>
+                {% if not p.is_default %}
+                    <a href="/prompts/delete/{{ p.id }}" class="btn" style="background: #FF4B4B; padding: 5px 15px; text-decoration: none;" onclick="return confirm('Tem certeza que deseja apagar este prompt?')">Apagar</a>
+                {% endif %}
+            </div>
+            
+            <div style="background: #262730; padding: 15px; border-radius: 5px; margin-top: 15px; max-height: 200px; overflow-y: auto;">
+                <pre style="color: #9E9E9E; font-size: 0.85rem; margin: 0; white-space: pre-wrap; font-family: inherit;">{{ p.texto }}</pre>
+            </div>
+        </div>
+    {% else %}
+        <p style="color: #9E9E9E;">Nenhum prompt carregado. Ocorreu um erro na migração.</p>
+    {% endfor %}
+{% endblock %}
