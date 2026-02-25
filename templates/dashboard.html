@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="margin-top:0;">💰 Dashboard Financeiro</h1>
+    <p style="color: #9E9E9E;">Visão geral dos seus lucros e da produtividade do seu sistema.</p>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
+        <div class="card" style="flex: 1; min-width: 200px; text-align: center; border-bottom: 4px solid #FF4B4B;">
+            <h3 style="color: #9E9E9E; margin:0;">A Receber (Pendentes)</h3>
+            <h2 style="color: #FF4B4B; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(a_receber) }}</h2>
+        </div>
+        
+        <div class="card" style="flex: 1; min-width: 200px; text-align: center; border-bottom: 4px solid #57D2A9;">
+            <h3 style="color: #9E9E9E; margin:0;">Receita (Trabalhos Pagos)</h3>
+            <h2 style="color: #57D2A9; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_realizada) }}</h2>
+        </div>
+        
+        <div class="card" style="flex: 1; min-width: 200px; text-align: center; border-bottom: 4px solid #2196F3;">
+            <h3 style="color: #9E9E9E; margin:0;">Trabalhos Salvos</h3>
+            <h2 style="color: #2196F3; font-size: 2.5rem; margin: 10px 0;">{{ total_trabalhos }}</h2>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top: 0;">🤖 Inteligências Mais Utilizadas</h3>
+        <p style="color: #9E9E9E; font-size: 0.9em; margin-bottom: 15px;">Monitorização das rotas de IA que mais trabalharam para você.</p>
+        
+        <table style="width: 100%; text-align: left; color: #E1E4E8; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #444C56;">
+                <th style="padding: 10px;">Modelo de IA</th>
+                <th style="padding: 10px; text-align: right;">Trabalhos Gerados</th>
+            </tr>
+            {% for uso in uso_modelos %}
+            <tr style="border-bottom: 1px solid #262730;">
+                <td style="padding: 10px; color: #2196F3;">{{ uso[0] }}</td>
+                <td style="padding: 10px; text-align: right; font-weight: bold;">{{ uso[1] }}x</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="2" style="padding: 10px; text-align: center; color: #9E9E9E;">Ainda não existem registos de uso.</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% endblock %}
