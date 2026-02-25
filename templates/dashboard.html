@@ -1,42 +1,45 @@
 {% extends "base.html" %}
 {% block content %}
-    <h1 style="margin-top:0;">💰 Dashboard Financeiro</h1>
-    <p style="color: #9E9E9E;">Visão geral dos seus lucros e da produtividade do seu sistema.</p>
+    <h1 style="margin-top:0;">Dashboard Financeiro</h1>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">Visão geral dos seus lucros e da produtividade do seu sistema.</p>
 
-    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
-        <div class="card" style="flex: 1; min-width: 200px; text-align: center; border-bottom: 4px solid #FF4B4B;">
-            <h3 style="color: #9E9E9E; margin:0;">A Receber (Pendentes)</h3>
-            <h2 style="color: #FF4B4B; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(a_receber) }}</h2>
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 40px;">
+        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--danger);">
+            <i class="ph-fill ph-wallet" style="font-size: 2.5rem; color: var(--danger); margin-bottom: 10px;"></i>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">A Receber</h3>
+            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(a_receber) }}</h2>
         </div>
         
-        <div class="card" style="flex: 1; min-width: 200px; text-align: center; border-bottom: 4px solid #57D2A9;">
-            <h3 style="color: #9E9E9E; margin:0;">Receita (Trabalhos Pagos)</h3>
-            <h2 style="color: #57D2A9; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_realizada) }}</h2>
+        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--success);">
+            <i class="ph-fill ph-chart-line-up" style="font-size: 2.5rem; color: var(--success); margin-bottom: 10px;"></i>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Receita Paga</h3>
+            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_realizada) }}</h2>
         </div>
         
-        <div class="card" style="flex: 1; min-width: 200px; text-align: center; border-bottom: 4px solid #2196F3;">
-            <h3 style="color: #9E9E9E; margin:0;">Total de Trabalhos</h3>
-            <h2 style="color: #2196F3; font-size: 2.5rem; margin: 10px 0;">{{ total_trabalhos }}</h2>
+        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--primary);">
+            <i class="ph-fill ph-files" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 10px;"></i>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Total de Trabalhos</h3>
+            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">{{ total_trabalhos }}</h2>
         </div>
     </div>
 
     <div class="card">
-        <h3 style="margin-top: 0;">🤖 Inteligências Mais Utilizadas</h3>
-        <p style="color: #9E9E9E; font-size: 0.9em; margin-bottom: 15px;">Monitorização das rotas de IA que mais trabalharam para você.</p>
+        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-cpu"></i> Inteligências Utilizadas</h3>
+        <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">Monitorização de rotas ativas.</p>
         
-        <table style="width: 100%; text-align: left; color: #E1E4E8; border-collapse: collapse;">
-            <tr style="border-bottom: 1px solid #444C56;">
-                <th style="padding: 10px;">Modelo de IA</th>
-                <th style="padding: 10px; text-align: right;">Trabalhos Gerados</th>
+        <table style="width: 100%; text-align: left; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid var(--border);">
+                <th style="padding: 15px 10px; color: var(--text-muted);">Modelo de IA</th>
+                <th style="padding: 15px 10px; text-align: right; color: var(--text-muted);">Uso</th>
             </tr>
             {% for uso in uso_modelos %}
-            <tr style="border-bottom: 1px solid #262730;">
-                <td style="padding: 10px; color: #2196F3;">{{ uso[0] }}</td>
-                <td style="padding: 10px; text-align: right; font-weight: bold;">{{ uso[1] }}x</td>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 15px 10px; color: #fff; font-weight: 500;">{{ uso[0] }}</td>
+                <td style="padding: 15px 10px; text-align: right; color: var(--primary); font-weight: bold;">{{ uso[1] }}x</td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="2" style="padding: 10px; text-align: center; color: #9E9E9E;">Ainda não existem registos de uso.</td>
+                <td colspan="2" style="padding: 20px; text-align: center; color: var(--text-muted);">Nenhum trabalho gerado ainda.</td>
             </tr>
             {% endfor %}
         </table>
