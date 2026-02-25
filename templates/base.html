@@ -45,18 +45,22 @@
 
     <div class="sidebar" id="sidebar">
         <h2>HubMaster</h2>
-        <a href="/">🚀 Novo Trabalho</a>
-        <a href="/clientes">👥 Clientes (CRM)</a>
-        <a href="/revisao_avulsa">🔍 Revisão Externa</a>
-        <hr style="border-color: var(--border); margin: 15px 0;">
-        <a href="/dashboard">💰 Financeiro</a>
-        <a href="/prompts">⚙️ Prompts da IA</a>
-        <hr style="border-color: var(--border); margin: 15px 0;">
-        {% if current_user.role == 'admin' %}
-            <a href="/admin">⚙️ Painel Admin</a>
+        {% if current_user.is_authenticated %}
+            <a href="/">🚀 Novo Trabalho</a>
+            <a href="/clientes">👥 Clientes (CRM)</a>
+            <a href="/revisao_avulsa">🔍 Revisão Externa</a>
+            <hr style="border-color: var(--border); margin: 15px 0;">
+            <a href="/dashboard">💰 Financeiro</a>
+            <a href="/prompts">⚙️ Prompts da IA</a>
+            <hr style="border-color: var(--border); margin: 15px 0;">
+            {% if current_user.role == 'admin' %}
+                <a href="/admin">⚙️ Painel Admin</a>
+            {% endif %}
+            <a href="/mudar_senha" style="color: #FFC107;">🔑 Senha</a>
+            <a href="/logout" style="color: var(--primary); margin-top: auto;">🚪 Sair</a>
+        {% else %}
+            <p style="text-align: center; color: #9E9E9E; font-size: 0.9em;">Faça login para acessar o sistema.</p>
         {% endif %}
-        <a href="/mudar_senha" style="color: #FFC107;">🔑 Senha</a>
-        <a href="/logout" style="color: var(--primary); margin-top: auto;">🚪 Sair</a>
     </div>
 
     <div class="content">
