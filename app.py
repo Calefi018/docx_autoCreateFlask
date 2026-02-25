@@ -21,20 +21,14 @@ app = Flask(__name__)
 # =========================================================
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # Destrava o banco de dados antes de mostrar o erro
     try: db.session.rollback()
     except: pass
-    
-    # Se for um erro normal de navegação (404), deixa o Flask seguir
     from werkzeug.exceptions import HTTPException
-    if isinstance(e, HTTPException):
-        return e
-        
-    # Se for um Erro 500 (Crash), mostra na tela o motivo exato
+    if isinstance(e, HTTPException): return e
     return f"""
     <div style="font-family: sans-serif; padding: 20px; background: #262730; color: #E1E4E8; height: 100vh;">
         <h1 style="color: #FF4B4B;">🚨 Falha Crítica Detectada</h1>
-        <p>O sistema encontrou um erro interno (Possível falha no Neon ou na Secret Key).</p>
+        <p>O sistema encontrou um erro interno.</p>
         <div style="background: #1A1C23; padding: 15px; border-radius: 5px; color: #FFC107; font-family: monospace; overflow-x: auto;">
             <b>{type(e).__name__}</b>: {str(e)}
         </div>
@@ -44,11 +38,10 @@ def handle_exception(e):
     """, 500
 
 # =========================================================
-# CONFIGURAÇÕES DO BANCO DE DADOS (Com correções vitais)
+# CONFIGURAÇÕES DO BANCO DE DADOS
 # =========================================================
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-super-secreta-mude-depois')
 
-# CORREÇÃO 1: Evita crash se a URL do Neon estiver no formato antigo
 db_url = os.environ.get('DATABASE_URL', 'sqlite:///clientes.db')
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
@@ -106,7 +99,6 @@ class RegistroUso(db.Model):
     data = db.Column(db.DateTime, default=datetime.utcnow)
     modelo_usado = db.Column(db.String(100))
 
-# CORREÇÃO 2: Usa a função moderna de leitura de sessão
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -144,21 +136,16 @@ PROMPT_REGRAS_BASE = """
     [START_AUTOAVALIACAO_MEMORIAL] [Autoavaliação direta] [END_AUTOAVALIACAO_MEMORIAL]
 """
 
-# CORREÇÃO 3: Blocos Cofre-Forte independentes para não derrubar o banco
 with app.app_context():
     db.create_all()
-    
     try: 
         db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Pendente'"))
         db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
+    except Exception: db.session.rollback()
     try: 
         db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN valor FLOAT DEFAULT 70.0"))
         db.session.commit()
-    except Exception: 
-        db.session.rollback()
+    except Exception: db.session.rollback()
 
     try:
         if not User.query.filter_by(username='admin').first():
@@ -166,16 +153,14 @@ with app.app_context():
             admin = User(username='admin', password=hashed_pw, role='admin')
             db.session.add(admin)
             db.session.commit()
-    except Exception:
-        db.session.rollback()
+    except Exception: db.session.rollback()
         
     try:
         if not PromptConfig.query.first():
             p = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
             db.session.add(p)
             db.session.commit()
-    except Exception:
-        db.session.rollback()
+    except Exception: db.session.rollback()
 
 # =========================================================
 # FUNÇÕES DA IA E WORD
@@ -259,7 +244,6 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
     TEMA: {texto_tema}
     TRABALHO ATUAL: {texto_trabalho}
     CRÍTICA RECEBIDA: {critica}
-    
     TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. 
     Lembre-se: Respeite rigorosamente o limite de caracteres e os limites exatos de parágrafos.
     {regras}"""
@@ -270,8 +254,9 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
         raise Exception(f"Falha na IA (Correção): {str(e)}")
 
 # =========================================================
-# ROTAS PRINCIPAIS
+# ROTAS PRINCIPAIS: GERADOR E DASHBOARD
 # =========================================================
+
 MODELOS_DISPONIVEIS = [
     "gemini-2.5-flash",                             
     "gemini-2.5-pro",                               
@@ -374,6 +359,9 @@ def delete_prompt(id):
         db.session.commit()
     return redirect(url_for('gerenciar_prompts'))
 
+# =========================================================
+# CRM E REVISÃO
+# =========================================================
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
 def clientes():
@@ -394,6 +382,21 @@ def clientes():
     alunos_pendentes = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
     alunos_pagos = Aluno.query.filter_by(user_id=current_user.id, status='Pago').all()
     return render_template('clientes.html', alunos_pendentes=alunos_pendentes, alunos_pagos=alunos_pagos)
+
+# NOVA ROTA: Editar o valor financeiro do cliente dinamicamente
+@app.route('/editar_valor/<int:id>', methods=['POST'])
+@login_required
+def editar_valor(id):
+    aluno = Aluno.query.get_or_404(id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
+    try:
+        novo_valor = request.form.get('novo_valor').replace(',', '.')
+        aluno.valor = float(novo_valor)
+        db.session.commit()
+        flash(f'Valor atualizado para R$ {aluno.valor:.2f}', 'success')
+    except:
+        flash('Valor inválido. Use apenas números.', 'error')
+    return redirect(url_for('clientes'))
 
 @app.route('/toggle_status/<int:id>', methods=['POST'])
 @login_required
@@ -487,6 +490,9 @@ def corrigir_avulso():
         return jsonify({"arquivo_base64": arquivo_base64, "nome_arquivo": "Trabalho_Revisado_IA.docx"})
     except Exception as e: return jsonify({"erro": str(e)}), 500
 
+# =========================================================
+# LOGIN E ADMINISTRAÇÃO
+# =========================================================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated: return redirect(url_for('index'))
