@@ -47,12 +47,32 @@
         <h3 style="color: #E040FB; margin-top:0;">✏️ Pré-visualização e Edição Manual</h3>
         <p style="color: #9E9E9E; font-size: 0.9em;">Revise os blocos gerados pela IA. Se algo estiver estranho, você pode digitar e consertar agora mesmo. Quando estiver perfeito, clique no botão verde abaixo para montar o DOCX.</p>
         
-        <div id="caixas-texto"></div> <button class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">✅ 2º Passo: Aprovar Rascunho e Baixar DOCX Final</button>
+        <div id="caixas-texto"></div>
+
+        <button class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">✅ 2º Passo: Aprovar Rascunho e Baixar DOCX Final</button>
     </div>
 
     <script>
         let dicionarioEditavel = {};
         let progressInterval;
+
+        // A ORDEM OFICIAL: Esta lista garante que o JS não misture as caixas de texto
+        const ordemOficial = [
+            "{{RESUMO_MEMORIAL}}",
+            "{{CONTEXTO_MEMORIAL}}",
+            "{{ANALISE_MEMORIAL}}",
+            "{{ASPECTO_1}}", "{{POR_QUE_1}}",
+            "{{ASPECTO_2}}", "{{POR_QUE_2}}",
+            "{{ASPECTO_3}}", "{{POR_QUE_3}}",
+            "{{CONCEITOS_TEORICOS}}",
+            "{{ANALISE_CONCEITO_1}}",
+            "{{ENTENDIMENTO_TEORICO}}",
+            "{{SOLUCOES_TEORICAS}}",
+            "{{PROPOSTAS_MEMORIAL}}",
+            "{{CONCLUSAO_MEMORIAL}}",
+            "{{REFERENCIAS_ADICIONAIS}}",
+            "{{AUTOAVALIACAO_MEMORIAL}}"
+        ];
 
         function animarCarregamento() {
             let width = 0;
@@ -89,59 +109,50 @@
             .then(res => res.json())
             .then(data => {
                 pararCarregamento();
-
                 if(!data.sucesso) {
                     if(data.fallback) {
-                        // SISTEMA DE FALLBACK AUTOMÁTICO
-                        let msg = `⚠️ A IA selecionada (${data.failed_model}) falhou ou os servidores estão superlotados.\n\nMotivo: ${data.erro}\n\nDeseja que o sistema tente novamente agora usando a IA substituta: ${data.suggested_model}?`;
-                        if(confirm(msg)) {
-                            iniciarGeracao(data.suggested_model);
-                        }
-                    } else {
-                        alert("Erro fatal: " + data.erro);
-                    }
+                        let msg = `⚠️ A IA selecionada (${data.failed_model}) falhou ou os servidores estão cheios.\n\nMotivo: ${data.erro}\n\nDeseja que o sistema tente novamente agora usando a IA substituta: ${data.suggested_model}?`;
+                        if(confirm(msg)) { iniciarGeracao(data.suggested_model); }
+                    } else { alert("Erro fatal: " + data.erro); }
                     return;
                 }
-
-                // Exibe as caixas de edição
                 dicionarioEditavel = data.dicionario;
                 montarEditor(dicionarioEditavel);
                 document.getElementById('area-edicao').style.display = 'block';
                 window.scrollTo({ top: document.getElementById('area-edicao').offsetTop, behavior: 'smooth' });
             })
-            .catch(err => {
-                pararCarregamento();
-                alert("Erro de conexão com o servidor. Tente novamente.");
-            });
+            .catch(err => { pararCarregamento(); alert("Erro de conexão com o servidor. Tente novamente."); });
         }
 
         function montarEditor(dic) {
             const container = document.getElementById('caixas-texto');
             container.innerHTML = ''; 
             
-            for (const [chave, texto] of Object.entries(dic)) {
-                if (texto.trim() === "") continue; 
-                
-                let tituloAmigavel = chave.replace('{{', '').replace('}}', '').replace(/_/g, ' ');
-                let wrapper = document.createElement('div');
-                wrapper.style.marginBottom = '15px';
-                
-                let label = document.createElement('label');
-                label.innerHTML = `<b>${tituloAmigavel}</b>`;
-                label.style.color = "#2196F3";
-                label.style.display = "block";
-                label.style.marginBottom = "5px";
-                
-                let textarea = document.createElement('textarea');
-                textarea.rows = 5;
-                textarea.value = texto;
-                textarea.dataset.chave = chave;
-                textarea.onchange = (e) => { dicionarioEditavel[e.target.dataset.chave] = e.target.value; };
-                
-                wrapper.appendChild(label);
-                wrapper.appendChild(textarea);
-                container.appendChild(wrapper);
-            }
+            // Loop forçando a ordem desejada em vez de ordem alfabética
+            ordemOficial.forEach(chave => {
+                if (dic[chave] && dic[chave].trim() !== "") {
+                    let tituloAmigavel = chave.replace('{{', '').replace('}}', '').replace(/_/g, ' ');
+                    
+                    let wrapper = document.createElement('div');
+                    wrapper.style.marginBottom = '15px';
+                    
+                    let label = document.createElement('label');
+                    label.innerHTML = `<b>${tituloAmigavel}</b>`;
+                    label.style.color = "#2196F3";
+                    label.style.display = "block";
+                    label.style.marginBottom = "5px";
+                    
+                    let textarea = document.createElement('textarea');
+                    textarea.rows = 5;
+                    textarea.value = dic[chave];
+                    textarea.dataset.chave = chave;
+                    textarea.onchange = (e) => { dicionarioEditavel[e.target.dataset.chave] = e.target.value; };
+                    
+                    wrapper.appendChild(label);
+                    wrapper.appendChild(textarea);
+                    container.appendChild(wrapper);
+                }
+            });
         }
 
         function salvarEDocx() {
@@ -162,7 +173,6 @@
             .then(data => {
                 document.getElementById('btn-docx').innerText = "✅ 2º Passo: Aprovar Rascunho e Baixar DOCX Final";
                 document.getElementById('btn-docx').disabled = false;
-
                 if(!data.sucesso) { alert("Erro ao gerar Word: " + data.erro); return; }
                 
                 const link = document.createElement('a');
