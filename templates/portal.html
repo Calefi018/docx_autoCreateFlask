@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Aluno</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        body { margin: 0; font-family: 'Inter', sans-serif; background: #0f111a; color: #e2e8f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box;}
+        .portal-card { background: #1e2130; padding: 40px; border-radius: 16px; border-top: 4px solid #6366f1; width: 100%; max-width: 450px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .portal-card h1 { margin-top: 0; display: flex; flex-direction: column; align-items: center; gap: 15px; color: #fff; }
+        .portal-card h1 i { font-size: 3.5rem; color: #6366f1; background: rgba(99, 102, 241, 0.1); padding: 15px; border-radius: 50%; }
+        input { width: 100%; padding: 15px; margin: 20px 0; border-radius: 8px; border: 1px solid #334155; background: #0f111a; color: #fff; font-size: 1.1rem; text-align: center; box-sizing: border-box; }
+        input:focus { outline: none; border-color: #6366f1; }
+        .btn { width: 100%; background: #6366f1; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1.1rem; display: block; text-decoration: none; box-sizing: border-box; transition: background 0.3s; }
+        .btn:hover { background: #4f46e5; }
+        
+        .status-box { padding: 20px; border-radius: 8px; margin: 25px 0; font-weight: bold; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; gap: 10px; flex-direction: column;}
+        .status-box i { font-size: 2rem; }
+        
+        .status-producao { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid #f59e0b; }
+        .status-pendente { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid #ef4444; }
+        .status-pago { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid #10b981; }
+        
+        .download-list { text-align: left; margin-top: 30px; }
+        .download-item { background: #0f111a; padding: 15px; border-radius: 8px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px;}
+        .ph-spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="portal-card">
+        <h1><i class="ph-fill ph-student"></i> Portal do Aluno</h1>
+        
+        {% if not aluno %}
+            <p style="color: #94a3b8; font-size: 0.95rem; line-height: 1.5;">Acompanhe o andamento da sua assessoria acadêmica e baixe os seus arquivos de forma segura.</p>
+            
+            {% if erro %}
+                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 15px; border-radius: 8px; margin-top: 15px; font-weight: bold;">
+                    <i class="ph-fill ph-warning-circle"></i> {{ erro }}
+                </div>
+            {% endif %}
+            
+            <form method="POST">
+                <input type="text" name="telefone" placeholder="Seu número de WhatsApp (Apenas Números)" required>
+                <button type="submit" class="btn">Consultar Trabalho <i class="ph-bold ph-magnifying-glass"></i></button>
+            </form>
+        {% else %}
+            <h2 style="margin-bottom: 5px;">Olá, {{ aluno.nome }}!</h2>
+            <p style="color: #94a3b8; margin-top: 0; font-weight: 500;">Disciplina: {{ aluno.curso }}</p>
+
+            {% if aluno.status == 'Produção' %}
+                <div class="status-box status-producao">
+                    <i class="ph-bold ph-gear ph-spinner"></i> 
+                    Em Produção
+                </div>
+                <p style="color: #94a3b8; font-size: 0.9rem;">O seu trabalho está a ser redigido pelos nossos especialistas. Aguarde a notificação via WhatsApp.</p>
+                
+            {% elif aluno.status == 'Pendente' %}
+                <div class="status-box status-pendente">
+                    <i class="ph-bold ph-lock-key"></i> 
+                    Trabalho Concluído!
+                </div>
+                <p style="color: #94a3b8; font-size: 0.95rem; line-height: 1.5;">O seu arquivo está trancado. Para liberar o download, realize o pagamento de <b style="color: #fff; font-size: 1.1rem;">R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b>.</p>
+                
+            {% elif aluno.status == 'Pago' %}
+                <div class="status-box status-pago">
+                    <i class="ph-fill ph-check-circle"></i> 
+                    Liberado!
+                </div>
+                
+                <div class="download-list">
+                    <h4 style="margin-bottom: 15px; color: #94a3b8; text-align: left; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Arquivos disponíveis:</h4>
+                    {% for doc in aluno.documentos %}
+                        <div class="download-item">
+                            <span style="font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff;">
+                                <i class="ph-fill ph-file-doc" style="color: #6366f1; font-size: 1.2rem; vertical-align: middle;"></i> 
+                                {{ doc.nome_arquivo }}
+                            </span>
+                            <a href="/download_doc/{{ doc.id }}" class="btn" style="width: auto; padding: 10px 15px; font-size: 0.9rem; background: #10b981;">
+                                <i class="ph-bold ph-download-simple"></i>
+                            </a>
+                        </div>
+                    {% else %}
+                        <p style="color: #94a3b8; text-align: center; border: 1px dashed #334155; padding: 20px; border-radius: 8px;">Nenhum arquivo anexado ainda.</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            
+            <a href="/portal" style="color: #6366f1; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 40px; font-weight: 500;">
+                <i class="ph-bold ph-arrow-left"></i> Fazer Nova Consulta
+            </a>
+        {% endif %}
+    </div>
+
+</body>
+</html>
