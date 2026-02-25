@@ -17,7 +17,7 @@ import openai
 app = Flask(__name__)
 
 # =========================================================
-# TELA DE RAIO-X (Mostra o erro exato no seu celular)
+# TELA DE RAIO-X
 # =========================================================
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -256,7 +256,6 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
 # =========================================================
 # ROTAS PRINCIPAIS: GERADOR E DASHBOARD
 # =========================================================
-
 MODELOS_DISPONIVEIS = [
     "gemini-2.5-flash",                             
     "gemini-2.5-pro",                               
@@ -287,14 +286,11 @@ def gerar_rascunho():
     try:
         texto_resposta = chamar_ia(prompt_completo, modelo)
         dicionario = extrair_dicionario(texto_resposta)
-        
-        if not any(dicionario.values()):
-            raise Exception("A IA não retornou o formato de tags esperado.")
+        if not any(dicionario.values()): raise Exception("A IA não retornou o formato de tags esperado.")
             
         db.session.add(RegistroUso(modelo_usado=modelo))
         db.session.commit()
         return jsonify({"sucesso": True, "dicionario": dicionario})
-        
     except Exception as e:
         try: next_model = MODELOS_DISPONIVEIS[(MODELOS_DISPONIVEIS.index(modelo) + 1) % len(MODELOS_DISPONIVEIS)]
         except: next_model = MODELOS_DISPONIVEIS[0]
@@ -328,13 +324,9 @@ def gerar_docx_final():
 def dashboard():
     alunos_pendentes = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
     alunos_pagos = Aluno.query.filter_by(user_id=current_user.id, status='Pago').all()
-    
     a_receber = sum((a.valor or 70.0) for a in alunos_pendentes)
     receita_realizada = sum((a.valor or 70.0) for a in alunos_pagos)
-    
-    # CORREÇÃO DA MÉTRICA: Agora conta o total real de clientes/trabalhos registados
     total_trabalhos = len(alunos_pendentes) + len(alunos_pagos)
-    
     uso_modelos = db.session.query(RegistroUso.modelo_usado, db.func.count(RegistroUso.id)).group_by(RegistroUso.modelo_usado).order_by(db.func.count(RegistroUso.id).desc()).all()
     return render_template('dashboard.html', a_receber=a_receber, receita_realizada=receita_realizada, total_trabalhos=total_trabalhos, uso_modelos=uso_modelos)
 
@@ -360,7 +352,7 @@ def delete_prompt(id):
     return redirect(url_for('gerenciar_prompts'))
 
 # =========================================================
-# CRM E REVISÃO
+# CRM, REVISÃO E NOVAS FUNCIONALIDADES DE EDIÇÃO
 # =========================================================
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
@@ -368,11 +360,8 @@ def clientes():
     if request.method == 'POST':
         novo_aluno = Aluno(
             user_id=current_user.id,
-            nome=request.form.get('nome'),
-            curso=request.form.get('curso'),
-            telefone=request.form.get('telefone'),
-            valor=float(request.form.get('valor', 70.0)),
-            status='Pendente'
+            nome=request.form.get('nome'), curso=request.form.get('curso'),
+            telefone=request.form.get('telefone'), valor=float(request.form.get('valor', 70.0)), status='Pendente'
         )
         db.session.add(novo_aluno)
         db.session.commit()
@@ -389,12 +378,37 @@ def editar_valor(id):
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     try:
-        novo_valor = request.form.get('novo_valor').replace(',', '.')
-        aluno.valor = float(novo_valor)
+        aluno.valor = float(request.form.get('novo_valor').replace(',', '.'))
         db.session.commit()
         flash(f'Valor atualizado para R$ {aluno.valor:.2f}', 'success')
-    except:
-        flash('Valor inválido. Use apenas números.', 'error')
+    except: flash('Valor inválido. Use apenas números.', 'error')
+    return redirect(url_for('clientes'))
+
+# --- NOVA ROTA: Editar todos os dados do cliente ---
+@app.route('/editar_cliente/<int:id>', methods=['POST'])
+@login_required
+def editar_cliente(id):
+    aluno = Aluno.query.get_or_404(id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
+    aluno.nome = request.form.get('nome')
+    aluno.curso = request.form.get('curso')
+    aluno.telefone = request.form.get('telefone')
+    try: aluno.valor = float(request.form.get('valor').replace(',', '.'))
+    except: pass
+    db.session.commit()
+    flash(f'Dados de {aluno.nome} atualizados!', 'success')
+    return redirect(url_for('clientes'))
+
+# --- NOVA ROTA: Apagar cliente definitivamente ---
+@app.route('/deletar_cliente/<int:id>', methods=['GET'])
+@login_required
+def deletar_cliente(id):
+    aluno = Aluno.query.get_or_404(id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
+    nome = aluno.nome
+    db.session.delete(aluno)
+    db.session.commit()
+    flash(f'Cliente {nome} e seus arquivos foram apagados.', 'success')
     return redirect(url_for('clientes'))
 
 @app.route('/toggle_status/<int:id>', methods=['POST'])
