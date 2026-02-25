@@ -60,11 +60,12 @@
         let dicionarioEditavel = {};
         let progressInterval;
 
+        // CORREÇÃO: Removendo as chaves duplas daqui para o Python não apagar a lista
         const ordemOficial = [
-            "{{RESUMO_MEMORIAL}}", "{{CONTEXTO_MEMORIAL}}", "{{ANALISE_MEMORIAL}}",
-            "{{ASPECTO_1}}", "{{POR_QUE_1}}", "{{ASPECTO_2}}", "{{POR_QUE_2}}", "{{ASPECTO_3}}", "{{POR_QUE_3}}",
-            "{{CONCEITOS_TEORICOS}}", "{{ANALISE_CONCEITO_1}}", "{{ENTENDIMENTO_TEORICO}}", "{{SOLUCOES_TEORICAS}}",
-            "{{PROPOSTAS_MEMORIAL}}", "{{CONCLUSAO_MEMORIAL}}", "{{REFERENCIAS_ADICIONAIS}}", "{{AUTOAVALIACAO_MEMORIAL}}"
+            "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL",
+            "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
+            "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS",
+            "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"
         ];
 
         function animarCarregamento() {
@@ -103,7 +104,6 @@
                 pararCarregamento();
                 if(!data.sucesso) {
                     if(data.fallback) {
-                        // Pop-up SweetAlert substituindo o feio confirm() do Windows
                         Swal.fire({
                             title: 'Servidor Ocupado',
                             html: `A IA selecionada falhou (<strong>${data.failed_model}</strong>).<br><br>Deseja que o sistema tente agora usar a IA substituta:<br><b style="color:var(--primary);">${data.suggested_model}</b>?`,
@@ -133,9 +133,13 @@
         function montarEditor(dic) {
             const container = document.getElementById('caixas-texto');
             container.innerHTML = ''; 
-            ordemOficial.forEach(chave => {
+            
+            ordemOficial.forEach(chave_base => {
+                // CORREÇÃO: Reconstruindo a chave dupla dinamicamente aqui no Javascript
+                let chave = "{{" + chave_base + "}}";
+                
                 if (dic[chave] && dic[chave].trim() !== "") {
-                    let tituloAmigavel = chave.replace('{{', '').replace('}}', '').replace(/_/g, ' ');
+                    let tituloAmigavel = chave_base.replace(/_/g, ' ');
                     let wrapper = document.createElement('div');
                     wrapper.style.marginBottom = '15px';
                     
