@@ -45,9 +45,9 @@
 
     <div id="area-edicao" class="card" style="display:none; margin-top: 30px; border: 1px solid var(--secondary);">
         <h2 style="color: var(--secondary); margin-top:0; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-fill ph-pencil-simple"></i> Pré-visualização e Edição
+            <i class="ph-fill ph-pencil-simple"></i> Pré-visualização e Edição Manual
         </h2>
-        <p style="color: var(--text-muted); font-size: 0.95em; margin-bottom: 25px;">Revise os blocos gerados. Modifique o texto como desejar nas caixas abaixo. Quando estiver perfeito, clique no botão verde para gerar o Word.</p>
+        <p style="color: var(--text-muted); font-size: 0.95em; margin-bottom: 25px;">Revise os blocos gerados pela IA. Se algo estiver estranho, você pode digitar e consertar agora mesmo. Quando estiver perfeito, clique no botão verde abaixo para montar o DOCX.</p>
         
         <div id="caixas-texto"></div>
 
@@ -60,7 +60,7 @@
         let dicionarioEditavel = {};
         let progressInterval;
 
-        // CORREÇÃO: Removendo as chaves duplas daqui para o Python não apagar a lista
+        // Lista com a Ordem Oficial de Apresentação
         const ordemOficial = [
             "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL",
             "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
@@ -122,12 +122,16 @@
                     }
                     return;
                 }
+                
                 dicionarioEditavel = data.dicionario;
                 montarEditor(dicionarioEditavel);
                 document.getElementById('area-edicao').style.display = 'block';
                 window.scrollTo({ top: document.getElementById('area-edicao').offsetTop, behavior: 'smooth' });
             })
-            .catch(err => { pararCarregamento(); Swal.fire('Erro', 'Falha na conexão com o servidor.', 'error'); });
+            .catch(err => { 
+                pararCarregamento(); 
+                Swal.fire('Erro', 'Falha na conexão com o servidor.', 'error'); 
+            });
         }
 
         function montarEditor(dic) {
@@ -135,19 +139,21 @@
             container.innerHTML = ''; 
             
             ordemOficial.forEach(chave_base => {
-                // CORREÇÃO: Reconstruindo a chave dupla dinamicamente aqui no Javascript
-                let chave = "{{" + chave_base + "}}";
+                // A SOLUÇÃO: Separar os colchetes com "+" para o Flask não apagar a palavra
+                let chave = "{" + "{" + chave_base + "}" + "}";
                 
                 if (dic[chave] && dic[chave].trim() !== "") {
                     let tituloAmigavel = chave_base.replace(/_/g, ' ');
+                    
                     let wrapper = document.createElement('div');
-                    wrapper.style.marginBottom = '15px';
+                    wrapper.style.marginBottom = '20px';
                     
                     let label = document.createElement('label');
                     label.innerHTML = `<b>${tituloAmigavel}</b>`;
                     label.style.color = "var(--secondary)";
                     label.style.display = "block";
-                    label.style.marginBottom = "5px";
+                    label.style.marginBottom = "8px";
+                    label.style.fontSize = "1.05rem";
                     
                     let textarea = document.createElement('textarea');
                     textarea.rows = 5;
