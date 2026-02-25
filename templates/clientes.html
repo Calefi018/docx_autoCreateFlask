@@ -18,7 +18,12 @@
         <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #FF4B4B;">
             <div>
                 <h4 style="margin: 0; color: #2196F3;">{{ aluno.nome }}</h4>
-                <small style="color: #9E9E9E;">{{ aluno.curso }} | {{ aluno.telefone }} | <b>R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b></small>
+                <small style="color: #9E9E9E; display: flex; align-items: center;">
+                    {{ aluno.curso }} | {{ aluno.telefone }} | 
+                    <b style="margin-left: 5px;">R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b>
+                    
+                    <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; padding: 0 5px; font-size: 1.1rem;" title="Editar Valor do Trabalho">✏️</button>
+                </small>
             </div>
             <div style="display: flex; gap: 10px;">
                 <form action="/toggle_status/{{ aluno.id }}" method="POST">
@@ -38,7 +43,12 @@
         <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #57D2A9; opacity: 0.7;">
             <div>
                 <h4 style="margin: 0; color: #2196F3;">{{ aluno.nome }}</h4>
-                <small style="color: #9E9E9E;">{{ aluno.curso }} | {{ aluno.telefone }} | <b>R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b></small>
+                <small style="color: #9E9E9E; display: flex; align-items: center;">
+                    {{ aluno.curso }} | {{ aluno.telefone }} | 
+                    <b style="margin-left: 5px;">R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b>
+                    
+                    <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; padding: 0 5px; font-size: 1.1rem;" title="Editar Valor do Trabalho">✏️</button>
+                </small>
             </div>
             <div style="display: flex; gap: 10px;">
                 <form action="/toggle_status/{{ aluno.id }}" method="POST">
@@ -50,4 +60,26 @@
     {% else %}
         <p style="color: #9E9E9E;">Nenhum cliente recebido ainda.</p>
     {% endfor %}
+
+    <script>
+        function editarValor(idAluno, valorAtual) {
+            let novoValor = prompt("Digite o novo valor corrigido para este trabalho (ex: 85.50):", valorAtual);
+            
+            if (novoValor !== null && novoValor.trim() !== "") {
+                // Cria um formulário rápido e envia para o Python atualizar no banco de dados
+                let form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/editar_valor/' + idAluno;
+                
+                let input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'novo_valor';
+                input.value = novoValor;
+                
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    </script>
 {% endblock %}
