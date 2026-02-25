@@ -1,36 +1,59 @@
 {% extends "base.html" %}
 {% block content %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <h1 style="margin-top:0;">Dashboard Financeiro</h1>
     <p style="color: var(--text-muted); margin-bottom: 30px;">Visão geral dos seus lucros e da produtividade do seu sistema.</p>
 
-    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 40px;">
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--danger);">
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
+        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--danger); margin-bottom: 0;">
             <i class="ph-fill ph-wallet" style="font-size: 2.5rem; color: var(--danger); margin-bottom: 10px;"></i>
             <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">A Receber</h3>
             <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(a_receber) }}</h2>
         </div>
         
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--success);">
+        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--success); margin-bottom: 0;">
             <i class="ph-fill ph-chart-line-up" style="font-size: 2.5rem; color: var(--success); margin-bottom: 10px;"></i>
             <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Receita Paga</h3>
             <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_realizada) }}</h2>
         </div>
         
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--primary);">
+        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--primary); margin-bottom: 0;">
             <i class="ph-fill ph-files" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 10px;"></i>
             <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Total de Trabalhos</h3>
             <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">{{ total_trabalhos }}</h2>
         </div>
     </div>
 
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
+        
+        <div class="card" style="flex: 2; min-width: 300px; margin-bottom: 0;">
+            <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: #fff;">
+                <i class="ph-fill ph-trend-up" style="color: var(--success);"></i> Faturamento Realizado (Últimos 6 Meses)
+            </h3>
+            <div style="position: relative; height: 300px; width: 100%;">
+                <canvas id="graficoMeses"></canvas>
+            </div>
+        </div>
+
+        <div class="card" style="flex: 1; min-width: 300px; margin-bottom: 0;">
+            <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: #fff;">
+                <i class="ph-fill ph-calendar-check" style="color: var(--primary);"></i> Produtividade Semanal
+            </h3>
+            <div style="position: relative; height: 300px; width: 100%;">
+                <canvas id="graficoDias"></canvas>
+            </div>
+        </div>
+    </div>
+
     <div class="card">
         <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-cpu"></i> Inteligências Utilizadas</h3>
-        <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">Monitorização de rotas ativas.</p>
+        <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">Monitorização de rotas ativas da API.</p>
         
         <table style="width: 100%; text-align: left; border-collapse: collapse;">
             <tr style="border-bottom: 1px solid var(--border);">
                 <th style="padding: 15px 10px; color: var(--text-muted);">Modelo de IA</th>
-                <th style="padding: 15px 10px; text-align: right; color: var(--text-muted);">Uso</th>
+                <th style="padding: 15px 10px; text-align: right; color: var(--text-muted);">Trabalhos Processados</th>
             </tr>
             {% for uso in uso_modelos %}
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
@@ -44,4 +67,52 @@
             {% endfor %}
         </table>
     </div>
+
+    <script>
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        
+        const ctxMeses = document.getElementById('graficoMeses').getContext('2d');
+        new Chart(ctxMeses, {
+            type: 'line',
+            data: {
+                labels: {{ graf_meses_lbl | safe }},
+                datasets: [{
+                    label: 'Receita (R$)',
+                    data: {{ graf_meses_val | safe }},
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 3, pointBackgroundColor: '#10b981', pointBorderColor: '#1e2130',
+                    pointBorderWidth: 2, pointRadius: 5, fill: true, tension: 0.4 
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { callback: function(value) { return 'R$ ' + value; } } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        const ctxDias = document.getElementById('graficoDias').getContext('2d');
+        new Chart(ctxDias, {
+            type: 'bar',
+            data: {
+                labels: {{ graf_dias_lbl | safe }},
+                datasets: [{
+                    label: 'Trabalhos Cadastrados',
+                    data: {{ graf_dias_val | safe }},
+                    backgroundColor: '#6366f1', borderRadius: 6, borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { stepSize: 1 } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    </script>
 {% endblock %}
