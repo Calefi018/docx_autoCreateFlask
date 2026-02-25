@@ -23,7 +23,6 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-super-secreta-mud
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///clientes.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# CORREÇÃO DEFINITIVA NEON.TECH: Recicla a ligação a cada 60s
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     "pool_pre_ping": True, 
     "pool_recycle": 60, 
@@ -35,15 +34,13 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "Por favor, faça login para acessar."
 
-# INICIALIZAÇÃO DOS CLIENTES DE IA
 CHAVE_API_GOOGLE = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=CHAVE_API_GOOGLE) if CHAVE_API_GOOGLE else None
 
-# Chave do OpenRouter (onde estão as IAs gratuitas)
 CHAVE_OPENROUTER = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
-# MODELOS DO BANCO DE DADOS (CRM e Usuários)
+# MODELOS DO BANCO DE DADOS (CRM, Usuários, Prompts e Métricas)
 # =========================================================
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -61,6 +58,7 @@ class Aluno(db.Model):
     telefone = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='Pendente') 
+    valor = db.Column(db.Float, default=70.0) # Novo Campo Financeiro
     documentos = db.relationship('Documento', backref='aluno', lazy=True, cascade="all, delete-orphan")
 
 class Documento(db.Model):
@@ -70,30 +68,82 @@ class Documento(db.Model):
     dados_arquivo = db.Column(db.LargeBinary, nullable=False) 
     data_upload = db.Column(db.DateTime, default=datetime.utcnow)
 
+class PromptConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(100), nullable=False)
+    texto = db.Column(db.Text, nullable=False)
+    is_default = db.Column(db.Boolean, default=False)
+
+class RegistroUso(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.DateTime, default=datetime.utcnow)
+    modelo_usado = db.Column(db.String(100))
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# PROMPT GLOBAL (Para migração automática)
+PROMPT_REGRAS_BASE = """
+    REGRA DE OURO (LINGUAGEM HUMANA E LIMITES RIGOROSOS):
+    - PROIBIDO usar palavras robóticas de IA.
+    - Escreva de forma natural e acadêmica.
+    - NÃO USE FORMATO JSON.
+    - OBRIGATÓRIO (LIMITE DE PARÁGRAFOS): 
+      * Resumo: EXATAMENTE 1 parágrafo.
+      * Contexto: EXATAMENTE 1 parágrafo.
+      * Análise: EXATAMENTE 1 parágrafo.
+      * Propostas de solução: MÁXIMO de 2 parágrafos.
+      * Conclusão reflexiva: MÁXIMO de 2 parágrafos.
+      * Autoavaliação: EXATAMENTE 1 parágrafo (sem atribuir nota a si mesmo).
+    
+    GERAÇÃO OBRIGATÓRIA:
+    (ATENÇÃO: É ESTRITAMENTE PROIBIDO COPIAR OU REPETIR AS INSTRUÇÕES ABAIXO DENTRO DA SUA RESPOSTA. FORNEÇA APENAS A SUA RESPOSTA FINAL DIRETAMENTE).
+    
+    [START_ASPECTO_1] [Resposta direta aqui] [END_ASPECTO_1]
+    [START_POR_QUE_1] [Resposta direta aqui] [END_POR_QUE_1]
+    [START_ASPECTO_2] [Resposta direta aqui] [END_ASPECTO_2]
+    [START_POR_QUE_2] [Resposta direta aqui] [END_POR_QUE_2]
+    [START_ASPECTO_3] [Resposta direta aqui] [END_ASPECTO_3]
+    [START_POR_QUE_3] [Resposta direta aqui - OBRIGATÓRIO PREENCHER] [END_POR_QUE_3]
+    [START_CONCEITOS_TEORICOS] - **[Nome]:** [Explicação]\n- **[Nome]:** [Explicação] [END_CONCEITOS_TEORICOS]
+    [START_ANALISE_CONCEITO_1] [Sua análise direta] [END_ANALISE_CONCEITO_1]
+    [START_ENTENDIMENTO_TEORICO] [Sua análise direta] [END_ENTENDIMENTO_TEORICO]
+    [START_SOLUCOES_TEORICAS] [Seu plano direto] [END_SOLUCOES_TEORICAS]
+    [START_RESUMO_MEMORIAL] [Resumo direto] [END_RESUMO_MEMORIAL]
+    [START_CONTEXTO_MEMORIAL] [Contexto direto] [END_CONTEXTO_MEMORIAL]
+    [START_ANALISE_MEMORIAL] [Análise final direta] [END_ANALISE_MEMORIAL]
+    [START_PROPOSTAS_MEMORIAL] [Propostas diretas] [END_PROPOSTAS_MEMORIAL]
+    [START_CONCLUSAO_MEMORIAL] [Conclusão direta] [END_CONCLUSAO_MEMORIAL]
+    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT diretas] [END_REFERENCIAS_ADICIONAIS]
+    [START_AUTOAVALIACAO_MEMORIAL] [Autoavaliação direta] [END_AUTOAVALIACAO_MEMORIAL]
+"""
+
 with app.app_context():
     db.create_all()
-    try:
-        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Pendente'"))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+    # Scripts seguros de atualização do BD
+    try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Pendente'"))
+    except: pass
+    try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN valor FLOAT DEFAULT 70.0"))
+    except: pass
+    db.session.commit()
 
     if not User.query.filter_by(username='admin').first():
         hashed_pw = generate_password_hash('admin123')
         admin = User(username='admin', password=hashed_pw, role='admin')
         db.session.add(admin)
-        db.session.commit()
+        
+    if not PromptConfig.query.first():
+        p = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
+        db.session.add(p)
+        
+    db.session.commit()
 
 # =========================================================
 # FUNÇÕES DA IA E MANIPULAÇÃO DE WORD
 # =========================================================
 
 def limpar_texto_ia(texto):
-    """Vacina contra IAs que cospem códigos unicode (ex: \\u00e7 em vez de ç)"""
     try:
         texto = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), texto)
     except:
@@ -101,27 +151,13 @@ def limpar_texto_ia(texto):
     return texto
 
 def chamar_ia(prompt, nome_modelo):
-    """Encaminha o pedido para o OpenRouter (IAs gratuitas) ou Google"""
-    # Se o nome tem "free" ou "/", vai pro OpenRouter
     if "free" in nome_modelo.lower() or "/" in nome_modelo:
-        if not CHAVE_OPENROUTER:
-            raise Exception("A Chave da API do OpenRouter (OPENAI_API_KEY) não foi configurada no Koyeb.")
-        
-        or_client = openai.OpenAI(
-            api_key=CHAVE_OPENROUTER, 
-            base_url="https://openrouter.ai/api/v1"
-        )
-        response = or_client.chat.completions.create(
-            model=nome_modelo,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7
-        )
-        texto_sujo = response.choices[0].message.content
-        return limpar_texto_ia(texto_sujo)
+        if not CHAVE_OPENROUTER: raise Exception("A Chave da API do OpenRouter não foi configurada no Koyeb.")
+        or_client = openai.OpenAI(api_key=CHAVE_OPENROUTER, base_url="https://openrouter.ai/api/v1")
+        response = or_client.chat.completions.create(model=nome_modelo, messages=[{"role": "user", "content": prompt}], temperature=0.7)
+        return limpar_texto_ia(response.choices[0].message.content)
     else:
-        # Aqui ele processa os modelos nativos do Google (Gemini 2.5) usando a chave GEMINI_API_KEY
-        if not client:
-            raise Exception("A Chave da API do Google não foi configurada.")
+        if not client: raise Exception("A Chave da API do Google não foi configurada.")
         resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
         return limpar_texto_ia(resposta.text)
 
@@ -174,65 +210,6 @@ def extrair_texto_docx(arquivo_bytes):
     doc = Document(arquivo_bytes)
     return "\n".join([p.text for p in doc.paragraphs])
 
-# PROMPT GLOBAL (INTOCADO E RIGOROSO)
-PROMPT_REGRAS_BASE = """
-    REGRA DE OURO (LINGUAGEM HUMANA E LIMITES RIGOROSOS):
-    - PROIBIDO usar palavras robóticas de IA.
-    - Escreva de forma natural e acadêmica.
-    - NÃO USE FORMATO JSON.
-    - OBRIGATÓRIO (LIMITE DE PARÁGRAFOS): 
-      * Resumo: EXATAMENTE 1 parágrafo.
-      * Contexto: EXATAMENTE 1 parágrafo.
-      * Análise: EXATAMENTE 1 parágrafo.
-      * Propostas de solução: MÁXIMO de 2 parágrafos.
-      * Conclusão reflexiva: MÁXIMO de 2 parágrafos.
-      * Autoavaliação: EXATAMENTE 1 parágrafo (sem atribuir nota a si mesmo).
-    
-    GERAÇÃO OBRIGATÓRIA:
-    (ATENÇÃO: É ESTRITAMENTE PROIBIDO COPIAR OU REPETIR AS INSTRUÇÕES ABAIXO DENTRO DA SUA RESPOSTA. FORNEÇA APENAS A SUA RESPOSTA FINAL DIRETAMENTE).
-    
-    [START_ASPECTO_1] [Resposta direta aqui] [END_ASPECTO_1]
-    [START_POR_QUE_1] [Resposta direta aqui] [END_POR_QUE_1]
-    [START_ASPECTO_2] [Resposta direta aqui] [END_ASPECTO_2]
-    [START_POR_QUE_2] [Resposta direta aqui] [END_POR_QUE_2]
-    [START_ASPECTO_3] [Resposta direta aqui] [END_ASPECTO_3]
-    [START_POR_QUE_3] [Resposta direta aqui - OBRIGATÓRIO PREENCHER] [END_POR_QUE_3]
-    [START_CONCEITOS_TEORICOS] - **[Nome]:** [Explicação]\n- **[Nome]:** [Explicação] [END_CONCEITOS_TEORICOS]
-    [START_ANALISE_CONCEITO_1] [Sua análise direta] [END_ANALISE_CONCEITO_1]
-    [START_ENTENDIMENTO_TEORICO] [Sua análise direta] [END_ENTENDIMENTO_TEORICO]
-    [START_SOLUCOES_TEORICAS] [Seu plano direto] [END_SOLUCOES_TEORICAS]
-    [START_RESUMO_MEMORIAL] [Resumo direto] [END_RESUMO_MEMORIAL]
-    [START_CONTEXTO_MEMORIAL] [Contexto direto] [END_CONTEXTO_MEMORIAL]
-    [START_ANALISE_MEMORIAL] [Análise final direta] [END_ANALISE_MEMORIAL]
-    [START_PROPOSTAS_MEMORIAL] [Propostas diretas] [END_PROPOSTAS_MEMORIAL]
-    [START_CONCLUSAO_MEMORIAL] [Conclusão direta] [END_CONCLUSAO_MEMORIAL]
-    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT diretas] [END_REFERENCIAS_ADICIONAIS]
-    [START_AUTOAVALIACAO_MEMORIAL] [Autoavaliação direta] [END_AUTOAVALIACAO_MEMORIAL]
-"""
-
-def gerar_respostas_ia_tags(texto_tema, nome_modelo):
-    prompt = f"TEMA/CASO DO DESAFIO:\n{texto_tema}\n\n{PROMPT_REGRAS_BASE}"
-    try:
-        texto_resposta = chamar_ia(prompt, nome_modelo)
-        return extrair_dicionario(texto_resposta)
-    except Exception as e:
-        raise Exception(f"Falha na IA: {str(e)}")
-
-def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
-    prompt = f"""Você é um aluno universitário corrigindo seu trabalho após feedback do professor.
-    TEMA: {texto_tema}
-    TRABALHO ATUAL: {texto_trabalho}
-    CRÍTICA RECEBIDA: {critica}
-    
-    TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. 
-    Lembre-se: Respeite rigorosamente o limite de caracteres e os limites exatos de parágrafos.
-    {PROMPT_REGRAS_BASE}"""
-    try:
-        texto_resposta = chamar_ia(prompt, nome_modelo)
-        return extrair_dicionario(texto_resposta)
-    except Exception as e:
-        raise Exception(f"Falha na IA (Correção): {str(e)}")
-
 def extrair_dicionario(texto_ia):
     chaves = ["ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS", "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"]
     dic = {}
@@ -241,18 +218,36 @@ def extrair_dicionario(texto_ia):
         dic[f"{{{{{chave}}}}}"] = match.group(1).strip() if match else "" 
     return dic
 
+def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
+    # Puxa o prompt padrão do banco para usar como base nas correções
+    config = PromptConfig.query.filter_by(is_default=True).first()
+    regras = config.texto if config else PROMPT_REGRAS_BASE
+    
+    prompt = f"""Você é um professor avaliador extremamente rigoroso corrigindo um trabalho.
+    TEMA: {texto_tema}
+    TRABALHO ATUAL: {texto_trabalho}
+    CRÍTICA RECEBIDA: {critica}
+    
+    TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. 
+    Lembre-se: Respeite rigorosamente o limite de caracteres e os limites exatos de parágrafos.
+    {regras}"""
+    try:
+        texto_resposta = chamar_ia(prompt, nome_modelo)
+        return extrair_dicionario(texto_resposta)
+    except Exception as e:
+        raise Exception(f"Falha na IA (Correção): {str(e)}")
+
 # =========================================================
-# ROTAS PRINCIPAIS DA FERRAMENTA E CRM
+# ROTAS PRINCIPAIS: GERADOR COM EDIÇÃO E FALLBACK
 # =========================================================
 
-# Lista 100% atualizada (Fevereiro de 2026) baseada nas documentações oficiais
 MODELOS_DISPONIVEIS = [
-    "gemini-2.5-flash",                             # Google - Atual e rápido (Cota nova)
-    "gemini-2.5-pro",                               # Google - Inteligência e raciocínio profundo
-    "gemini-2.5-flash-lite",                        # Google - Ultra-rápido, poupa a cota diária
-    "openrouter/auto",                              # OpenRouter - Rota Mágica: Escolhe automaticamente a melhor IA livre
-    "meta-llama/llama-3.1-8b-instruct:free",        # OpenRouter - Llama 3.1 8B
-    "deepseek/deepseek-r1:free"                     # OpenRouter - IA topo de gama para raciocínio analítico
+    "gemini-2.5-flash",                             
+    "gemini-2.5-pro",                               
+    "gemini-2.5-flash-lite",                        
+    "openrouter/auto",                              
+    "meta-llama/llama-3.1-8b-instruct:free",        
+    "deepseek/deepseek-r1:free"                     
 ]
 
 @app.route('/')
@@ -261,40 +256,120 @@ def index():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date:
         return render_template('expirado.html')
     alunos = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
-    return render_template('index.html', modelos=MODELOS_DISPONIVEIS, alunos=alunos)
+    prompts = PromptConfig.query.all()
+    return render_template('index.html', modelos=MODELOS_DISPONIVEIS, alunos=alunos, prompts=prompts)
 
-@app.route('/processar', methods=['POST'])
+# Passo 1 do Novo Sistema: Tenta a IA e permite Fallback se falhar
+@app.route('/gerar_rascunho', methods=['POST'])
 @login_required
-def processar():
+def gerar_rascunho():
+    tema = request.form.get('tema')
+    modelo = request.form.get('modelo')
+    prompt_id = request.form.get('prompt_id')
+    
+    config = PromptConfig.query.get(prompt_id) if prompt_id else PromptConfig.query.filter_by(is_default=True).first()
+    texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
+    prompt_completo = f"TEMA/CASO DO DESAFIO:\n{tema}\n\n{texto_prompt}"
+
     try:
-        tema = request.form.get('tema')
-        modelo = request.form.get('modelo')
-        aluno_id = request.form.get('aluno_id')
+        texto_resposta = chamar_ia(prompt_completo, modelo)
+        dicionario = extrair_dicionario(texto_resposta)
+        
+        # Validação para ver se a IA não retornou lixo
+        if not any(dicionario.values()):
+            raise Exception("A IA não retornou o formato de tags esperado.")
+            
+        # Regista uso para o Dashboard
+        db.session.add(RegistroUso(modelo_usado=modelo))
+        db.session.commit()
+        
+        return jsonify({"sucesso": True, "dicionario": dicionario})
+        
+    except Exception as e:
+        # SISTEMA DE FALLBACK INTELIGENTE
+        # Pega o próximo modelo da lista para sugerir
+        try: 
+            next_model = MODELOS_DISPONIVEIS[(MODELOS_DISPONIVEIS.index(modelo) + 1) % len(MODELOS_DISPONIVEIS)]
+        except: 
+            next_model = MODELOS_DISPONIVEIS[0]
+        
+        return jsonify({
+            "sucesso": False, "erro": str(e), 
+            "fallback": True, "failed_model": modelo, "suggested_model": next_model
+        })
+
+# Passo 2 do Novo Sistema: Recebe a edição do cliente e cria o Word
+@app.route('/gerar_docx_final', methods=['POST'])
+@login_required
+def gerar_docx_final():
+    try:
+        dados = request.json
+        dicionario_editado = dados.get('dicionario')
+        aluno_id = dados.get('aluno_id')
         
         caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
         with open(caminho_padrao, 'rb') as f: arquivo_memoria = io.BytesIO(f.read())
-
-        respostas = gerar_respostas_ia_tags(tema, modelo)
-        documento_pronto = preencher_template_com_tags(arquivo_memoria, respostas)
+        
+        documento_pronto = preencher_template_com_tags(arquivo_memoria, dicionario_editado)
         arquivo_bytes = documento_pronto.read()
-        arquivo_base64 = base64.b64encode(arquivo_bytes).decode('utf-8')
         
         if aluno_id:
             novo_doc = Documento(aluno_id=aluno_id, nome_arquivo=f"Trabalho_{datetime.now().strftime('%d%m%Y')}.docx", dados_arquivo=arquivo_bytes)
             db.session.add(novo_doc)
             db.session.commit()
-
-        memorial_texto = f"### Resumo\n{respostas.get('{{RESUMO_MEMORIAL}}', '')}\n\n### Propostas\n{respostas.get('{{PROPOSTAS_MEMORIAL}}', '')}"
-        
-        return jsonify({
-            "tipo": "sucesso_tags", "arquivo_base64": arquivo_base64, 
-            "nome_arquivo": "Desafio_Preenchido.docx", "memorial_texto": memorial_texto,
-            "dicionario_gerado": json.dumps(respostas, ensure_ascii=False)
-        })
+            
+        return jsonify({"sucesso": True, "arquivo_base64": base64.b64encode(arquivo_bytes).decode('utf-8')})
     except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+        return jsonify({"sucesso": False, "erro": str(e)})
 
-# --- CRM: MEUS CLIENTES ---
+
+# =========================================================
+# NOVAS FUNCIONALIDADES DE NEGÓCIO (Dashboard e Prompts)
+# =========================================================
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    alunos_pendentes = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
+    alunos_pagos = Aluno.query.filter_by(user_id=current_user.id, status='Pago').all()
+    
+    a_receber = sum(a.valor for a in alunos_pendentes)
+    receita_realizada = sum(a.valor for a in alunos_pagos)
+    
+    documentos_ids = [d.id for a in alunos_pendentes+alunos_pagos for d in a.documentos]
+    total_trabalhos = len(documentos_ids)
+    
+    uso_modelos = db.session.query(RegistroUso.modelo_usado, db.func.count(RegistroUso.id)).group_by(RegistroUso.modelo_usado).order_by(db.func.count(RegistroUso.id).desc()).all()
+    
+    return render_template('dashboard.html', a_receber=a_receber, receita_realizada=receita_realizada, 
+                           total_trabalhos=total_trabalhos, uso_modelos=uso_modelos)
+
+@app.route('/prompts', methods=['GET', 'POST'])
+@login_required
+def gerenciar_prompts():
+    if request.method == 'POST':
+        novo_prompt = PromptConfig(nome=request.form.get('nome'), texto=request.form.get('texto'))
+        db.session.add(novo_prompt)
+        db.session.commit()
+        flash('Novo Cérebro de IA adicionado!', 'success')
+        return redirect(url_for('gerenciar_prompts'))
+    prompts = PromptConfig.query.all()
+    return render_template('prompts.html', prompts=prompts)
+
+@app.route('/prompts/delete/<int:id>')
+@login_required
+def delete_prompt(id):
+    p = PromptConfig.query.get_or_404(id)
+    if not p.is_default:
+        db.session.delete(p)
+        db.session.commit()
+    return redirect(url_for('gerenciar_prompts'))
+
+
+# =========================================================
+# CRM E GESTÃO DE CLIENTES (Intacto)
+# =========================================================
+
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
 def clientes():
@@ -304,6 +379,7 @@ def clientes():
             nome=request.form.get('nome'),
             curso=request.form.get('curso'),
             telefone=request.form.get('telefone'),
+            valor=float(request.form.get('valor', 70.0)),
             status='Pendente'
         )
         db.session.add(novo_aluno)
@@ -321,10 +397,8 @@ def clientes():
 def toggle_status(id):
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
-    
     aluno.status = 'Pago' if aluno.status == 'Pendente' else 'Pendente'
     db.session.commit()
-    flash(f"Status de {aluno.nome} atualizado para {aluno.status}!", "success")
     return redirect(url_for('clientes'))
 
 @app.route('/cliente/<int:id>', methods=['GET'])
@@ -370,7 +444,11 @@ def delete_doc(doc_id):
     db.session.commit()
     return redirect(url_for('cliente_detalhe', id=aluno_id))
 
-# --- REVISÃO AVULSA ---
+
+# =========================================================
+# REVISÃO AVULSA (Intacto)
+# =========================================================
+
 @app.route('/revisao_avulsa')
 @login_required
 def revisao_avulsa():
@@ -390,7 +468,7 @@ def avaliar_avulso():
     
     prompt = f"""Você é um professor avaliador extremamente rigoroso. 
 Analise o TEMA: {tema} \nE O TRABALHO DO ALUNO: {texto_trabalho}
-Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima (profundidade, conceitos, adequação). 
+Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima. 
 REGRA: Seja direto, NUNCA use formatações como negrito (**), itálico, bullet points ou títulos. Responda apenas com texto limpo."""
     try:
         texto_resposta = chamar_ia(prompt, modelo)
@@ -420,9 +498,11 @@ def corrigir_avulso():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
+
 # =========================================================
-# ROTAS DE ADMINISTRAÇÃO E LOGIN (Padrão)
+# ADMINISTRAÇÃO E LOGIN (Intacto)
 # =========================================================
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated: return redirect(url_for('index'))
