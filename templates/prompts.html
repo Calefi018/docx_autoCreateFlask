@@ -1,35 +1,33 @@
 {% extends "base.html" %}
 {% block content %}
-    <h1 style="margin-top:0;">⚙️ Engenharia de Prompts</h1>
-    <p style="color: #9E9E9E;">Crie múltiplos "Cérebros" ou padrões de comportamento para a sua Inteligência Artificial sem precisar de alterar o código do sistema.</p>
+    <h1 style="margin-top:0;">Engenharia de Prompts</h1>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">Crie múltiplos "Cérebros" para a sua Inteligência Artificial.</p>
 
-    <div class="card">
-        <h3 style="margin-top: 0;">➕ Criar Novo Padrão de IA</h3>
+    <div class="card" style="border-top: 4px solid var(--primary);">
+        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-plus-circle"></i> Criar Novo Padrão</h3>
         <form method="POST">
-            <input type="text" name="nome" placeholder="Nome do Padrão. Ex: Padrão Administração (Foco em Lucros)" required style="width: 100%; margin-bottom: 10px;">
-            <textarea name="texto" rows="10" placeholder="Cole aqui todas as suas regras de comportamento e as TAGS obrigatórias para preencher o Word (ex: [START_RESUMO_MEMORIAL]...)" required></textarea>
-            <button type="submit" class="btn btn-blue" style="width: 100%; margin-top: 10px; padding: 15px; font-size: 1.1rem;">💾 Salvar Novo Cérebro</button>
+            <input type="text" name="nome" placeholder="Nome (Ex: Padrão Administração)" required style="width: 100%; margin-bottom: 10px;">
+            <textarea name="texto" rows="8" placeholder="Cole aqui todas as suas regras e as TAGS obrigatórias (ex: [START_RESUMO_MEMORIAL]...)" required></textarea>
+            <button type="submit" class="btn" style="width: 100%; margin-top: 10px; padding: 15px;"><i class="ph-bold ph-floppy-disk"></i> Salvar Novo Cérebro</button>
         </form>
     </div>
 
-    <h3 style="margin-top: 30px;">🧠 Cérebros Ativos no Banco de Dados</h3>
+    <h3 style="margin-top: 40px; display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-brain"></i> Cérebros Ativos</h3>
     {% for p in prompts %}
-        <div class="card" style="{% if p.is_default %}border-left: 4px solid #FFC107;{% endif %}">
+        <div class="card" style="{% if p.is_default %}border-left: 4px solid #f59e0b;{% endif %}">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h4 style="margin: 0; color: #57D2A9;">
+                <h3 style="margin: 0; color: #fff;">
                     {{ p.nome }} 
-                    {% if p.is_default %}<span style="color: #FFC107; font-size: 0.8em;">(Padrão Original do Sistema)</span>{% endif %}
-                </h4>
+                    {% if p.is_default %}<span style="color: #f59e0b; font-size: 0.75em; padding: 4px 8px; background: rgba(245, 158, 11, 0.1); border-radius: 4px; margin-left: 8px; vertical-align: middle;">PADRÃO DO SISTEMA</span>{% endif %}
+                </h3>
                 {% if not p.is_default %}
-                    <a href="/prompts/delete/{{ p.id }}" class="btn" style="background: #FF4B4B; padding: 5px 15px; text-decoration: none;" onclick="return confirm('Tem certeza que deseja apagar este prompt?')">Apagar</a>
+                    <a href="/prompts/delete/{{ p.id }}" class="btn btn-danger" style="padding: 8px 15px;" onclick="event.preventDefault(); Swal.fire({title: 'Tem certeza?', text: 'Este prompt será apagado para sempre.', icon: 'warning', showCancelButton: true, background: '#1e2130', color: '#fff', confirmButtonColor: '#ef4444', confirmButtonText: 'Sim, apagar!'}).then((r) => { if(r.isConfirmed) window.location.href = this.href; })"><i class="ph-bold ph-trash"></i> Apagar</a>
                 {% endif %}
             </div>
             
-            <div style="background: #262730; padding: 15px; border-radius: 5px; margin-top: 15px; max-height: 200px; overflow-y: auto;">
-                <pre style="color: #9E9E9E; font-size: 0.85rem; margin: 0; white-space: pre-wrap; font-family: inherit;">{{ p.texto }}</pre>
+            <div style="background: rgba(15, 17, 26, 0.5); padding: 20px; border-radius: 8px; margin-top: 20px; max-height: 250px; overflow-y: auto; border: 1px solid var(--border);">
+                <pre style="color: var(--text-muted); font-size: 0.85rem; margin: 0; white-space: pre-wrap; font-family: monospace;">{{ p.texto }}</pre>
             </div>
         </div>
-    {% else %}
-        <p style="color: #9E9E9E;">Nenhum prompt carregado. Ocorreu um erro na migração.</p>
     {% endfor %}
 {% endblock %}
