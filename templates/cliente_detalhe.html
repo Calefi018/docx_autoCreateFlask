@@ -1,35 +1,112 @@
 {% extends "base.html" %}
 {% block content %}
-    <a href="/clientes" style="color: #9E9E9E; text-decoration: none;">&larr; Voltar para Clientes</a>
-    <h1 style="color: #2196F3; margin-bottom: 5px;">{{ aluno.nome }}</h1>
-    <p style="color: #9E9E9E; margin-top: 0;">Curso: {{ aluno.curso }} | Tel: {{ aluno.telefone }}</p>
-
-    <div class="card">
-        <h3 style="margin-top: 0;">📎 Anexar Trabalho Externo (DOCX)</h3>
-        <p style="font-size: 0.9rem; color: #9E9E9E;">Faça upload de trabalhos que o aluno enviou ou que você fez por fora.</p>
-        <form action="/upload_doc/{{ aluno.id }}" method="POST" enctype="multipart/form-data" style="display: flex; gap: 10px;">
-            <input type="file" name="arquivo" accept=".docx" required style="padding: 6px;">
-            <button type="submit" class="btn btn-green">Subir Arquivo</button>
-        </form>
+    <a href="/clientes" style="color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 20px;">
+        <i class="ph-bold ph-arrow-left"></i> Voltar para Clientes
+    </a>
+    
+    <div class="card" style="border-top: 4px solid var(--secondary);">
+        <h1 style="margin: 0 0 10px 0; display: flex; align-items: center; gap: 10px;">
+            <i class="ph-fill ph-folder-user"></i> Pasta de {{ aluno.nome }}
+        </h1>
+        <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">
+            <i class="ph-bold ph-graduation-cap"></i> Curso: {{ aluno.curso }} | 
+            <i class="ph-bold ph-whatsapp-logo"></i> Telefone: {{ aluno.telefone }} | 
+            <i class="ph-bold ph-currency-dollar"></i> Valor: R$ {{ "%.2f"|format(aluno.valor or 70.0) }}
+        </p>
     </div>
 
-    <h3>Trabalhos Salvos</h3>
-    {% for doc in aluno.documentos %}
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h4 style="margin: 0;">📄 {{ doc.nome_arquivo }}</h4>
-                <div>
-                    <a href="/download_doc/{{ doc.id }}" class="btn btn-blue">Baixar</a>
-                    <a href="/delete_doc/{{ doc.id }}" class="btn" style="background: #FF4B4B;" onclick="return confirm('Apagar este arquivo para sempre?')">Apagar</a>
-                </div>
-            </div>
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        <div class="card" style="flex: 1; min-width: 300px;">
+            <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
+                <i class="ph-bold ph-upload-simple"></i> Anexar Trabalho
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.85em; margin-bottom: 20px;">
+                Você pode enviar arquivos do Word (.docx) ou arquivos em formato PDF (.pdf). Tudo o que anexar aqui ficará disponível no Portal do Aluno.
+            </p>
             
-            <form action="/rename_doc/{{ doc.id }}" method="POST" style="margin-top: 15px; display: flex; gap: 10px;">
-                <input type="text" name="novo_nome" value="{{ doc.nome_arquivo.replace('.docx', '') }}" required style="margin-bottom: 0;">
-                <button type="submit" class="btn" style="background: #444C56;">Renomear</button>
+            <form action="/upload_doc/{{ aluno.id }}" method="POST" enctype="multipart/form-data">
+                <input type="file" name="arquivo" accept=".docx, .pdf" required style="padding: 10px; background: rgba(15,17,26,0.6); border: 1px dashed var(--primary); margin-bottom: 15px;">
+                
+                <button type="submit" class="btn btn-green" style="width: 100%;">
+                    <i class="ph-bold ph-upload"></i> Fazer Upload Seguro
+                </button>
             </form>
         </div>
-    {% else %}
-        <p>Nenhum documento salvo para este cliente.</p>
-    {% endfor %}
+
+        <div class="card" style="flex: 2; min-width: 300px;">
+            <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
+                <i class="ph-fill ph-files"></i> Arquivos Entregues
+            </h3>
+            
+            <table style="width: 100%; text-align: left; border-collapse: collapse;">
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="padding: 10px; color: var(--text-muted);">Nome do Arquivo</th>
+                    <th style="padding: 10px; color: var(--text-muted);">Ações Rápidas</th>
+                </tr>
+                
+                {% for doc in aluno.documentos %}
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 15px 10px; color: #fff; display: flex; align-items: center; gap: 8px;">
+                        {% if '.pdf' in doc.nome_arquivo.lower() %}
+                            <i class="ph-fill ph-file-pdf" style="color: #ef4444; font-size: 1.5rem;"></i>
+                        {% else %}
+                            <i class="ph-fill ph-file-doc" style="color: #2196F3; font-size: 1.5rem;"></i>
+                        {% endif %}
+                        {{ doc.nome_arquivo }}
+                    </td>
+                    <td style="padding: 15px 10px;">
+                        <div style="display: flex; gap: 5px;">
+                            <a href="/download_doc/{{ doc.id }}" class="btn btn-green" style="padding: 8px 12px; font-size: 0.85rem;" title="Baixar Arquivo">
+                                <i class="ph-bold ph-download-simple"></i>
+                            </a>
+                            
+                            <button onclick="renomearDoc({{ doc.id }}, '{{ doc.nome_arquivo|replace('\'', '\\\'') }}')" class="btn" style="background: var(--border); padding: 8px 12px; font-size: 0.85rem;" title="Renomear Arquivo">
+                                <i class="ph-bold ph-pencil-simple"></i>
+                            </button>
+                            
+                            <a href="/delete_doc/{{ doc.id }}" class="btn btn-danger" style="padding: 8px 12px; font-size: 0.85rem;" onclick="return confirm('Tem certeza que deseja apagar este arquivo? Ele sumirá do Portal do Aluno.')" title="Apagar Arquivo">
+                                <i class="ph-bold ph-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="2" style="padding: 20px; text-align: center; color: var(--text-muted);">Nenhum arquivo enviado.</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function renomearDoc(docId, nomeAtual) {
+            Swal.fire({
+                title: 'Renomear Arquivo',
+                input: 'text',
+                inputValue: nomeAtual,
+                inputLabel: 'Digite o novo nome (não precisa colocar o .pdf ou .docx, o sistema coloca sozinho)',
+                showCancelButton: true,
+                confirmButtonText: 'Renomear',
+                background: '#1e2130', 
+                color: '#e2e8f0', 
+                confirmButtonColor: '#6366f1'
+            }).then((result) => {
+                if (result.isConfirmed && result.value) {
+                    let form = document.createElement('form'); 
+                    form.method = 'POST'; 
+                    form.action = '/rename_doc/' + docId;
+                    
+                    let input = document.createElement('input'); 
+                    input.type = 'hidden'; 
+                    input.name = 'novo_nome'; 
+                    input.value = result.value;
+                    
+                    form.appendChild(input); 
+                    document.body.appendChild(form); 
+                    form.submit();
+                }
+            });
+        }
+    </script>
 {% endblock %}
