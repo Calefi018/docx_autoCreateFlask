@@ -119,7 +119,7 @@ def chamar_ia(prompt, nome_modelo):
         texto_sujo = response.choices[0].message.content
         return limpar_texto_ia(texto_sujo)
     else:
-        # Tudo que não tiver a barra vai para o Google de forma nativa
+        # Aqui ele processa os modelos nativos do Google (Gemini 2.5) usando a chave GEMINI_API_KEY
         if not client:
             raise Exception("A Chave da API do Google não foi configurada.")
         resposta = client.models.generate_content(model=nome_modelo, contents=prompt)
@@ -245,14 +245,14 @@ def extrair_dicionario(texto_ia):
 # ROTAS PRINCIPAIS DA FERRAMENTA E CRM
 # =========================================================
 
-# Os Modelos Renomeados com precisão cirúrgica para garantir Cotas Novas e Evitar Erros 404
+# Lista 100% atualizada (Fevereiro de 2026) baseada nas documentações oficiais
 MODELOS_DISPONIVEIS = [
-    "gemini-1.5-flash-8b",                          # Cota Nova 1: O modelo mais leve e rápido do Google
-    "gemini-2.0-flash-lite-preview-02-05",          # Cota Nova 2: Lançamento do Google (Cota inteira livre)
-    "gemini-1.5-pro-002",                           # Cota Nova 3: A versão exata do Pro para fugir do 404
-    "gemini-1.5-flash-002",                         # Cota Nova 4: A versão exata do Flash para fugir do 404
-    "deepseek/deepseek-r1:free",                    # OpenRouter (O R1 costuma ter os servidores mais estáveis)
-    "meta-llama/llama-3.3-70b-instruct:free"        # OpenRouter (Llama 3.3)
+    "gemini-2.5-flash",                             # Google - Atual e rápido (Cota nova)
+    "gemini-2.5-pro",                               # Google - Inteligência e raciocínio profundo
+    "gemini-2.5-flash-lite",                        # Google - Ultra-rápido, poupa a cota diária
+    "openrouter/auto",                              # OpenRouter - Rota Mágica: Escolhe automaticamente a melhor IA livre
+    "meta-llama/llama-3.1-8b-instruct:free",        # OpenRouter - Llama 3.1 8B
+    "deepseek/deepseek-r1:free"                     # OpenRouter - IA topo de gama para raciocínio analítico
 ]
 
 @app.route('/')
