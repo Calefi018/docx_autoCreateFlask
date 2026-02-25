@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HubMaster - Assessoria Acadêmica</title>
+    <title>HubMaster SaaS</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,23 +12,26 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
     <style>
         :root {
-            /* Paleta Dark Mode Premium */
-            --bg-color: #0f111a;
-            --sidebar-bg: #161925;
+            /* Paleta Dark Mode Elegante */
+            --bg-color: #0f111a; 
+            --sidebar-bg: #161925; 
             --card-bg: #1e2130;
-            --text-color: #e2e8f0;
+            --text-color: #e2e8f0; 
             --text-muted: #94a3b8;
-            --primary: #6366f1; /* Indigo moderno */
+            --primary: #6366f1; 
             --primary-hover: #4f46e5;
-            --secondary: #ec4899; /* Pink moderno */
-            --success: #10b981; /* Esmeralda */
-            --danger: #ef4444; /* Rosa/Vermelho */
+            --secondary: #ec4899; 
+            --success: #10b981; 
+            --warning: #f59e0b; 
+            --danger: #ef4444; 
             --border: #334155;
         }
-
+        
         body { 
             margin: 0; 
             font-family: 'Inter', sans-serif; 
@@ -37,8 +40,8 @@
             display: flex; 
             min-height: 100vh; 
         }
-
-        /* Sidebar Elegante */
+        
+        /* Menu Lateral */
         .sidebar { 
             width: 260px; 
             background: var(--sidebar-bg); 
@@ -52,15 +55,14 @@
         .sidebar h2 { 
             color: #fff; 
             text-align: center; 
-            margin-top: 0;
+            margin-top: 0; 
             margin-bottom: 35px; 
             font-size: 1.6rem; 
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
+            font-weight: 700; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 8px; 
         }
         .sidebar h2 i { color: var(--primary); }
         .sidebar a { 
@@ -70,22 +72,22 @@
             margin-bottom: 8px; 
             border-radius: 8px; 
             display: flex; 
-            align-items: center;
-            gap: 12px;
+            align-items: center; 
+            gap: 12px; 
             transition: all 0.2s; 
             font-weight: 500; 
-            font-size: 0.95rem;
+            font-size: 0.95rem; 
         }
         .sidebar a i { font-size: 1.2rem; }
         .sidebar a:hover, .sidebar a.active { 
             background: rgba(99, 102, 241, 0.1); 
             color: var(--primary); 
         }
-
+        
+        /* Área de Conteúdo */
         .content { flex: 1; padding: 40px; overflow-y: auto; }
         h1, h2, h3 { color: #fff; font-weight: 600; letter-spacing: -0.5px; }
         
-        /* Cards Sofisticados */
         .card { 
             background: var(--card-bg); 
             padding: 25px; 
@@ -93,10 +95,9 @@
             border: 1px solid var(--border); 
             margin-bottom: 20px; 
             box-shadow: 0 4px 20px rgba(0,0,0,0.2); 
-            transition: transform 0.2s;
+            transition: transform 0.2s; 
         }
         
-        /* Inputs Premium */
         input, select, textarea { 
             width: 100%; 
             padding: 12px 15px; 
@@ -106,16 +107,16 @@
             background: rgba(15, 17, 26, 0.6); 
             color: var(--text-color); 
             font-family: inherit; 
-            font-size: 0.95rem;
+            font-size: 0.95rem; 
             box-sizing: border-box; 
             transition: all 0.2s;
         }
         input:focus, select:focus, textarea:focus { 
             outline: none; 
             border-color: var(--primary); 
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); 
         }
-
+        
         /* Botões */
         .btn { 
             background: var(--primary); 
@@ -125,31 +126,30 @@
             border-radius: 8px; 
             cursor: pointer; 
             font-weight: 600; 
-            font-size: 0.95rem;
+            font-size: 0.95rem; 
             transition: all 0.2s; 
             text-decoration: none; 
             display: inline-flex; 
             align-items: center; 
-            justify-content: center;
-            gap: 8px;
+            justify-content: center; 
+            gap: 8px; 
         }
         .btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
-        .btn-green { background: var(--success); color: white; }
-        .btn-green:hover { background: #059669; }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-danger:hover { background: #dc2626; }
-
+        .btn-green { background: var(--success); } 
+        .btn-warning { background: var(--warning); color: #000; } 
+        .btn-danger { background: var(--danger); }
+        
         .menu-toggle { display: none; background: var(--sidebar-bg); color: var(--text-color); border: 1px solid var(--border); padding: 10px; border-radius: 8px; cursor: pointer; margin-bottom: 20px; font-size: 1rem; }
         
-        @media (max-width: 768px) {
-            body { flex-direction: column; }
-            .sidebar { position: fixed; height: 100vh; transform: translateX(-100%); width: 250px; }
-            .sidebar.active { transform: translateX(0); }
-            .content { padding: 20px; width: 100%; box-sizing: border-box; }
-            .menu-toggle { display: inline-flex; align-items: center; gap: 8px;}
+        @media (max-width: 768px) { 
+            body { flex-direction: column; } 
+            .sidebar { position: fixed; height: 100vh; transform: translateX(-100%); width: 250px; } 
+            .sidebar.active { transform: translateX(0); } 
+            .content { padding: 20px; width: 100%; box-sizing: border-box; } 
+            .menu-toggle { display: inline-flex; align-items: center; gap: 8px;} 
         }
-
-        /* Estilo customizado para o SweetAlert casar com o Dark Mode */
+        
+        /* Fixes visuais SweetAlert */
         .swal2-popup { border-radius: 16px !important; border: 1px solid var(--border) !important; }
     </style>
 </head>
@@ -159,47 +159,52 @@
         <h2><i class="ph-fill ph-planet"></i> HubMaster</h2>
         {% if current_user.is_authenticated %}
             <a href="/"><i class="ph ph-magic-wand"></i> Novo Trabalho</a>
-            <a href="/clientes"><i class="ph ph-users"></i> Clientes (CRM)</a>
+            <a href="/clientes"><i class="ph ph-kanban"></i> CRM Kanban</a>
             <a href="/revisao_avulsa"><i class="ph ph-magnifying-glass"></i> Revisão Externa</a>
-            <hr style="border-color: var(--border); margin: 20px 0;">
+            <hr style="border-color: var(--border); margin: 15px 0;">
             <a href="/dashboard"><i class="ph ph-chart-line-up"></i> Financeiro</a>
             <a href="/prompts"><i class="ph ph-brain"></i> Prompts da IA</a>
-            <hr style="border-color: var(--border); margin: 20px 0;">
+            <a href="/configuracoes"><i class="ph ph-gear"></i> Configurações</a>
+            <hr style="border-color: var(--border); margin: 15px 0;">
+            <a href="/portal" target="_blank" style="color: var(--success);"><i class="ph ph-link"></i> Link do Portal</a>
             {% if current_user.role == 'admin' %}
                 <a href="/admin"><i class="ph ph-shield-star"></i> Painel Admin</a>
             {% endif %}
-            <a href="/mudar_senha"><i class="ph ph-key"></i> Senha</a>
-            <a href="/logout" style="color: var(--danger); margin-top: auto;"><i class="ph ph-sign-out"></i> Sair</a>
+            <a href="/mudar_senha"><i class="ph ph-key"></i> Mudar Senha</a>
+            <a href="/logout" style="color: var(--danger); margin-top: auto;"><i class="ph ph-sign-out"></i> Sair do Sistema</a>
         {% else %}
             <p style="text-align: center; color: var(--text-muted); font-size: 0.9em;"><i class="ph ph-lock-key"></i> Acesso Restrito</p>
         {% endif %}
     </div>
 
     <div class="content">
-        <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('active')">
-            <i class="ph ph-list"></i> Menu
-        </button>
+        <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('active')"><i class="ph ph-list"></i> Menu Aberto</button>
         
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <script>
                     document.addEventListener("DOMContentLoaded", function() {
-                        const Toast = Swal.mixin({
-                            toast: true, position: 'top-end', showConfirmButton: false, timer: 3500,
-                            timerProgressBar: true, background: '#1e2130', color: '#e2e8f0',
-                            iconColor: '#10b981'
+                        const Toast = Swal.mixin({ 
+                            toast: true, 
+                            position: 'top-end', 
+                            showConfirmButton: false, 
+                            timer: 3500, 
+                            timerProgressBar: true, 
+                            background: '#1e2130', 
+                            color: '#e2e8f0', 
+                            iconColor: '#10b981' 
                         });
-                        {% for category, message in messages %}
-                            Toast.fire({
-                                icon: '{{ "success" if category == "success" else "error" }}',
-                                title: '{{ message }}'
-                            });
+                        {% for category, message in messages %} 
+                            Toast.fire({ 
+                                icon: '{{ "success" if category == "success" else "error" }}', 
+                                title: '{{ message }}' 
+                            }); 
                         {% endfor %}
                     });
                 </script>
             {% endif %}
         {% endwith %}
-
+        
         {% block content %}{% endblock %}
     </div>
 
