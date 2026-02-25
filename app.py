@@ -17,10 +17,43 @@ import openai
 app = Flask(__name__)
 
 # =========================================================
-# CONFIGURAÇÕES DO BANCO DE DADOS
+# TELA DE RAIO-X (Mostra o erro exato no seu celular)
+# =========================================================
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Destrava o banco de dados antes de mostrar o erro
+    try: db.session.rollback()
+    except: pass
+    
+    # Se for um erro normal de navegação (404), deixa o Flask seguir
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+        
+    # Se for um Erro 500 (Crash), mostra na tela o motivo exato
+    return f"""
+    <div style="font-family: sans-serif; padding: 20px; background: #262730; color: #E1E4E8; height: 100vh;">
+        <h1 style="color: #FF4B4B;">🚨 Falha Crítica Detectada</h1>
+        <p>O sistema encontrou um erro interno (Possível falha no Neon ou na Secret Key).</p>
+        <div style="background: #1A1C23; padding: 15px; border-radius: 5px; color: #FFC107; font-family: monospace; overflow-x: auto;">
+            <b>{type(e).__name__}</b>: {str(e)}
+        </div>
+        <p style="margin-top: 20px;">Tire um print e envie para análise.</p>
+        <a href="/" style="color: #2196F3; text-decoration: none;">⬅️ Tentar Voltar</a>
+    </div>
+    """, 500
+
+# =========================================================
+# CONFIGURAÇÕES DO BANCO DE DADOS (Com correções vitais)
 # =========================================================
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-super-secreta-mude-depois')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///clientes.db')
+
+# CORREÇÃO 1: Evita crash se a URL do Neon estiver no formato antigo
+db_url = os.environ.get('DATABASE_URL', 'sqlite:///clientes.db')
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True, "pool_recycle": 60, "pool_timeout": 30}
 
@@ -31,7 +64,6 @@ login_manager.login_message = "Por favor, faça login para acessar."
 
 CHAVE_API_GOOGLE = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=CHAVE_API_GOOGLE) if CHAVE_API_GOOGLE else None
-
 CHAVE_OPENROUTER = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
@@ -74,11 +106,11 @@ class RegistroUso(db.Model):
     data = db.Column(db.DateTime, default=datetime.utcnow)
     modelo_usado = db.Column(db.String(100))
 
+# CORREÇÃO 2: Usa a função moderna de leitura de sessão
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
-# PROMPT GLOBAL (Para migração automática)
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO (LINGUAGEM HUMANA E LIMITES RIGOROSOS):
     - PROIBIDO usar palavras robóticas de IA.
@@ -112,23 +144,38 @@ PROMPT_REGRAS_BASE = """
     [START_AUTOAVALIACAO_MEMORIAL] [Autoavaliação direta] [END_AUTOAVALIACAO_MEMORIAL]
 """
 
+# CORREÇÃO 3: Blocos Cofre-Forte independentes para não derrubar o banco
 with app.app_context():
     db.create_all()
-    try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Pendente'"))
-    except: pass
-    try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN valor FLOAT DEFAULT 70.0"))
-    except: pass
-    db.session.commit()
+    
+    try: 
+        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Pendente'"))
+        db.session.commit()
+    except Exception: 
+        db.session.rollback()
+        
+    try: 
+        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN valor FLOAT DEFAULT 70.0"))
+        db.session.commit()
+    except Exception: 
+        db.session.rollback()
 
-    if not User.query.filter_by(username='admin').first():
-        admin = User(username='admin', password=generate_password_hash('admin123'), role='admin')
-        db.session.add(admin)
+    try:
+        if not User.query.filter_by(username='admin').first():
+            hashed_pw = generate_password_hash('admin123')
+            admin = User(username='admin', password=hashed_pw, role='admin')
+            db.session.add(admin)
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
         
-    if not PromptConfig.query.first():
-        p = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
-        db.session.add(p)
-        
-    db.session.commit()
+    try:
+        if not PromptConfig.query.first():
+            p = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
+            db.session.add(p)
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 # =========================================================
 # FUNÇÕES DA IA E WORD
@@ -139,7 +186,7 @@ def limpar_texto_ia(texto):
     return texto
 
 def chamar_ia(prompt, nome_modelo):
-    if "free" in nome_modelo.lower() or "/" in nome_modelo:
+    if "openrouter" in nome_modelo.lower() or "/" in nome_modelo:
         if not CHAVE_OPENROUTER: raise Exception("Chave do OpenRouter não configurada.")
         or_client = openai.OpenAI(api_key=CHAVE_OPENROUTER, base_url="https://openrouter.ai/api/v1")
         response = or_client.chat.completions.create(model=nome_modelo, messages=[{"role": "user", "content": prompt}], temperature=0.7)
@@ -223,16 +270,13 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
         raise Exception(f"Falha na IA (Correção): {str(e)}")
 
 # =========================================================
-# ROTAS PRINCIPAIS: GERADOR E DASHBOARD
+# ROTAS PRINCIPAIS
 # =========================================================
-
 MODELOS_DISPONIVEIS = [
     "gemini-2.5-flash",                             
     "gemini-2.5-pro",                               
     "gemini-2.5-flash-lite",                        
-    "openrouter/auto",                              
-    "meta-llama/llama-4-maverick:free",        
-    "deepseek/deepseek-r1:free"                     
+    "openrouter/auto"                    
 ]
 
 @app.route('/')
@@ -269,11 +313,7 @@ def gerar_rascunho():
     except Exception as e:
         try: next_model = MODELOS_DISPONIVEIS[(MODELOS_DISPONIVEIS.index(modelo) + 1) % len(MODELOS_DISPONIVEIS)]
         except: next_model = MODELOS_DISPONIVEIS[0]
-        
-        return jsonify({
-            "sucesso": False, "erro": str(e), 
-            "fallback": True, "failed_model": modelo, "suggested_model": next_model
-        })
+        return jsonify({"sucesso": False, "erro": str(e), "fallback": True, "failed_model": modelo, "suggested_model": next_model})
 
 @app.route('/gerar_docx_final', methods=['POST'])
 @login_required
@@ -304,7 +344,6 @@ def dashboard():
     alunos_pendentes = Aluno.query.filter_by(user_id=current_user.id, status='Pendente').all()
     alunos_pagos = Aluno.query.filter_by(user_id=current_user.id, status='Pago').all()
     
-    # Vacina contra valores Nulos (assume 70.0 se não tiver valor)
     a_receber = sum((a.valor or 70.0) for a in alunos_pendentes)
     receita_realizada = sum((a.valor or 70.0) for a in alunos_pagos)
     
@@ -312,9 +351,7 @@ def dashboard():
     total_trabalhos = len(documentos_ids)
     
     uso_modelos = db.session.query(RegistroUso.modelo_usado, db.func.count(RegistroUso.id)).group_by(RegistroUso.modelo_usado).order_by(db.func.count(RegistroUso.id).desc()).all()
-    
-    return render_template('dashboard.html', a_receber=a_receber, receita_realizada=receita_realizada, 
-                           total_trabalhos=total_trabalhos, uso_modelos=uso_modelos)
+    return render_template('dashboard.html', a_receber=a_receber, receita_realizada=receita_realizada, total_trabalhos=total_trabalhos, uso_modelos=uso_modelos)
 
 @app.route('/prompts', methods=['GET', 'POST'])
 @login_required
@@ -336,10 +373,6 @@ def delete_prompt(id):
         db.session.delete(p)
         db.session.commit()
     return redirect(url_for('gerenciar_prompts'))
-
-# =========================================================
-# CRM E REVISÃO
-# =========================================================
 
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
@@ -453,10 +486,6 @@ def corrigir_avulso():
         
         return jsonify({"arquivo_base64": arquivo_base64, "nome_arquivo": "Trabalho_Revisado_IA.docx"})
     except Exception as e: return jsonify({"erro": str(e)}), 500
-
-# =========================================================
-# LOGIN E ADMINISTRAÇÃO
-# =========================================================
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
