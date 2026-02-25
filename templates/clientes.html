@@ -18,7 +18,7 @@
         <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #FF4B4B;">
             <div>
                 <h4 style="margin: 0; color: #2196F3;">{{ aluno.nome }}</h4>
-                <small style="color: #9E9E9E;">{{ aluno.curso }} | {{ aluno.telefone }} | <b>R$ {{ "%.2f"|format(aluno.valor) }}</b></small>
+                <small style="color: #9E9E9E;">{{ aluno.curso }} | {{ aluno.telefone }} | <b>R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b></small>
             </div>
             <div style="display: flex; gap: 10px;">
                 <form action="/toggle_status/{{ aluno.id }}" method="POST">
@@ -38,7 +38,7 @@
         <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #57D2A9; opacity: 0.7;">
             <div>
                 <h4 style="margin: 0; color: #2196F3;">{{ aluno.nome }}</h4>
-                <small style="color: #9E9E9E;">{{ aluno.curso }} | {{ aluno.telefone }} | <b>R$ {{ "%.2f"|format(aluno.valor) }}</b></small>
+                <small style="color: #9E9E9E;">{{ aluno.curso }} | {{ aluno.telefone }} | <b>R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b></small>
             </div>
             <div style="display: flex; gap: 10px;">
                 <form action="/toggle_status/{{ aluno.id }}" method="POST">
