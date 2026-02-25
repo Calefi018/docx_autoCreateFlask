@@ -15,23 +15,29 @@
 
     <h3 style="color: var(--danger); display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-hourglass-high"></i> Trabalhos a Receber</h3>
     {% for aluno in alunos_pendentes %}
-        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--danger); padding: 20px;">
-            <div>
-                <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
-                <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 5px; font-size: 0.9rem;">
-                    <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
-                    <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
-                    <span style="display: flex; align-items: center; background: rgba(99, 102, 241, 0.1); padding: 4px 10px; border-radius: 6px; color: var(--primary); font-weight: bold;">
-                        R$ {{ "%.2f"|format(aluno.valor or 70.0) }}
-                        <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; color: var(--text-muted); margin-left: 8px; transition: color 0.2s;"><i class="ph-fill ph-pencil-simple"></i></button>
-                    </span>
+        <div class="card" style="border-left: 4px solid var(--danger); padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
+                    <div style="color: var(--text-muted); display: flex; align-items: center; flex-wrap: wrap; gap: 15px; margin-top: 8px; font-size: 0.9rem;">
+                        <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                        <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                        <span style="display: flex; align-items: center; background: rgba(99, 102, 241, 0.1); padding: 4px 10px; border-radius: 6px; color: var(--primary); font-weight: bold;">
+                            R$ {{ "%.2f"|format(aluno.valor or 70.0) }}
+                            <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; color: var(--text-muted); margin-left: 8px;" title="Edição Rápida de Valor"><i class="ph-fill ph-pencil-simple"></i></button>
+                        </span>
+                    </div>
                 </div>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <form action="/toggle_status/{{ aluno.id }}" method="POST">
-                    <button type="submit" class="btn btn-green"><i class="ph-bold ph-currency-dollar"></i> Recebido</button>
-                </form>
-                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
+                
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <form action="/toggle_status/{{ aluno.id }}" method="POST" style="margin:0;">
+                        <button type="submit" class="btn btn-green" title="Marcar como Pago"><i class="ph-bold ph-currency-dollar"></i> Recebido</button>
+                    </form>
+                    <a href="/cliente/{{ aluno.id }}" class="btn btn-blue" title="Abrir Arquivos"><i class="ph-bold ph-folder-open"></i> Pasta</a>
+                    
+                    <button type="button" onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }})" class="btn" style="background: var(--border); padding: 10px 14px;" title="Editar Dados do Cliente"><i class="ph-bold ph-pencil-simple"></i></button>
+                    <button type="button" onclick="deletarCliente({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}')" class="btn btn-danger" style="padding: 10px 14px;" title="Apagar Cliente"><i class="ph-bold ph-trash"></i></button>
+                </div>
             </div>
         </div>
     {% else %}
@@ -42,23 +48,29 @@
 
     <h3 style="color: var(--success); display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-check-circle"></i> Clientes Pagos</h3>
     {% for aluno in alunos_pagos %}
-        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--success); opacity: 0.6; padding: 20px;">
-            <div>
-                <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
-                <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 5px; font-size: 0.9rem;">
-                    <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
-                    <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
-                    <span style="display: flex; align-items: center;">
-                        <b>R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b>
-                        <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; color: var(--text-muted); margin-left: 8px;"><i class="ph-fill ph-pencil-simple"></i></button>
-                    </span>
+        <div class="card" style="border-left: 4px solid var(--success); opacity: 0.7; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
+                    <div style="color: var(--text-muted); display: flex; align-items: center; flex-wrap: wrap; gap: 15px; margin-top: 8px; font-size: 0.9rem;">
+                        <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                        <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                        <span style="display: flex; align-items: center;">
+                            <b>R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</b>
+                            <button type="button" onclick="editarValor({{ aluno.id }}, {{ aluno.valor or 70.0 }})" style="background: none; border: none; cursor: pointer; color: var(--text-muted); margin-left: 8px;" title="Edição Rápida de Valor"><i class="ph-fill ph-pencil-simple"></i></button>
+                        </span>
+                    </div>
                 </div>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <form action="/toggle_status/{{ aluno.id }}" method="POST">
-                    <button type="submit" class="btn" style="background: var(--border);"><i class="ph-bold ph-arrow-u-up-left"></i> Estornar</button>
-                </form>
-                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
+                
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <form action="/toggle_status/{{ aluno.id }}" method="POST" style="margin:0;">
+                        <button type="submit" class="btn" style="background: var(--border);" title="Retornar para Pendentes"><i class="ph-bold ph-arrow-u-up-left"></i> Estornar</button>
+                    </form>
+                    <a href="/cliente/{{ aluno.id }}" class="btn btn-blue" title="Abrir Arquivos"><i class="ph-bold ph-folder-open"></i> Pasta</a>
+                    
+                    <button type="button" onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }})" class="btn" style="background: var(--border); padding: 10px 14px;" title="Editar Dados do Cliente"><i class="ph-bold ph-pencil-simple"></i></button>
+                    <button type="button" onclick="deletarCliente({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}')" class="btn btn-danger" style="padding: 10px 14px;" title="Apagar Cliente"><i class="ph-bold ph-trash"></i></button>
+                </div>
             </div>
         </div>
     {% else %}
@@ -66,33 +78,86 @@
     {% endfor %}
 
     <script>
+        // Mantém a edição rápida do valor apenas
         function editarValor(idAluno, valorAtual) {
             Swal.fire({
-                title: 'Editar Valor do Trabalho',
+                title: 'Ajuste Rápido de Valor',
                 input: 'text',
                 inputValue: valorAtual,
                 inputLabel: 'Introduza o novo valor em Reais',
                 showCancelButton: true,
-                confirmButtonText: 'Salvar Novo Valor',
+                confirmButtonText: 'Salvar Valor',
                 cancelButtonText: 'Cancelar',
-                background: '#1e2130',
-                color: '#e2e8f0',
-                confirmButtonColor: '#6366f1',
-                inputValidator: (value) => {
-                    if (!value || isNaN(value.replace(',', '.'))) return 'Por favor, insira um número válido!'
-                }
+                background: '#1e2130', color: '#e2e8f0', confirmButtonColor: '#6366f1',
+                inputValidator: (value) => { if (!value || isNaN(value.replace(',', '.'))) return 'Insira um número válido!' }
             }).then((result) => {
                 if (result.isConfirmed && result.value) {
                     let form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = '/editar_valor/' + idAluno;
+                    form.method = 'POST'; form.action = '/editar_valor/' + idAluno;
                     let input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = 'novo_valor';
-                    input.value = result.value;
-                    form.appendChild(input);
-                    document.body.appendChild(form);
-                    form.submit();
+                    input.type = 'hidden'; input.name = 'novo_valor'; input.value = result.value;
+                    form.appendChild(input); document.body.appendChild(form); form.submit();
+                }
+            });
+        }
+
+        // NOVO: Edição Completa de todos os Dados do Cliente
+        function editarClienteTotal(id, nome, curso, telefone, valor) {
+            Swal.fire({
+                title: 'Editar Ficha do Cliente',
+                html: `
+                    <div style="text-align: left; margin-top: 15px;">
+                        <label style="color: var(--text-muted); font-size: 0.85rem; margin-left: 5px;">Nome do Aluno</label>
+                        <input id="swal-nome" class="swal2-input" style="width: 100%; box-sizing: border-box; margin: 5px 0 15px 0; background: rgba(15, 17, 26, 0.6); color: #fff; border: 1px solid var(--border);" value="${nome}">
+                        
+                        <label style="color: var(--text-muted); font-size: 0.85rem; margin-left: 5px;">Curso/Disciplina</label>
+                        <input id="swal-curso" class="swal2-input" style="width: 100%; box-sizing: border-box; margin: 5px 0 15px 0; background: rgba(15, 17, 26, 0.6); color: #fff; border: 1px solid var(--border);" value="${curso}">
+                        
+                        <label style="color: var(--text-muted); font-size: 0.85rem; margin-left: 5px;">WhatsApp</label>
+                        <input id="swal-tel" class="swal2-input" style="width: 100%; box-sizing: border-box; margin: 5px 0 15px 0; background: rgba(15, 17, 26, 0.6); color: #fff; border: 1px solid var(--border);" value="${telefone}">
+                        
+                        <label style="color: var(--text-muted); font-size: 0.85rem; margin-left: 5px;">Valor Acordado (R$)</label>
+                        <input id="swal-valor" type="number" step="0.01" class="swal2-input" style="width: 100%; box-sizing: border-box; margin: 5px 0 15px 0; background: rgba(15, 17, 26, 0.6); color: #fff; border: 1px solid var(--border);" value="${valor}">
+                    </div>
+                `,
+                background: '#1e2130', color: '#e2e8f0', showCancelButton: true,
+                confirmButtonText: 'Salvar Alterações', cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#6366f1', cancelButtonColor: '#334155',
+                preConfirm: () => {
+                    return {
+                        nome: document.getElementById('swal-nome').value,
+                        curso: document.getElementById('swal-curso').value,
+                        telefone: document.getElementById('swal-tel').value,
+                        valor: document.getElementById('swal-valor').value
+                    }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    let form = document.createElement('form');
+                    form.method = 'POST'; form.action = '/editar_cliente/' + id;
+                    
+                    ['nome', 'curso', 'telefone', 'valor'].forEach(field => {
+                        let input = document.createElement('input');
+                        input.type = 'hidden'; input.name = field; input.value = result.value[field];
+                        form.appendChild(input);
+                    });
+                    
+                    document.body.appendChild(form); form.submit();
+                }
+            });
+        }
+
+        // NOVO: Apagar Cliente com Alerta de Segurança
+        function deletarCliente(id, nome) {
+            Swal.fire({
+                title: 'Tem Certeza Absoluta?',
+                html: `Você está prestes a apagar a ficha de <b>${nome}</b>.<br>Isto também <b style="color: var(--danger);">apagará todos os arquivos Word</b> vinculados a este cliente.<br><br>Esta ação é irreversível!`,
+                icon: 'warning', background: '#1e2130', color: '#e2e8f0',
+                showCancelButton: true, confirmButtonColor: '#ef4444', cancelButtonColor: '#334155',
+                confirmButtonText: '<i class="ph-bold ph-trash"></i> Sim, Apagar Tudo', cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = '/deletar_cliente/' + id;
                 }
             });
         }
