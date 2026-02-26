@@ -360,7 +360,7 @@ def portal():
     return render_template('portal.html', aluno=aluno, erro=erro)
 
 # =========================================================
-# ROTAS DO GERADOR (ÁREA INICIAL)
+# ROTAS DO GERADOR E DE REGERAÇÃO (COM CONTEXTO)
 # =========================================================
 MODELOS_DISPONIVEIS = [
     "gemini-2.5-flash", 
@@ -418,32 +418,44 @@ def gerar_rascunho():
             "suggested_model": next_model
         })
 
-# NOVA ROTA: Regerar um trecho específico
 @app.route('/regerar_trecho', methods=['POST'])
 @login_required
 def regerar_trecho():
-    tema = request.form.get('tema')
-    tag = request.form.get('tag')
-    modelo = request.form.get('modelo')
-    prompt_id = request.form.get('prompt_id')
+    # Agora a rota recebe JSON com o contexto inteiro (o que o usuário já editou nas caixas)
+    dados = request.json
+    tema = dados.get('tema')
+    tag = dados.get('tag')
+    modelo = dados.get('modelo')
+    prompt_id = dados.get('prompt_id')
+    contexto_atual = dados.get('dicionario', {}) 
 
     config = PromptConfig.query.get(prompt_id) if prompt_id else PromptConfig.query.filter_by(is_default=True).first()
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
 
+    # Monta uma String gigante lendo todo o dicionário para a IA entender o contexto
+    texto_contexto = ""
+    for chave, valor in contexto_atual.items():
+        if valor and str(valor).strip():
+            texto_contexto += f"{chave}:\n{valor}\n\n"
+
     prompt_regeracao = f"""Você é um professor avaliador extremamente rigoroso.
 TEMA/CASO DO DESAFIO:\n{tema}
+
+CONTEXTO ATUAL DO TRABALHO (Leia isto para manter a total coerência):
+{texto_contexto}
 
 REGRAS GERAIS E ESTRUTURA:
 {texto_prompt}
 
 TAREFA ESPECÍFICA DE CORREÇÃO:
 O usuário pediu para reescrever APENAS o trecho correspondente à tag: {tag}.
-Por favor, reescreva este trecho específico com excelência acadêmica, respeitando as regras de tamanho e conteúdo estabelecidas para ele nas regras acima.
+Por favor, reescreva este trecho específico com excelência acadêmica.
+É OBRIGATÓRIO que o novo trecho faça sentido e tenha conexão lógica com o "CONTEXTO ATUAL DO TRABALHO" fornecido acima. Se for um "Por quê", ele deve justificar o "Aspecto" anterior de forma fluida. Se for uma conclusão, deve abraçar tudo.
 IMPORTANTE: NÃO inclua as marcações [START_{tag}] ou [END_{tag}] na sua resposta final. Retorne APENAS o texto limpo, direto e formatado para ser inserido no documento."""
 
     try:
         novo_texto = chamar_ia(prompt_regeracao, modelo)
-        # Limpeza preventiva caso a IA teime em mandar as tags
+        # Limpeza preventiva caso a IA mande tags acidentalmente
         novo_texto = re.sub(rf"\[START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
         novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
         
