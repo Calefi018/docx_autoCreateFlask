@@ -2,7 +2,7 @@
 {% block content %}
     <h1 style="margin-top:0;">Gerador de Trabalhos</h1>
     <p style="color: var(--text-muted); margin-bottom: 30px;">
-        Gere o documento completo, edite manualmente se necessário, ou peça à IA para regerar trechos específicos.
+        Gere o documento completo, edite manualmente se necessário, ou peça à IA para regerar trechos específicos (com contexto total do que já foi escrito).
     </p>
 
     <form id="formGerar" class="card">
@@ -55,10 +55,10 @@
 
     <div id="area-edicao" class="card" style="display:none; margin-top: 30px; border: 1px solid var(--secondary);">
         <h2 style="color: var(--secondary); margin-top:0; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-fill ph-pencil-simple"></i> Pré-visualização e Edição
+            <i class="ph-fill ph-pencil-simple"></i> Pré-visualização e Edição Contextual
         </h2>
         <p style="color: var(--text-muted); font-size: 0.95em; margin-bottom: 25px;">
-            Revise os blocos gerados pela IA. Você pode editar o texto manualmente nas caixas abaixo ou clicar no botão <b>"Regerar"</b> para pedir à IA que faça uma nova versão daquele trecho específico.
+            Se o botão de <b>"Regerar Trecho"</b> for ativado, a IA lerá <b>tudo</b> o que está escrito nas outras caixas abaixo para garantir que o novo texto faça total sentido com o resto do trabalho.
         </p>
         
         <div id="caixas-texto"></div>
@@ -72,7 +72,6 @@
         let dicionarioEditavel = {};
         let progressInterval;
 
-        // Lista Oficial para forçar a ordem visual das caixas
         const ordemOficial = [
             "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL",
             "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
@@ -80,7 +79,6 @@
             "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"
         ];
 
-        // Animação de Carregamento
         function animarCarregamento() {
             let width = 0;
             const bar = document.getElementById('progress-bar-fill');
@@ -90,7 +88,7 @@
                 if (width < 95) { 
                     width += 1; 
                     bar.style.width = width + '%'; 
-                    txt.innerText = `Processando referências... ${width}%`; 
+                    txt.innerText = `Processando referências e moldando coesão... ${width}%`; 
                 }
             }, 1000);
         }
@@ -101,7 +99,6 @@
             document.getElementById('btn-submit').style.display = 'block';
         }
 
-        // Função Primária: Gerar todo o Documento
         function iniciarGeracao(modeloSubstituto = null) {
             const form = document.getElementById('formGerar');
             const formdata = new FormData(form);
@@ -128,7 +125,7 @@
                     if(data.fallback) {
                         Swal.fire({
                             title: 'Servidor Ocupado',
-                            html: `A IA selecionada falhou (<strong>${data.failed_model}</strong>).<br><br>Deseja tentar automaticamente com a IA reserva: <b style="color:var(--primary);">${data.suggested_model}</b>?`,
+                            html: `A IA selecionada falhou (<strong>${data.failed_model}</strong>).<br><br>Deseja tentar com a IA reserva: <b style="color:var(--primary);">${data.suggested_model}</b>?`,
                             icon: 'warning',
                             showCancelButton: true,
                             confirmButtonColor: '#6366f1',
@@ -157,28 +154,42 @@
             });
         }
 
-        // NOVO RECURSO: Função de Regerar apenas um trecho específico
+        // FUNÇÃO DE INTELIGÊNCIA: Regerar trecho lendo o contexto inteiro da página
         function regerarTrechoEspecifico(tagOriginal, textareaElement, btnElement) {
-            const form = document.getElementById('formGerar');
-            const formdata = new FormData(form);
             
-            // Adicionamos a tag que queremos regerar à requisição
-            formdata.append('tag', tagOriginal); 
+            // 1. Antes de pedir à IA, lemos tudo o que o usuário escreveu ou alterou na tela inteira
+            const textareas = document.querySelectorAll('#caixas-texto textarea');
+            textareas.forEach(ta => { 
+                dicionarioEditavel[ta.dataset.chave] = ta.value; 
+            });
 
-            // Alteramos o visual do botão para mostrar que está carregando
+            // 2. Preparamos o pacote de informações
+            const modeloSelecionado = document.getElementById('select_modelo').value;
+            const temaTexto = document.querySelector('textarea[name="tema"]').value;
+            const promptIdSelecionado = document.querySelector('select[name="prompt_id"]').value;
+
+            // 3. Mudança visual para modo "Carregando"
             const btnOriginalText = btnElement.innerHTML;
-            btnElement.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gerando...';
+            btnElement.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Lendo contexto e gerando...';
             btnElement.disabled = true;
             btnElement.style.opacity = '0.7';
             textareaElement.disabled = true;
 
+            // 4. Disparo usando JSON para conseguir enviar o dicionário de contexto gigante
             fetch('/regerar_trecho', { 
                 method: 'POST', 
-                body: formdata 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tema: temaTexto,
+                    tag: tagOriginal,
+                    modelo: modeloSelecionado,
+                    prompt_id: promptIdSelecionado,
+                    dicionario: dicionarioEditavel // Aqui vai o contexto para manter a coesão!
+                })
             })
             .then(res => res.json())
             .then(data => {
-                // Devolvemos o botão ao estado normal
+                // Voltar estado do botão
                 btnElement.innerHTML = btnOriginalText;
                 btnElement.disabled = false;
                 btnElement.style.opacity = '1';
@@ -189,16 +200,14 @@
                     return;
                 }
 
-                // Injetamos o novo texto gerado na caixa de texto na tela
+                // Injetar o texto coeso de volta na tela
                 textareaElement.value = data.novo_texto;
                 
-                // Atualizamos o dicionário interno invisível para garantir que vai para o Word final
                 let chave_completa = "{" + "{" + tagOriginal + "}" + "}";
                 dicionarioEditavel[chave_completa] = data.novo_texto;
 
-                // Mostramos um Toast de sucesso premium
                 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, background: '#1e2130', color: '#10b981' });
-                Toast.fire({ icon: 'success', title: 'Trecho atualizado com sucesso!' });
+                Toast.fire({ icon: 'success', title: 'Trecho atualizado com sucesso e mantendo coerência!' });
             })
             .catch(err => {
                 btnElement.innerHTML = btnOriginalText;
@@ -209,7 +218,6 @@
             });
         }
 
-        // Função que desenha as caixas na tela (Agora com o Botão de Regerar)
         function montarEditor(dic) {
             const container = document.getElementById('caixas-texto');
             container.innerHTML = ''; 
@@ -227,7 +235,6 @@
                     wrapper.style.borderRadius = '8px';
                     wrapper.style.border = '1px solid var(--border)';
                     
-                    // Topo com Título e Botão
                     let headerBox = document.createElement('div');
                     headerBox.style.display = 'flex';
                     headerBox.style.justifyContent = 'space-between';
@@ -255,7 +262,6 @@
                     textarea.style.margin = '0';
                     textarea.onchange = (e) => { dicionarioEditavel[e.target.dataset.chave] = e.target.value; };
                     
-                    // O clique do botão chama a nossa nova função, passando qual caixa deve ser atualizada
                     btnRegerar.onclick = () => regerarTrechoEspecifico(chave_base, textarea, btnRegerar);
 
                     headerBox.appendChild(label);
@@ -269,7 +275,6 @@
             });
         }
 
-        // Função Final: Embalar tudo e descarregar o DOCX
         function salvarEDocx() {
             document.getElementById('btn-docx').innerHTML = "<i class='ph-bold ph-spinner animate-spin'></i> Construindo Documento Final...";
             document.getElementById('btn-docx').disabled = true;
