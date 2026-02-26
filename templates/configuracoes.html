@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
     <h1 style="margin-top:0;">Configurações do Sistema</h1>
-    <p style="color: var(--text-muted); margin-bottom: 30px;">Personalize as automações e mensagens da plataforma.</p>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">
+        Personalize as automações e mensagens da plataforma.
+    </p>
 
     <div class="card" style="border-top: 4px solid var(--success);">
         <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: var(--success);">
             <i class="ph-fill ph-whatsapp-logo"></i> Mensagem Padrão de Cobrança
         </h3>
+        
         <p style="color: var(--text-muted); font-size: 0.95em; line-height: 1.5;">
             Sempre que clicar no botão verde <b>"Cobrar"</b> no CRM, o sistema abrirá o seu WhatsApp Web com este texto. <br>
             Use as tags mágicas <b>{nome}</b>, <b>{curso}</b> e <b>{valor}</b> no meio do texto. O sistema vai substituí-las na hora de enviar.
