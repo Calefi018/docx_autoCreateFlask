@@ -1,58 +1,70 @@
 {% extends "base.html" %}
 {% block content %}
     <h1 style="margin-top:0;">Gerador de Trabalhos</h1>
-    <p style="color: var(--text-muted); margin-bottom: 30px;">Gere o documento, edite se necessário, e vincule a um cliente.</p>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">
+        Gere o documento completo, edite manualmente se necessário, ou peça à IA para regerar trechos específicos.
+    </p>
 
     <form id="formGerar" class="card">
         <label><b>1. Para qual Cliente é este trabalho?</b></label>
         <select name="aluno_id" id="aluno_id">
-            <option value="">Não vincular a nenhum cliente (Apenas Baixar)</option>
+            <option value="">Não vincular a nenhum cliente (Apenas Baixar Documento)</option>
             {% for aluno in alunos %}
                 <option value="{{ aluno.id }}">{{ aluno.nome }} - {{ aluno.curso }}</option>
             {% endfor %}
         </select>
 
         <label><b>2. Tema do Desafio</b></label>
-        <textarea name="tema" rows="6" placeholder="Cole aqui o texto do portal..." required></textarea>
+        <textarea name="tema" rows="6" placeholder="Cole aqui o texto do portal com as instruções..." required></textarea>
 
         <div style="display:flex; gap:15px; flex-wrap:wrap;">
             <div style="flex:1; min-width: 250px;">
                 <label><b>3. Padrão / Cérebro da IA</b></label>
                 <select name="prompt_id">
-                    {% for p in prompts %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
+                    {% for p in prompts %}
+                        <option value="{{ p.id }}">{{ p.nome }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div style="flex:1; min-width: 250px;">
-                <label><b>4. Inteligência Artificial</b></label>
+                <label><b>4. Inteligência Artificial Principal</b></label>
                 <select name="modelo" id="select_modelo">
-                    {% for modelo in modelos %}<option value="{{ modelo }}">{{ modelo }}</option>{% endfor %}
+                    {% for modelo in modelos %}
+                        <option value="{{ modelo }}">{{ modelo }}</option>
+                    {% endfor %}
                 </select>
             </div>
         </div>
 
         <button type="button" class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top:10px;" id="btn-submit" onclick="iniciarGeracao()">
-            <i class="ph-fill ph-magic-wand"></i> Gerar Rascunho com a IA
+            <i class="ph-bold ph-magic-wand"></i> Gerar Trabalho Completo com IA
         </button>
         
         <div id="loading" style="display:none; text-align:center; margin-top: 20px;">
-            <p id="progress-text" style="font-weight: 600; color: var(--primary); margin-bottom: 8px;">A IA está construindo o raciocínio...</p>
+            <p id="progress-text" style="font-weight: 600; color: var(--primary); margin-bottom: 8px;">
+                A IA está a construir o raciocínio...
+            </p>
             <div style="width: 100%; background-color: var(--bg-color); border-radius: 8px; height: 12px; overflow: hidden; border: 1px solid var(--border);">
                 <div id="progress-bar-fill" style="width: 0%; height: 100%; background-color: var(--primary); transition: width 0.5s ease;"></div>
             </div>
-            <small style="color: var(--text-muted); display: block; margin-top: 8px;">Aguarde. Modelos robustos podem levar até 2 minutos.</small>
+            <small style="color: var(--text-muted); display: block; margin-top: 8px;">
+                Aguarde. Modelos complexos podem demorar até 2 minutos para processar tudo com excelência.
+            </small>
         </div>
     </form>
 
     <div id="area-edicao" class="card" style="display:none; margin-top: 30px; border: 1px solid var(--secondary);">
         <h2 style="color: var(--secondary); margin-top:0; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-fill ph-pencil-simple"></i> Pré-visualização e Edição Manual
+            <i class="ph-fill ph-pencil-simple"></i> Pré-visualização e Edição
         </h2>
-        <p style="color: var(--text-muted); font-size: 0.95em; margin-bottom: 25px;">Revise os blocos gerados pela IA. Se algo estiver estranho, você pode digitar e consertar agora mesmo. Quando estiver perfeito, clique no botão verde abaixo para montar o DOCX.</p>
+        <p style="color: var(--text-muted); font-size: 0.95em; margin-bottom: 25px;">
+            Revise os blocos gerados pela IA. Você pode editar o texto manualmente nas caixas abaixo ou clicar no botão <b>"Regerar"</b> para pedir à IA que faça uma nova versão daquele trecho específico.
+        </p>
         
         <div id="caixas-texto"></div>
 
         <button class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">
-            <i class="ph-fill ph-check-circle"></i> Aprovar e Baixar DOCX Final
+            <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final
         </button>
     </div>
 
@@ -60,7 +72,7 @@
         let dicionarioEditavel = {};
         let progressInterval;
 
-        // Lista com a Ordem Oficial de Apresentação
+        // Lista Oficial para forçar a ordem visual das caixas
         const ordemOficial = [
             "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL",
             "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
@@ -68,13 +80,18 @@
             "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"
         ];
 
+        // Animação de Carregamento
         function animarCarregamento() {
             let width = 0;
             const bar = document.getElementById('progress-bar-fill');
             const txt = document.getElementById('progress-text');
             bar.style.width = '0%';
             progressInterval = setInterval(() => {
-                if (width < 95) { width += 1; bar.style.width = width + '%'; txt.innerText = `Processando referências... ${width}%`; }
+                if (width < 95) { 
+                    width += 1; 
+                    bar.style.width = width + '%'; 
+                    txt.innerText = `Processando referências... ${width}%`; 
+                }
             }, 1000);
         }
 
@@ -84,6 +101,7 @@
             document.getElementById('btn-submit').style.display = 'block';
         }
 
+        // Função Primária: Gerar todo o Documento
         function iniciarGeracao(modeloSubstituto = null) {
             const form = document.getElementById('formGerar');
             const formdata = new FormData(form);
@@ -98,22 +116,27 @@
             document.getElementById('loading').style.display = 'block';
             animarCarregamento();
             
-            fetch('/gerar_rascunho', { method: 'POST', body: formdata })
+            fetch('/gerar_rascunho', { 
+                method: 'POST', 
+                body: formdata 
+            })
             .then(res => res.json())
             .then(data => {
                 pararCarregamento();
+                
                 if(!data.sucesso) {
                     if(data.fallback) {
                         Swal.fire({
                             title: 'Servidor Ocupado',
-                            html: `A IA selecionada falhou (<strong>${data.failed_model}</strong>).<br><br>Deseja que o sistema tente agora usar a IA substituta:<br><b style="color:var(--primary);">${data.suggested_model}</b>?`,
+                            html: `A IA selecionada falhou (<strong>${data.failed_model}</strong>).<br><br>Deseja tentar automaticamente com a IA reserva: <b style="color:var(--primary);">${data.suggested_model}</b>?`,
                             icon: 'warning',
                             showCancelButton: true,
                             confirmButtonColor: '#6366f1',
                             cancelButtonColor: '#ef4444',
-                            confirmButtonText: 'Sim, tentar substituta!',
+                            confirmButtonText: 'Sim, usar IA reserva',
                             cancelButtonText: 'Cancelar',
-                            background: '#1e2130', color: '#e2e8f0'
+                            background: '#1e2130', 
+                            color: '#e2e8f0'
                         }).then((result) => {
                             if (result.isConfirmed) { iniciarGeracao(data.suggested_model); }
                         });
@@ -130,46 +153,125 @@
             })
             .catch(err => { 
                 pararCarregamento(); 
-                Swal.fire('Erro', 'Falha na conexão com o servidor.', 'error'); 
+                Swal.fire('Erro', 'Falha na conexão com o servidor da IA.', 'error'); 
             });
         }
 
+        // NOVO RECURSO: Função de Regerar apenas um trecho específico
+        function regerarTrechoEspecifico(tagOriginal, textareaElement, btnElement) {
+            const form = document.getElementById('formGerar');
+            const formdata = new FormData(form);
+            
+            // Adicionamos a tag que queremos regerar à requisição
+            formdata.append('tag', tagOriginal); 
+
+            // Alteramos o visual do botão para mostrar que está carregando
+            const btnOriginalText = btnElement.innerHTML;
+            btnElement.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gerando...';
+            btnElement.disabled = true;
+            btnElement.style.opacity = '0.7';
+            textareaElement.disabled = true;
+
+            fetch('/regerar_trecho', { 
+                method: 'POST', 
+                body: formdata 
+            })
+            .then(res => res.json())
+            .then(data => {
+                // Devolvemos o botão ao estado normal
+                btnElement.innerHTML = btnOriginalText;
+                btnElement.disabled = false;
+                btnElement.style.opacity = '1';
+                textareaElement.disabled = false;
+
+                if(!data.sucesso) {
+                    Swal.fire('Erro da IA', 'Falha ao reescrever trecho: ' + data.erro, 'error');
+                    return;
+                }
+
+                // Injetamos o novo texto gerado na caixa de texto na tela
+                textareaElement.value = data.novo_texto;
+                
+                // Atualizamos o dicionário interno invisível para garantir que vai para o Word final
+                let chave_completa = "{" + "{" + tagOriginal + "}" + "}";
+                dicionarioEditavel[chave_completa] = data.novo_texto;
+
+                // Mostramos um Toast de sucesso premium
+                const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, background: '#1e2130', color: '#10b981' });
+                Toast.fire({ icon: 'success', title: 'Trecho atualizado com sucesso!' });
+            })
+            .catch(err => {
+                btnElement.innerHTML = btnOriginalText;
+                btnElement.disabled = false;
+                btnElement.style.opacity = '1';
+                textareaElement.disabled = false;
+                Swal.fire('Erro', 'Ocorreu uma falha de conexão.', 'error');
+            });
+        }
+
+        // Função que desenha as caixas na tela (Agora com o Botão de Regerar)
         function montarEditor(dic) {
             const container = document.getElementById('caixas-texto');
             container.innerHTML = ''; 
             
             ordemOficial.forEach(chave_base => {
-                // A SOLUÇÃO: Separar os colchetes com "+" para o Flask não apagar a palavra
-                let chave = "{" + "{" + chave_base + "}" + "}";
+                let chave_completa = "{" + "{" + chave_base + "}" + "}";
                 
-                if (dic[chave] && dic[chave].trim() !== "") {
+                if (dic[chave_completa] && dic[chave_completa].trim() !== "") {
                     let tituloAmigavel = chave_base.replace(/_/g, ' ');
                     
                     let wrapper = document.createElement('div');
                     wrapper.style.marginBottom = '20px';
+                    wrapper.style.background = 'rgba(30, 33, 48, 0.3)';
+                    wrapper.style.padding = '15px';
+                    wrapper.style.borderRadius = '8px';
+                    wrapper.style.border = '1px solid var(--border)';
+                    
+                    // Topo com Título e Botão
+                    let headerBox = document.createElement('div');
+                    headerBox.style.display = 'flex';
+                    headerBox.style.justifyContent = 'space-between';
+                    headerBox.style.alignItems = 'center';
+                    headerBox.style.marginBottom = '10px';
                     
                     let label = document.createElement('label');
                     label.innerHTML = `<b>${tituloAmigavel}</b>`;
                     label.style.color = "var(--secondary)";
-                    label.style.display = "block";
-                    label.style.marginBottom = "8px";
                     label.style.fontSize = "1.05rem";
+                    label.style.margin = "0";
+                    
+                    let btnRegerar = document.createElement('button');
+                    btnRegerar.type = 'button';
+                    btnRegerar.className = 'btn';
+                    btnRegerar.style.padding = '6px 12px';
+                    btnRegerar.style.fontSize = '0.85rem';
+                    btnRegerar.style.backgroundColor = '#4f46e5';
+                    btnRegerar.innerHTML = '<i class="ph-bold ph-arrows-clockwise"></i> Regerar Trecho';
                     
                     let textarea = document.createElement('textarea');
                     textarea.rows = 5;
-                    textarea.value = dic[chave];
-                    textarea.dataset.chave = chave;
+                    textarea.value = dic[chave_completa];
+                    textarea.dataset.chave = chave_completa;
+                    textarea.style.margin = '0';
                     textarea.onchange = (e) => { dicionarioEditavel[e.target.dataset.chave] = e.target.value; };
                     
-                    wrapper.appendChild(label);
+                    // O clique do botão chama a nossa nova função, passando qual caixa deve ser atualizada
+                    btnRegerar.onclick = () => regerarTrechoEspecifico(chave_base, textarea, btnRegerar);
+
+                    headerBox.appendChild(label);
+                    headerBox.appendChild(btnRegerar);
+                    
+                    wrapper.appendChild(headerBox);
                     wrapper.appendChild(textarea);
+                    
                     container.appendChild(wrapper);
                 }
             });
         }
 
+        // Função Final: Embalar tudo e descarregar o DOCX
         function salvarEDocx() {
-            document.getElementById('btn-docx').innerHTML = "<i class='ph ph-spinner animate-spin'></i> Gerando documento...";
+            document.getElementById('btn-docx').innerHTML = "<i class='ph-bold ph-spinner animate-spin'></i> Construindo Documento Final...";
             document.getElementById('btn-docx').disabled = true;
 
             const textareas = document.querySelectorAll('#caixas-texto textarea');
@@ -183,9 +285,13 @@
             })
             .then(res => res.json())
             .then(data => {
-                document.getElementById('btn-docx').innerHTML = "<i class='ph-fill ph-check-circle'></i> Aprovar e Baixar DOCX Final";
+                document.getElementById('btn-docx').innerHTML = "<i class='ph-bold ph-check-circle'></i> Aprovar Tudo e Baixar DOCX Final";
                 document.getElementById('btn-docx').disabled = false;
-                if(!data.sucesso) { Swal.fire('Erro', data.erro, 'error'); return; }
+                
+                if(!data.sucesso) { 
+                    Swal.fire('Erro', data.erro, 'error'); 
+                    return; 
+                }
                 
                 const link = document.createElement('a');
                 link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + data.arquivo_base64;
@@ -193,17 +299,20 @@
                 link.click();
                 
                 document.getElementById('area-edicao').style.display = 'none';
+                
                 Swal.fire({
                     icon: 'success',
-                    title: 'Documento Gerado!',
-                    text: 'O Word foi baixado e salvo na pasta do cliente.',
-                    background: '#1e2130', color: '#e2e8f0', confirmButtonColor: '#10b981'
+                    title: 'Trabalho Concluído!',
+                    text: 'O Word foi baixado e salvo na pasta do cliente. Ele foi movido para os Pendentes aguardando pagamento.',
+                    background: '#1e2130', 
+                    color: '#e2e8f0', 
+                    confirmButtonColor: '#10b981'
                 });
             })
             .catch(err => {
-                document.getElementById('btn-docx').innerHTML = "<i class='ph-fill ph-check-circle'></i> Aprovar e Baixar DOCX Final";
+                document.getElementById('btn-docx').innerHTML = "<i class='ph-bold ph-check-circle'></i> Aprovar Tudo e Baixar DOCX Final";
                 document.getElementById('btn-docx').disabled = false;
-                Swal.fire('Erro', 'Falha ao gerar o arquivo.', 'error');
+                Swal.fire('Erro', 'Falha fatal ao gerar o arquivo Word.', 'error');
             });
         }
     </script>
