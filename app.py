@@ -155,7 +155,7 @@ PROMPT_REGRAS_BASE = """
 """
 
 # =========================================================
-# INICIALIZAÇÃO BLINDADA (Criando as tabelas e colunas em segurança)
+# INICIALIZAÇÃO BLINDADA
 # =========================================================
 with app.app_context():
     db.create_all()
@@ -223,7 +223,6 @@ def chamar_ia(prompt, nome_modelo):
         if not client: 
             raise Exception("A Chave da API do Google não foi configurada.")
             
-        # Tenta acionar a busca na Internet (Google Search Grounding)
         try:
             resposta = client.models.generate_content(
                 model=nome_modelo, 
@@ -233,7 +232,6 @@ def chamar_ia(prompt, nome_modelo):
                 )
             )
         except Exception:
-            # Fallback seguro caso o modelo específico recuse a busca
             resposta = client.models.generate_content(
                 model=nome_modelo, 
                 contents=prompt
@@ -348,7 +346,6 @@ def portal():
     erro = None
     if request.method == 'POST':
         telefone_busca = request.form.get('telefone')
-        # Limpa tudo, deixa apenas números para garantir uma busca perfeita
         tel_limpo = re.sub(r'\D', '', telefone_busca)
         
         todos_alunos = Aluno.query.all()
@@ -378,7 +375,10 @@ def index():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date: 
         return render_template('expirado.html')
         
-    alunos_ativos = Aluno.query.filter(Aluno.user_id==current_user.id, Aluno.status != 'Pago').all()
+    # FIX: Puxa todos e filtra no Python para não perder clientes com status NULL
+    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
+    alunos_ativos = [a for a in todos_alunos if a.status != 'Pago']
+    
     prompts = PromptConfig.query.all()
     
     return render_template('index.html', modelos=MODELOS_DISPONIVEIS, alunos=alunos_ativos, prompts=prompts)
@@ -442,7 +442,7 @@ def gerar_docx_final():
             db.session.add(novo_doc)
             
             aluno = Aluno.query.get(aluno_id)
-            if aluno and aluno.status == 'Produção': 
+            if aluno and (aluno.status == 'Produção' or aluno.status is None): 
                 aluno.status = 'Pendente'
                 
             db.session.commit()
@@ -562,8 +562,11 @@ def clientes():
         flash('Cliente cadastrado!', 'success')
         return redirect(url_for('clientes'))
     
-    alunos_pendentes = Aluno.query.filter(Aluno.user_id==current_user.id, Aluno.status != 'Pago').order_by(Aluno.id.desc()).all()
-    alunos_pagos = Aluno.query.filter(Aluno.user_id==current_user.id, Aluno.status == 'Pago').order_by(Aluno.id.desc()).all()
+    # FIX: A lógica unificada de Python resolve os clientes com status Vazio (NULL)
+    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
+    alunos_pendentes = [a for a in todos_alunos if a.status != 'Pago']
+    alunos_pagos = [a for a in todos_alunos if a.status == 'Pago']
+    
     config = SiteSettings.query.first()
     
     return render_template('clientes.html', alunos_pendentes=alunos_pendentes, alunos_pagos=alunos_pagos, config=config)
