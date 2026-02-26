@@ -154,67 +154,89 @@
             });
         }
 
-        // FUNÇÃO DE INTELIGÊNCIA: Regerar trecho lendo o contexto inteiro da página
+        // FUNÇÃO BLINDADA: Regerar trecho com o servidor Python à prova de falhas
         function regerarTrechoEspecifico(tagOriginal, textareaElement, btnElement) {
             
-            // 1. Antes de pedir à IA, lemos tudo o que o usuário escreveu ou alterou na tela inteira
             const textareas = document.querySelectorAll('#caixas-texto textarea');
             textareas.forEach(ta => { 
                 dicionarioEditavel[ta.dataset.chave] = ta.value; 
             });
 
-            // 2. Preparamos o pacote de informações
             const modeloSelecionado = document.getElementById('select_modelo').value;
             const temaTexto = document.querySelector('textarea[name="tema"]').value;
             const promptIdSelecionado = document.querySelector('select[name="prompt_id"]').value;
 
-            // 3. Mudança visual para modo "Carregando"
             const btnOriginalText = btnElement.innerHTML;
-            btnElement.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Lendo contexto e gerando...';
+            btnElement.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Lendo contexto...';
             btnElement.disabled = true;
             btnElement.style.opacity = '0.7';
             textareaElement.disabled = true;
 
-            // 4. Disparo usando JSON para conseguir enviar o dicionário de contexto gigante
             fetch('/regerar_trecho', { 
                 method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify({
                     tema: temaTexto,
                     tag: tagOriginal,
                     modelo: modeloSelecionado,
                     prompt_id: promptIdSelecionado,
-                    dicionario: dicionarioEditavel // Aqui vai o contexto para manter a coesão!
+                    dicionario: dicionarioEditavel
                 })
             })
-            .then(res => res.json())
+            .then(async res => {
+                // Força a leitura segura da resposta, mesmo se for erro 500 do Koyeb
+                const isJson = res.headers.get('content-type')?.includes('application/json');
+                const data = isJson ? await res.json() : null;
+
+                if (!res.ok) {
+                    const errorText = (data && data.erro) ? data.erro : `Falha no Servidor (Erro ${res.status})`;
+                    throw new Error(errorText);
+                }
+                if (!data) throw new Error("Resposta inválida do servidor.");
+                
+                return data;
+            })
             .then(data => {
-                // Voltar estado do botão
                 btnElement.innerHTML = btnOriginalText;
                 btnElement.disabled = false;
                 btnElement.style.opacity = '1';
                 textareaElement.disabled = false;
 
                 if(!data.sucesso) {
-                    Swal.fire('Erro da IA', 'Falha ao reescrever trecho: ' + data.erro, 'error');
+                    Swal.fire({
+                        icon: 'error', 
+                        title: 'Erro na IA', 
+                        text: data.erro, 
+                        background: '#1e2130', 
+                        color: '#e2e8f0'
+                    });
                     return;
                 }
 
-                // Injetar o texto coeso de volta na tela
                 textareaElement.value = data.novo_texto;
                 
                 let chave_completa = "{" + "{" + tagOriginal + "}" + "}";
                 dicionarioEditavel[chave_completa] = data.novo_texto;
 
                 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, background: '#1e2130', color: '#10b981' });
-                Toast.fire({ icon: 'success', title: 'Trecho atualizado com sucesso e mantendo coerência!' });
+                Toast.fire({ icon: 'success', title: 'Trecho reescrito com sucesso!' });
             })
             .catch(err => {
                 btnElement.innerHTML = btnOriginalText;
                 btnElement.disabled = false;
                 btnElement.style.opacity = '1';
                 textareaElement.disabled = false;
-                Swal.fire('Erro', 'Ocorreu uma falha de conexão.', 'error');
+                
+                Swal.fire({
+                    icon: 'error', 
+                    title: 'Falha Técnica', 
+                    text: err.message, 
+                    background: '#1e2130', 
+                    color: '#e2e8f0'
+                });
             });
         }
 
