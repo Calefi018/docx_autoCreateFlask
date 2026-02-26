@@ -240,7 +240,7 @@ def chamar_ia(prompt, nome_modelo):
         return limpar_texto_ia(resposta.text)
 
 # =========================================================
-# PROCESSAMENTO DE WORD (SUBSTITUIÇÃO DE TAGS)
+# PROCESSAMENTO DE WORD
 # =========================================================
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
     doc = Document(arquivo_template)
@@ -360,7 +360,7 @@ def portal():
     return render_template('portal.html', aluno=aluno, erro=erro)
 
 # =========================================================
-# ROTAS DO GERADOR E DE REGERAÇÃO (COM CONTEXTO)
+# ROTAS DO GERADOR E DE REGERAÇÃO
 # =========================================================
 MODELOS_DISPONIVEIS = [
     "gemini-2.5-flash", 
@@ -385,14 +385,20 @@ def index():
 @app.route('/gerar_rascunho', methods=['POST'])
 @login_required
 def gerar_rascunho():
-    tema = request.form.get('tema')
-    modelo = request.form.get('modelo')
-    prompt_id = request.form.get('prompt_id')
-    
-    config = PromptConfig.query.get(prompt_id) if prompt_id else PromptConfig.query.filter_by(is_default=True).first()
-    texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
-    
     try:
+        tema = request.form.get('tema')
+        modelo = request.form.get('modelo')
+        prompt_id = request.form.get('prompt_id')
+        
+        # Leitura blindada do ID do banco de dados
+        config = None
+        if prompt_id and str(prompt_id).isdigit():
+            config = PromptConfig.query.get(int(prompt_id))
+        if not config:
+            config = PromptConfig.query.filter_by(is_default=True).first()
+            
+        texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
+        
         texto_resposta = chamar_ia(f"TEMA:\n{tema}\n\n{texto_prompt}", modelo)
         dicionario = extrair_dicionario(texto_resposta)
         
@@ -405,6 +411,7 @@ def gerar_rascunho():
         return jsonify({"sucesso": True, "dicionario": dicionario})
         
     except Exception as e:
+        # Sistema de Fallback de Modelo
         try: 
             next_model = MODELOS_DISPONIVEIS[(MODELOS_DISPONIVEIS.index(modelo) + 1) % len(MODELOS_DISPONIVEIS)]
         except Exception: 
@@ -421,24 +428,34 @@ def gerar_rascunho():
 @app.route('/regerar_trecho', methods=['POST'])
 @login_required
 def regerar_trecho():
-    # Agora a rota recebe JSON com o contexto inteiro (o que o usuário já editou nas caixas)
-    dados = request.json
-    tema = dados.get('tema')
-    tag = dados.get('tag')
-    modelo = dados.get('modelo')
-    prompt_id = dados.get('prompt_id')
-    contexto_atual = dados.get('dicionario', {}) 
+    # Toda a lógica envolvida num bloco Try/Except para NUNCA retornar uma tela 500
+    try:
+        dados = request.json
+        if not dados:
+            return jsonify({"sucesso": False, "erro": "Nenhum dado recebido do navegador."})
 
-    config = PromptConfig.query.get(prompt_id) if prompt_id else PromptConfig.query.filter_by(is_default=True).first()
-    texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
+        tema = dados.get('tema', '')
+        tag = dados.get('tag', '')
+        modelo = dados.get('modelo', '')
+        prompt_id = dados.get('prompt_id')
+        contexto_atual = dados.get('dicionario', {}) 
 
-    # Monta uma String gigante lendo todo o dicionário para a IA entender o contexto
-    texto_contexto = ""
-    for chave, valor in contexto_atual.items():
-        if valor and str(valor).strip():
-            texto_contexto += f"{chave}:\n{valor}\n\n"
+        # Leitura rigorosa e protegida do ID
+        config = None
+        if prompt_id and str(prompt_id).isdigit():
+            config = PromptConfig.query.get(int(prompt_id))
+        if not config:
+            config = PromptConfig.query.filter_by(is_default=True).first()
+            
+        texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
 
-    prompt_regeracao = f"""Você é um professor avaliador extremamente rigoroso.
+        # Compila tudo o que está preenchido nas outras caixas
+        texto_contexto = ""
+        for chave, valor in contexto_atual.items():
+            if valor and str(valor).strip():
+                texto_contexto += f"{chave}:\n{valor}\n\n"
+
+        prompt_regeracao = f"""Você é um professor avaliador extremamente rigoroso.
 TEMA/CASO DO DESAFIO:\n{tema}
 
 CONTEXTO ATUAL DO TRABALHO (Leia isto para manter a total coerência):
@@ -450,31 +467,34 @@ REGRAS GERAIS E ESTRUTURA:
 TAREFA ESPECÍFICA DE CORREÇÃO:
 O usuário pediu para reescrever APENAS o trecho correspondente à tag: {tag}.
 Por favor, reescreva este trecho específico com excelência acadêmica.
-É OBRIGATÓRIO que o novo trecho faça sentido e tenha conexão lógica com o "CONTEXTO ATUAL DO TRABALHO" fornecido acima. Se for um "Por quê", ele deve justificar o "Aspecto" anterior de forma fluida. Se for uma conclusão, deve abraçar tudo.
-IMPORTANTE: NÃO inclua as marcações [START_{tag}] ou [END_{tag}] na sua resposta final. Retorne APENAS o texto limpo, direto e formatado para ser inserido no documento."""
+É OBRIGATÓRIO que o novo trecho faça sentido e tenha conexão lógica com o "CONTEXTO ATUAL DO TRABALHO" fornecido acima. Se for um "Por quê", ele deve justificar o "Aspecto" anterior de forma fluida.
+IMPORTANTE: NÃO inclua as marcações [START_{tag}] ou [END_{tag}] na sua resposta final. Retorne APENAS o texto limpo."""
 
-    try:
         novo_texto = chamar_ia(prompt_regeracao, modelo)
-        # Limpeza preventiva caso a IA mande tags acidentalmente
+        
+        # Limpeza preventiva caso a IA mande tags
         novo_texto = re.sub(rf"\[START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
         novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
         
         return jsonify({"sucesso": True, "novo_texto": novo_texto.strip()})
+        
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)})
 
 @app.route('/gerar_docx_final', methods=['POST'])
 @login_required
 def gerar_docx_final():
     try:
-        dados = request.json
+        dados = request.json or {}
         aluno_id = dados.get('aluno_id')
+        dicionario_editado = dados.get('dicionario', {})
         
         caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
         with open(caminho_padrao, 'rb') as f: 
             arquivo_memoria = io.BytesIO(f.read())
             
-        documento_pronto = preencher_template_com_tags(arquivo_memoria, dados.get('dicionario'))
+        documento_pronto = preencher_template_com_tags(arquivo_memoria, dicionario_editado)
         arquivo_bytes = documento_pronto.read()
         
         if aluno_id:
@@ -500,7 +520,7 @@ def gerar_docx_final():
         return jsonify({"sucesso": False, "erro": str(e)})
 
 # =========================================================
-# DASHBOARD, CONFIGURAÇÕES E PROMPTS
+# DASHBOARD E CONFIGURAÇÕES
 # =========================================================
 @app.route('/dashboard')
 @login_required
@@ -697,7 +717,7 @@ def upload_doc(aluno_id):
             )
             db.session.add(novo_doc)
             db.session.commit()
-            flash('Documento anexado e disponível no Portal do Aluno!', 'success')
+            flash('Documento anexado com sucesso!', 'success')
         else:
             flash('Apenas arquivos .docx e .pdf são permitidos.', 'error')
             
