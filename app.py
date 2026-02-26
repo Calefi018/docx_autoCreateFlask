@@ -375,7 +375,6 @@ def index():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date: 
         return render_template('expirado.html')
         
-    # FIX: Puxa todos e filtra no Python para não perder clientes com status NULL
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
     alunos_ativos = [a for a in todos_alunos if a.status != 'Pago']
     
@@ -418,6 +417,39 @@ def gerar_rascunho():
             "failed_model": modelo, 
             "suggested_model": next_model
         })
+
+# NOVA ROTA: Regerar um trecho específico
+@app.route('/regerar_trecho', methods=['POST'])
+@login_required
+def regerar_trecho():
+    tema = request.form.get('tema')
+    tag = request.form.get('tag')
+    modelo = request.form.get('modelo')
+    prompt_id = request.form.get('prompt_id')
+
+    config = PromptConfig.query.get(prompt_id) if prompt_id else PromptConfig.query.filter_by(is_default=True).first()
+    texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
+
+    prompt_regeracao = f"""Você é um professor avaliador extremamente rigoroso.
+TEMA/CASO DO DESAFIO:\n{tema}
+
+REGRAS GERAIS E ESTRUTURA:
+{texto_prompt}
+
+TAREFA ESPECÍFICA DE CORREÇÃO:
+O usuário pediu para reescrever APENAS o trecho correspondente à tag: {tag}.
+Por favor, reescreva este trecho específico com excelência acadêmica, respeitando as regras de tamanho e conteúdo estabelecidas para ele nas regras acima.
+IMPORTANTE: NÃO inclua as marcações [START_{tag}] ou [END_{tag}] na sua resposta final. Retorne APENAS o texto limpo, direto e formatado para ser inserido no documento."""
+
+    try:
+        novo_texto = chamar_ia(prompt_regeracao, modelo)
+        # Limpeza preventiva caso a IA teime em mandar as tags
+        novo_texto = re.sub(rf"\[START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
+        novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
+        
+        return jsonify({"sucesso": True, "novo_texto": novo_texto.strip()})
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": str(e)})
 
 @app.route('/gerar_docx_final', methods=['POST'])
 @login_required
@@ -562,7 +594,6 @@ def clientes():
         flash('Cliente cadastrado!', 'success')
         return redirect(url_for('clientes'))
     
-    # FIX: A lógica unificada de Python resolve os clientes com status Vazio (NULL)
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
     alunos_pendentes = [a for a in todos_alunos if a.status != 'Pago']
     alunos_pagos = [a for a in todos_alunos if a.status == 'Pago']
