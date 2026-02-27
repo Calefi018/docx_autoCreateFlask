@@ -14,7 +14,6 @@ from docx import Document
 
 from google import genai 
 from google.genai import types 
-import openai 
 
 app = Flask(__name__)
 
@@ -131,6 +130,9 @@ class SiteSettings(db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+# =========================================================
+# PROMPT BASE ANTI-PREGUIÇA
+# =========================================================
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
     1. PROIBIDO usar palavras robóticas de IA ou formato JSON.
@@ -198,7 +200,7 @@ with app.app_context():
     except Exception: db.session.rollback()
 
 # =========================================================
-# FUNÇÕES DA IA (MOTOR NATIVO OPENROUTER SEM FALHAS)
+# MOTOR DE CONEXÃO DIRETA (ANTI-BLOQUEIO DO OPENROUTER)
 # =========================================================
 def limpar_texto_ia(texto):
     try: 
@@ -207,9 +209,14 @@ def limpar_texto_ia(texto):
     return texto
 
 def chamar_ia(prompt, nome_modelo):
-    if "openrouter" in nome_modelo.lower() or "/" in nome_modelo:
+    is_openrouter = "openrouter/" in nome_modelo.lower() or "/" in nome_modelo
+    
+    if is_openrouter:
         if not CHAVE_OPENROUTER: 
-            raise Exception("A Chave da API do OpenRouter não foi configurada no sistema.")
+            raise Exception("A Chave da API do OpenRouter não foi configurada.")
+            
+        # Pega o nome exato do modelo limpando o prefixo "openrouter/" se existir
+        modelo_limpo = nome_modelo.replace("openrouter/", "")
             
         headers = {
             "Authorization": f"Bearer {CHAVE_OPENROUTER}",
@@ -218,21 +225,11 @@ def chamar_ia(prompt, nome_modelo):
             "Content-Type": "application/json"
         }
         
-        fallback_models = [
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "qwen/qwen-2.5-72b-instruct:free",
-            "mistralai/mistral-nemo:free",
-            "google/gemini-2.5-flash:free"
-        ]
-        
-        models_to_try = [nome_modelo] + [m for m in fallback_models if m != nome_modelo]
-        
+        # Conexão Limpa sem plugins que quebram modelos gratuitos
         payload = {
-            "models": models_to_try,
-            "route": "fallback",
+            "model": modelo_limpo,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7,
-            "plugins": [{"id": "web"}]
+            "temperature": 0.7
         }
         
         try:
@@ -240,27 +237,28 @@ def chamar_ia(prompt, nome_modelo):
                 "https://openrouter.ai/api/v1/chat/completions", 
                 headers=headers, 
                 json=payload, 
-                timeout=180
+                timeout=120
             )
             
             if resposta.status_code != 200:
-                erro_detalhado = resposta.text
-                try: erro_detalhado = resposta.json().get('error', {}).get('message', resposta.text)
+                erro_txt = resposta.text
+                try: erro_txt = resposta.json().get('error', {}).get('message', resposta.text)
                 except: pass
-                raise Exception(f"OpenRouter bloqueou (Erro {resposta.status_code}): {erro_detalhado}")
+                raise Exception(f"OpenRouter bloqueou a conexão (Erro {resposta.status_code}): {erro_txt}")
                 
             dados_ia = resposta.json()
             if 'choices' not in dados_ia or len(dados_ia['choices']) == 0:
-                raise Exception("O OpenRouter não conseguiu gerar resposta em nenhum dos modelos da lista.")
+                raise Exception("A IA do OpenRouter retornou uma resposta vazia.")
                 
             return limpar_texto_ia(dados_ia['choices'][0]['message']['content'])
             
         except requests.exceptions.RequestException as e:
-            raise Exception(f"Falha de rede ao contactar os servidores OpenRouter: {str(e)}")
+            raise Exception(f"Falha de rede ao contactar o OpenRouter: {str(e)}")
             
     else:
+        # Motor Nativo do Google Gemini
         if not client: 
-            raise Exception("A Chave da API do Google não foi configurada.")
+            raise Exception("A Chave da API nativa do Google não foi configurada.")
             
         try:
             resposta = client.models.generate_content(
@@ -279,7 +277,7 @@ def chamar_ia(prompt, nome_modelo):
         return limpar_texto_ia(resposta.text)
 
 # =========================================================
-# PROCESSAMENTO DE WORD
+# PROCESSAMENTO DE WORD E LIMPEZA
 # =========================================================
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
     doc = Document(arquivo_template)
@@ -340,6 +338,7 @@ def extrair_dicionario(texto_ia):
         match = re.search(rf"\[START_{chave}\](.*?)\[END_{chave}\]", texto_ia, re.DOTALL)
         if match:
             trecho = match.group(1).strip()
+            # Vacina dupla contra o negrito da IA
             while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4:
                 trecho = trecho[2:-2].strip()
             dic[f"{{{{{chave}}}}}"] = trecho
@@ -379,15 +378,17 @@ def portal():
     return render_template('portal.html', aluno=aluno, erro=erro)
 
 # =========================================================
-# ROTAS DO GERADOR E DE REGERAÇÃO
+# ROTAS DO GERADOR E FALLBACK INVISÍVEL
 # =========================================================
+
+# LISTA OFICIAL COM AS MELHORES IAS GRATUITAS DE 2026
 MODELOS_DISPONIVEIS = [
-    "gemini-2.5-flash", 
-    "gemini-2.5-pro", 
-    "gemini-2.5-flash-lite", 
-    "meta-llama/llama-3.3-70b-instruct:free", 
-    "qwen/qwen-2.5-72b-instruct:free",        
-    "mistralai/mistral-nemo:free"             
+    "google/gemini-2.5-flash:free",           # Se o seu acabar, ele usa o Flash do OpenRouter grátis!
+    "meta-llama/llama-3.3-70b-instruct:free", # O modelo mais pesado e inteligente da Meta (Grátis)
+    "qwen/qwen-2.5-72b-instruct:free",        # Gigante Asiático com excelente raciocínio (Grátis)
+    "mistralai/mistral-nemo:free",            # Inteligência Europeia fantástica para escrita (Grátis)
+    "gemini-2.5-flash",                       # Nativo (sua cota)
+    "gemini-2.5-pro"                          # Nativo (sua cota)
 ]
 
 @app.route('/')
@@ -402,28 +403,44 @@ def index():
 @app.route('/gerar_rascunho', methods=['POST'])
 @login_required
 def gerar_rascunho():
-    try:
-        tema = request.form.get('tema')
-        modelo = request.form.get('modelo')
-        prompt_id = request.form.get('prompt_id')
-        
-        config = PromptConfig.query.get(int(prompt_id)) if prompt_id and str(prompt_id).isdigit() else PromptConfig.query.filter_by(is_default=True).first()
-        texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
-        
-        texto_resposta = chamar_ia(f"TEMA:\n{tema}\n\n{texto_prompt}", modelo)
-        dicionario = extrair_dicionario(texto_resposta)
-        
-        if not any(dicionario.values()): raise Exception("A IA falhou em estruturar o documento. É possível que ela não tenha gerado as tags exigidas.")
+    tema = request.form.get('tema')
+    modelo_selecionado = request.form.get('modelo')
+    prompt_id = request.form.get('prompt_id')
+    
+    config = PromptConfig.query.get(int(prompt_id)) if prompt_id and str(prompt_id).isdigit() else PromptConfig.query.filter_by(is_default=True).first()
+    texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
+    prompt_completo = f"TEMA:\n{tema}\n\n{texto_prompt}"
+    
+    # SISTEMA DE FALLBACK INVISÍVEL: Cria uma fila. Tenta o que você escolheu. Se falhar, tenta o próximo automaticamente.
+    fila_modelos = [modelo_selecionado] + [m for m in MODELOS_DISPONIVEIS if m != modelo_selecionado]
+    ultimo_erro = ""
+
+    for modelo in fila_modelos:
+        try:
+            texto_resposta = chamar_ia(prompt_completo, modelo)
+            dicionario = extrair_dicionario(texto_resposta)
             
-        db.session.add(RegistroUso(modelo_usado=modelo))
-        db.session.commit()
-        return jsonify({"sucesso": True, "dicionario": dicionario})
-        
-    except Exception as e:
-        traceback.print_exc()
-        try: next_model = MODELOS_DISPONIVEIS[(MODELOS_DISPONIVEIS.index(modelo) + 1) % len(MODELOS_DISPONIVEIS)]
-        except Exception: next_model = MODELOS_DISPONIVEIS[0]
-        return jsonify({"sucesso": False, "erro": str(e), "fallback": True, "failed_model": modelo, "suggested_model": next_model})
+            # Se a resposta vier vazia (erro da IA), força a passar para o próximo modelo
+            if not any(dicionario.values()): 
+                raise Exception("A IA falhou em estruturar o documento.")
+                
+            db.session.add(RegistroUso(modelo_usado=modelo))
+            db.session.commit()
+            
+            # Devolve o modelo que realmente conseguiu funcionar para atualizar o frontend
+            return jsonify({"sucesso": True, "dicionario": dicionario, "modelo_utilizado": modelo})
+            
+        except Exception as e:
+            ultimo_erro = str(e)
+            print(f"Tentativa falhou no modelo {modelo}. Motivo: {ultimo_erro}. Tentando o próximo...")
+            continue # Tenta o próximo da fila silenciosamente
+            
+    # Só retorna erro se TODOS os servidores do mundo estiverem caídos
+    return jsonify({
+        "sucesso": False, 
+        "erro": f"Todas as IAs gratuitas do OpenRouter estão ocupadas no momento. Último erro: {ultimo_erro}", 
+        "fallback": False 
+    })
 
 @app.route('/regerar_trecho', methods=['POST'])
 @login_required
@@ -434,7 +451,7 @@ def regerar_trecho():
 
         tema = dados.get('tema', '')
         tag = dados.get('tag', '')
-        modelo = dados.get('modelo', '')
+        modelo_selecionado = dados.get('modelo', MODELOS_DISPONIVEIS[0])
         prompt_id = dados.get('prompt_id')
         contexto_atual = dados.get('dicionario', {}) 
 
@@ -445,14 +462,28 @@ def regerar_trecho():
         for chave, valor in contexto_atual.items():
             if valor and str(valor).strip(): texto_contexto += f"{chave}:\n{valor}\n\n"
 
-        prompt_regeracao = f"""Você é um professor avaliador rigoroso.\nTEMA:\n{tema}\n\nCONTEXTO DO TRABALHO (Para manter a coerência):\n{texto_contexto}\n\nREGRAS:\n{texto_prompt}\n\nTAREFA: Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o contexto. NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate em negrito (**). Retorne APENAS o texto limpo."""
-        novo_texto = chamar_ia(prompt_regeracao, modelo)
+        prompt_regeracao = f"""Você é um professor avaliador rigoroso.\nTEMA:\n{tema}\n\nCONTEXTO DO TRABALHO (Para manter a coerência):\n{texto_contexto}\n\nREGRAS:\n{texto_prompt}\n\nTAREFA: Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o contexto. NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta toda em negrito (**). Retorne APENAS o texto limpo."""
         
-        novo_texto = re.sub(rf"\[START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
-        novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE).strip()
-        while novo_texto.startswith('**') and novo_texto.endswith('**') and len(novo_texto) > 4: novo_texto = novo_texto[2:-2].strip()
+        # SISTEMA DE FALLBACK INVISÍVEL NA REGERAÇÃO TAMBÉM
+        fila_modelos = [modelo_selecionado] + [m for m in MODELOS_DISPONIVEIS if m != modelo_selecionado]
+        ultimo_erro = ""
+
+        for modelo in fila_modelos:
+            try:
+                novo_texto = chamar_ia(prompt_regeracao, modelo)
+                novo_texto = re.sub(rf"\[START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
+                novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE).strip()
+                
+                while novo_texto.startswith('**') and novo_texto.endswith('**') and len(novo_texto) > 4: 
+                    novo_texto = novo_texto[2:-2].strip()
+                
+                return jsonify({"sucesso": True, "novo_texto": novo_texto, "modelo_utilizado": modelo})
+            except Exception as e:
+                ultimo_erro = str(e)
+                continue
+                
+        return jsonify({"sucesso": False, "erro": f"Todas as IAs falharam ao tentar regerar. Erro: {ultimo_erro}"})
         
-        return jsonify({"sucesso": True, "novo_texto": novo_texto})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)})
@@ -537,7 +568,7 @@ def delete_prompt(id):
     return redirect(url_for('gerenciar_prompts'))
 
 # =========================================================
-# CRM E GESTÃO DE CLIENTES (LISTA CLÁSSICA, SEM KANBAN)
+# CRM E GESTÃO DE CLIENTES
 # =========================================================
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
