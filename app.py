@@ -4,6 +4,7 @@ import re
 import base64
 import traceback
 import json
+import requests  # IMPORTANTE: A nova biblioteca que nos permite "enganar" o bloqueio do OpenRouter
 from datetime import datetime, date
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file
 from flask_sqlalchemy import SQLAlchemy
@@ -130,15 +131,12 @@ class SiteSettings(db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# =========================================================
-# PROMPT BASE MELHORADO (ANTI-PREGUIÇA E ANTI-OMISSÃO)
-# =========================================================
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
     1. PROIBIDO usar palavras robóticas de IA ou formato JSON.
     2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas para destacar palavras-chave pontuais.
     3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você deve gerar as respostas para TODAS AS 17 TAGS listadas abaixo, sem exceção.
-    4. PROFUNDIDADE EXIGIDA: Proibido gerar respostas rasas ou de apenas uma linha (exceto se a tag exigir). O conteúdo deve ser analítico, universitário e rico em detalhes.
+    4. PROFUNDIDADE EXIGIDA: Proibido gerar respostas rasas ou de apenas uma linha. O conteúdo deve ser analítico, universitário e rico em detalhes.
     
     ESTRUTURA DE PARÁGRAFOS EXIGIDA:
     - Resumo: EXATAMENTE 1 parágrafo robusto.
@@ -213,7 +211,7 @@ with app.app_context():
         db.session.rollback()
 
 # =========================================================
-# FUNÇÕES DA IA E INTEGRAÇÃO GOOGLE GROUNDING
+# FUNÇÕES DA IA (GOOGLE E A NOVA CONEXÃO OPENROUTER)
 # =========================================================
 def limpar_texto_ia(texto):
     try: 
@@ -223,21 +221,49 @@ def limpar_texto_ia(texto):
     return texto
 
 def chamar_ia(prompt, nome_modelo):
-    # Condição que ativa a biblioteca da OpenAI para se comunicar com o OpenRouter
     if "openrouter" in nome_modelo.lower() or "/" in nome_modelo:
         if not CHAVE_OPENROUTER: 
-            raise Exception("A Chave da API do OpenRouter não foi configurada.")
+            raise Exception("A Chave da API do OpenRouter não foi configurada no sistema.")
             
-        or_client = openai.OpenAI(api_key=CHAVE_OPENROUTER, base_url="https://openrouter.ai/api/v1")
-        response = or_client.chat.completions.create(
-            model=nome_modelo, 
-            messages=[{"role": "user", "content": prompt}], 
-            temperature=0.7 # Mantém a IA focada e controlada
-        )
-        return limpar_texto_ia(response.choices[0].message.content)
+        # NOVA LÓGICA DE CONEXÃO DIRETA: Engana o sistema Anti-Bot do OpenRouter
+        headers = {
+            "Authorization": f"Bearer {CHAVE_OPENROUTER}",
+            "HTTP-Referer": "https://hubmaster-system.com", # Exigência Oculta da API
+            "X-Title": "HubMaster Premium SaaS",            # Exigência Oculta da API
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": nome_modelo,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7
+        }
+        
+        try:
+            # Envia o pacote de dados com tempo de espera generoso (as IAs gratuitas demoram um pouco mais)
+            resposta = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions", 
+                headers=headers, 
+                json=payload, 
+                timeout=120
+            )
+            
+            if resposta.status_code != 200:
+                raise Exception(f"OpenRouter bloqueou a conexão (Erro {resposta.status_code}): {resposta.text}")
+                
+            dados_ia = resposta.json()
+            if 'choices' not in dados_ia or len(dados_ia['choices']) == 0:
+                raise Exception("A IA do OpenRouter retornou vazio. Tentativa falhada.")
+                
+            return limpar_texto_ia(dados_ia['choices'][0]['message']['content'])
+            
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Falha na rede ao contactar OpenRouter: {str(e)}")
+            
     else:
+        # Mantém o Google Gemini intacto
         if not client: 
-            raise Exception("A Chave da API do Google não foi configurada.")
+            raise Exception("A Chave da API do Google Gemini não foi configurada.")
             
         try:
             resposta = client.models.generate_content(
@@ -343,6 +369,24 @@ def extrair_dicionario(texto_ia):
             dic[f"{{{{{chave}}}}}"] = "" 
     return dic
 
+def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
+    config = PromptConfig.query.filter_by(is_default=True).first()
+    regras = config.texto if config else PROMPT_REGRAS_BASE
+    
+    prompt = f"""Você é um professor avaliador extremamente rigoroso.
+    TEMA: {texto_tema}
+    TRABALHO ATUAL: {texto_trabalho}
+    CRÍTICA RECEBIDA: {critica}
+    TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. 
+    NUNCA formate a resposta inteira em negrito.
+    {regras}"""
+    
+    try:
+        texto_resposta = chamar_ia(prompt, nome_modelo)
+        return extrair_dicionario(texto_resposta)
+    except Exception as e: 
+        raise Exception(f"Falha na IA (Correção): {str(e)}")
+
 # =========================================================
 # ROTAS PÚBLICAS (PORTAL DO ALUNO)
 # =========================================================
@@ -369,14 +413,14 @@ def portal():
 # ROTAS DO GERADOR E DE REGERAÇÃO
 # =========================================================
 
-# LISTA ATUALIZADA: Forçamos o OpenRouter a usar modelos gigantes e 100% gratuitos
+# LISTA ATUALIZADA E BLINDADA DE MODELOS
 MODELOS_DISPONIVEIS = [
     "gemini-2.5-flash", 
     "gemini-2.5-pro", 
     "gemini-2.5-flash-lite", 
-    "meta-llama/llama-3.3-70b-instruct:free", # Gigante da Meta (Gratuito no OpenRouter)
-    "qwen/qwen-2.5-72b-instruct:free",        # Excelente raciocínio (Gratuito no OpenRouter)
-    "mistralai/mistral-nemo:free"             # Ótimo para língua portuguesa (Gratuito no OpenRouter)
+    "meta-llama/llama-3.3-70b-instruct:free", # O modelo mais pesado e inteligente da Meta (Grátis)
+    "qwen/qwen-2.5-72b-instruct:free",        # Gigante Asiático com excelente raciocínio (Grátis)
+    "mistralai/mistral-nemo:free"             # Inteligência Europeia fantástica para escrita (Grátis)
 ]
 
 @app.route('/')
@@ -412,7 +456,7 @@ def gerar_rascunho():
         dicionario = extrair_dicionario(texto_resposta)
         
         if not any(dicionario.values()): 
-            raise Exception("A IA não retornou o formato de tags esperado. A resposta foi vazia ou fora do padrão.")
+            raise Exception("A IA falhou em estruturar o documento. É possível que ela não tenha gerado as tags exigidas.")
             
         db.session.add(RegistroUso(modelo_usado=modelo))
         db.session.commit()
