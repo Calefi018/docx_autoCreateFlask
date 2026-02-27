@@ -58,7 +58,7 @@
             <i class="ph-fill ph-pencil-simple"></i> Pré-visualização e Edição Contextual
         </h2>
         <p style="color: var(--text-muted); font-size: 0.95em; margin-bottom: 25px;">
-            Se o botão de <b>"Regerar Trecho"</b> for ativado, a IA lerá <b>tudo</b> o que está escrito nas outras caixas abaixo para garantir que o novo texto faça total sentido com o resto do trabalho.
+            Se a IA pular um trecho (a caixa ficará vermelha e vazia), clique em <b>"Regerar Trecho"</b> para ela completar o buraco!
         </p>
         
         <div id="caixas-texto"></div>
@@ -72,6 +72,7 @@
         let dicionarioEditavel = {};
         let progressInterval;
 
+        // Lista Oficial Exata (As 17 Caixas que TÊM que aparecer)
         const ordemOficial = [
             "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL",
             "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
@@ -99,14 +100,9 @@
             document.getElementById('btn-submit').style.display = 'block';
         }
 
-        function iniciarGeracao(modeloSubstituto = null) {
+        function iniciarGeracao() {
             const form = document.getElementById('formGerar');
             const formdata = new FormData(form);
-            
-            if(modeloSubstituto) {
-                formdata.set('modelo', modeloSubstituto);
-                document.getElementById('select_modelo').value = modeloSubstituto;
-            }
 
             document.getElementById('btn-submit').style.display = 'none';
             document.getElementById('area-edicao').style.display = 'none';
@@ -122,25 +118,15 @@
                 pararCarregamento();
                 
                 if(!data.sucesso) {
-                    if(data.fallback) {
-                        Swal.fire({
-                            title: 'Servidor Ocupado',
-                            html: `A IA selecionada falhou (<strong>${data.failed_model}</strong>).<br><br>Deseja tentar com a IA reserva: <b style="color:var(--primary);">${data.suggested_model}</b>?`,
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#6366f1',
-                            cancelButtonColor: '#ef4444',
-                            confirmButtonText: 'Sim, usar IA reserva',
-                            cancelButtonText: 'Cancelar',
-                            background: '#1e2130', 
-                            color: '#e2e8f0'
-                        }).then((result) => {
-                            if (result.isConfirmed) { iniciarGeracao(data.suggested_model); }
-                        });
-                    } else { 
-                        Swal.fire({ icon: 'error', title: 'Erro Fatal', text: data.erro, background: '#1e2130', color: '#e2e8f0' });
-                    }
+                    Swal.fire({ icon: 'error', title: 'Falha Geral', text: data.erro, background: '#1e2130', color: '#e2e8f0' });
                     return;
+                }
+                
+                // Se a IA que funcionou for diferente da que você escolheu, ele avisa!
+                const modeloEscolhido = document.getElementById('select_modelo').value;
+                if(data.modelo_utilizado !== modeloEscolhido) {
+                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 5000, background: '#1e2130', color: '#f59e0b' });
+                    Toast.fire({ icon: 'warning', title: `Modelo principal ocupado. Trabalho gerado usando a reserva: ${data.modelo_utilizado}` });
                 }
                 
                 dicionarioEditavel = data.dicionario;
@@ -154,8 +140,7 @@
             });
         }
 
-        // FUNÇÃO BLINDADA: Regerar trecho com o servidor Python à prova de falhas
-        function regerarTrechoEspecifico(tagOriginal, textareaElement, btnElement) {
+        function regerarTrechoEspecifico(tagOriginal, textareaElement, btnElement, wrapperElement, labelElement, tituloOriginal) {
             
             const textareas = document.querySelectorAll('#caixas-texto textarea');
             textareas.forEach(ta => { 
@@ -187,7 +172,6 @@
                 })
             })
             .then(async res => {
-                // Força a leitura segura da resposta, mesmo se for erro 500 do Koyeb
                 const isJson = res.headers.get('content-type')?.includes('application/json');
                 const data = isJson ? await res.json() : null;
 
@@ -206,13 +190,7 @@
                 textareaElement.disabled = false;
 
                 if(!data.sucesso) {
-                    Swal.fire({
-                        icon: 'error', 
-                        title: 'Erro na IA', 
-                        text: data.erro, 
-                        background: '#1e2130', 
-                        color: '#e2e8f0'
-                    });
+                    Swal.fire({ icon: 'error', title: 'Erro na IA', text: data.erro, background: '#1e2130', color: '#e2e8f0' });
                     return;
                 }
 
@@ -220,6 +198,12 @@
                 
                 let chave_completa = "{" + "{" + tagOriginal + "}" + "}";
                 dicionarioEditavel[chave_completa] = data.novo_texto;
+
+                // Remove o "vermelho de erro" se o trecho foi regerado com sucesso
+                wrapperElement.style.background = 'rgba(30, 33, 48, 0.3)';
+                wrapperElement.style.border = '1px solid var(--border)';
+                labelElement.innerHTML = `<b>${tituloOriginal}</b>`;
+                labelElement.style.color = "var(--secondary)";
 
                 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, background: '#1e2130', color: '#10b981' });
                 Toast.fire({ icon: 'success', title: 'Trecho reescrito com sucesso!' });
@@ -230,70 +214,68 @@
                 btnElement.style.opacity = '1';
                 textareaElement.disabled = false;
                 
-                Swal.fire({
-                    icon: 'error', 
-                    title: 'Falha Técnica', 
-                    text: err.message, 
-                    background: '#1e2130', 
-                    color: '#e2e8f0'
-                });
+                Swal.fire({ icon: 'error', title: 'Falha Técnica', text: err.message, background: '#1e2130', color: '#e2e8f0' });
             });
         }
 
+        // NOVO MOTOR VISUAL (Raio-X de Omissões)
         function montarEditor(dic) {
             const container = document.getElementById('caixas-texto');
             container.innerHTML = ''; 
             
             ordemOficial.forEach(chave_base => {
                 let chave_completa = "{" + "{" + chave_base + "}" + "}";
+                let tituloAmigavel = chave_base.replace(/_/g, ' ');
                 
-                if (dic[chave_completa] && dic[chave_completa].trim() !== "") {
-                    let tituloAmigavel = chave_base.replace(/_/g, ' ');
-                    
-                    let wrapper = document.createElement('div');
-                    wrapper.style.marginBottom = '20px';
-                    wrapper.style.background = 'rgba(30, 33, 48, 0.3)';
-                    wrapper.style.padding = '15px';
-                    wrapper.style.borderRadius = '8px';
-                    wrapper.style.border = '1px solid var(--border)';
-                    
-                    let headerBox = document.createElement('div');
-                    headerBox.style.display = 'flex';
-                    headerBox.style.justifyContent = 'space-between';
-                    headerBox.style.alignItems = 'center';
-                    headerBox.style.marginBottom = '10px';
-                    
-                    let label = document.createElement('label');
-                    label.innerHTML = `<b>${tituloAmigavel}</b>`;
-                    label.style.color = "var(--secondary)";
-                    label.style.fontSize = "1.05rem";
-                    label.style.margin = "0";
-                    
-                    let btnRegerar = document.createElement('button');
-                    btnRegerar.type = 'button';
-                    btnRegerar.className = 'btn';
-                    btnRegerar.style.padding = '6px 12px';
-                    btnRegerar.style.fontSize = '0.85rem';
-                    btnRegerar.style.backgroundColor = '#4f46e5';
-                    btnRegerar.innerHTML = '<i class="ph-bold ph-arrows-clockwise"></i> Regerar Trecho';
-                    
-                    let textarea = document.createElement('textarea');
-                    textarea.rows = 5;
-                    textarea.value = dic[chave_completa];
-                    textarea.dataset.chave = chave_completa;
-                    textarea.style.margin = '0';
-                    textarea.onchange = (e) => { dicionarioEditavel[e.target.dataset.chave] = e.target.value; };
-                    
-                    btnRegerar.onclick = () => regerarTrechoEspecifico(chave_base, textarea, btnRegerar);
+                // Se a IA não gerou a tag, o texto fica vazio
+                let texto_caixa = dic[chave_completa] ? dic[chave_completa].trim() : "";
+                let is_vazio = (texto_caixa === "");
+                
+                let wrapper = document.createElement('div');
+                wrapper.style.marginBottom = '20px';
+                // Se estiver vazio, pinta a caixa de vermelho escuro
+                wrapper.style.background = is_vazio ? 'rgba(239, 68, 68, 0.05)' : 'rgba(30, 33, 48, 0.3)';
+                wrapper.style.padding = '15px';
+                wrapper.style.borderRadius = '8px';
+                wrapper.style.border = is_vazio ? '1px dashed #ef4444' : '1px solid var(--border)';
+                
+                let headerBox = document.createElement('div');
+                headerBox.style.display = 'flex';
+                headerBox.style.justifyContent = 'space-between';
+                headerBox.style.alignItems = 'center';
+                headerBox.style.marginBottom = '10px';
+                
+                let label = document.createElement('label');
+                // Se a IA pulou, avisa o usuário
+                label.innerHTML = is_vazio ? `<b>${tituloAmigavel} <span style="color:#ef4444; font-size:0.8rem; font-weight:normal;">(A IA pulou. Regere!)</span></b>` : `<b>${tituloAmigavel}</b>`;
+                label.style.color = is_vazio ? "#ef4444" : "var(--secondary)";
+                label.style.fontSize = "1.05rem";
+                label.style.margin = "0";
+                
+                let btnRegerar = document.createElement('button');
+                btnRegerar.type = 'button';
+                btnRegerar.className = 'btn';
+                btnRegerar.style.padding = '6px 12px';
+                btnRegerar.style.fontSize = '0.85rem';
+                btnRegerar.style.backgroundColor = is_vazio ? '#ef4444' : '#4f46e5';
+                btnRegerar.innerHTML = '<i class="ph-bold ph-arrows-clockwise"></i> Regerar Trecho';
+                
+                let textarea = document.createElement('textarea');
+                textarea.rows = is_vazio ? 2 : 5;
+                textarea.value = texto_caixa;
+                textarea.dataset.chave = chave_completa;
+                textarea.style.margin = '0';
+                textarea.onchange = (e) => { dicionarioEditavel[e.target.dataset.chave] = e.target.value; };
+                
+                btnRegerar.onclick = () => regerarTrechoEspecifico(chave_base, textarea, btnRegerar, wrapper, label, tituloAmigavel);
 
-                    headerBox.appendChild(label);
-                    headerBox.appendChild(btnRegerar);
-                    
-                    wrapper.appendChild(headerBox);
-                    wrapper.appendChild(textarea);
-                    
-                    container.appendChild(wrapper);
-                }
+                headerBox.appendChild(label);
+                headerBox.appendChild(btnRegerar);
+                
+                wrapper.appendChild(headerBox);
+                wrapper.appendChild(textarea);
+                
+                container.appendChild(wrapper);
             });
         }
 
