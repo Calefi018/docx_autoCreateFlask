@@ -71,7 +71,7 @@ client = genai.Client(api_key=CHAVE_API_GOOGLE) if CHAVE_API_GOOGLE else None
 CHAVE_OPENROUTER = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
-# MODELOS DO BANCO DE DADOS (COM A NOVA TABELA DE TEMAS)
+# MODELOS DO BANCO DE DADOS
 # =========================================================
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -91,7 +91,6 @@ class Aluno(db.Model):
     status = db.Column(db.String(20), default='Produção') 
     valor = db.Column(db.Float, default=70.0) 
     
-    # Relações (O aluno agora tem documentos e um banco de temas)
     documentos = db.relationship('Documento', backref='aluno', lazy=True, cascade="all, delete-orphan")
     temas = db.relationship('TemaTrabalho', backref='aluno', lazy=True, cascade="all, delete-orphan")
 
@@ -102,7 +101,6 @@ class Documento(db.Model):
     dados_arquivo = db.Column(db.LargeBinary, nullable=False) 
     data_upload = db.Column(db.DateTime, default=datetime.utcnow)
 
-# NOVA TABELA: Guarda o histórico infinito de temas do cliente
 class TemaTrabalho(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     aluno_id = db.Column(db.Integer, db.ForeignKey('aluno.id'), nullable=False)
@@ -132,38 +130,43 @@ class SiteSettings(db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+# =========================================================
+# PROMPT BASE MELHORADO (ANTI-PREGUIÇA E ANTI-OMISSÃO)
+# =========================================================
 PROMPT_REGRAS_BASE = """
-    REGRA DE OURO (LINGUAGEM HUMANA E LIMITES RIGOROSOS):
-    - PROIBIDO usar palavras robóticas de IA.
-    - Escreva de forma natural e acadêmica.
-    - NÃO USE FORMATO JSON.
-    - NUNCA formate o texto inteiro em negrito (**).
-    - OBRIGATÓRIO (LIMITE DE PARÁGRAFOS): 
-      * Resumo: EXATAMENTE 1 parágrafo.
-      * Contexto: EXATAMENTE 1 parágrafo.
-      * Análise: EXATAMENTE 1 parágrafo.
-      * Propostas de solução: MÁXIMO de 2 parágrafos.
-      * Conclusão reflexiva: MÁXIMO de 2 parágrafos.
-      * Autoavaliação: EXATAMENTE 1 parágrafo (sem atribuir nota a si mesmo).
+    REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
+    1. PROIBIDO usar palavras robóticas de IA ou formato JSON.
+    2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas para destacar palavras-chave pontuais.
+    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você deve gerar as respostas para TODAS AS 17 TAGS listadas abaixo, sem exceção.
+    4. PROFUNDIDADE EXIGIDA: Proibido gerar respostas rasas ou de apenas uma linha (exceto se a tag exigir). O conteúdo deve ser analítico, universitário e rico em detalhes.
     
-    GERAÇÃO OBRIGATÓRIA:
-    [START_RESUMO_MEMORIAL] [Resposta] [END_RESUMO_MEMORIAL]
-    [START_CONTEXTO_MEMORIAL] [Resposta] [END_CONTEXTO_MEMORIAL]
-    [START_ANALISE_MEMORIAL] [Resposta] [END_ANALISE_MEMORIAL]
-    [START_ASPECTO_1] [Resposta] [END_ASPECTO_1]
-    [START_POR_QUE_1] [Resposta] [END_POR_QUE_1]
-    [START_ASPECTO_2] [Resposta] [END_ASPECTO_2]
-    [START_POR_QUE_2] [Resposta] [END_POR_QUE_2]
-    [START_ASPECTO_3] [Resposta] [END_ASPECTO_3]
-    [START_POR_QUE_3] [Resposta] [END_POR_QUE_3]
-    [START_CONCEITOS_TEORICOS] [Resposta] [END_CONCEITOS_TEORICOS]
-    [START_ANALISE_CONCEITO_1] [Resposta] [END_ANALISE_CONCEITO_1]
-    [START_ENTENDIMENTO_TEORICO] [Resposta] [END_ENTENDIMENTO_TEORICO]
-    [START_SOLUCOES_TEORICAS] [Resposta] [END_SOLUCOES_TEORICAS]
-    [START_PROPOSTAS_MEMORIAL] [Resposta] [END_PROPOSTAS_MEMORIAL]
-    [START_CONCLUSAO_MEMORIAL] [Resposta] [END_CONCLUSAO_MEMORIAL]
-    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT diretas (Uso da Internet Permitido)] [END_REFERENCIAS_ADICIONAIS]
-    [START_AUTOAVALIACAO_MEMORIAL] [Resposta] [END_AUTOAVALIACAO_MEMORIAL]
+    ESTRUTURA DE PARÁGRAFOS EXIGIDA:
+    - Resumo: EXATAMENTE 1 parágrafo robusto.
+    - Contexto: EXATAMENTE 1 parágrafo detalhado.
+    - Análise: EXATAMENTE 1 parágrafo profundo.
+    - Aspectos e Por quês: Justificativas completas e lógicas.
+    - Propostas de solução: MÁXIMO de 2 parágrafos.
+    - Conclusão reflexiva: MÁXIMO de 2 parágrafos.
+    - Autoavaliação: EXATAMENTE 1 parágrafo (sem atribuir nota a si mesmo).
+    
+    GERAÇÃO OBRIGATÓRIA (Cumpra todas rigorosamente):
+    [START_RESUMO_MEMORIAL] [Resposta Profunda] [END_RESUMO_MEMORIAL]
+    [START_CONTEXTO_MEMORIAL] [Resposta Profunda] [END_CONTEXTO_MEMORIAL]
+    [START_ANALISE_MEMORIAL] [Resposta Profunda] [END_ANALISE_MEMORIAL]
+    [START_ASPECTO_1] [Resposta Profunda] [END_ASPECTO_1]
+    [START_POR_QUE_1] [Resposta Profunda] [END_POR_QUE_1]
+    [START_ASPECTO_2] [Resposta Profunda] [END_ASPECTO_2]
+    [START_POR_QUE_2] [Resposta Profunda] [END_POR_QUE_2]
+    [START_ASPECTO_3] [Resposta Profunda] [END_ASPECTO_3]
+    [START_POR_QUE_3] [Resposta Profunda] [END_POR_QUE_3]
+    [START_CONCEITOS_TEORICOS] [Resposta Profunda] [END_CONCEITOS_TEORICOS]
+    [START_ANALISE_CONCEITO_1] [Resposta Profunda] [END_ANALISE_CONCEITO_1]
+    [START_ENTENDIMENTO_TEORICO] [Resposta Profunda] [END_ENTENDIMENTO_TEORICO]
+    [START_SOLUCOES_TEORICAS] [Resposta Profunda] [END_SOLUCOES_TEORICAS]
+    [START_PROPOSTAS_MEMORIAL] [Resposta Profunda] [END_PROPOSTAS_MEMORIAL]
+    [START_CONCLUSAO_MEMORIAL] [Resposta Profunda] [END_CONCLUSAO_MEMORIAL]
+    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT reais (Uso da Internet Permitido)] [END_REFERENCIAS_ADICIONAIS]
+    [START_AUTOAVALIACAO_MEMORIAL] [Resposta Profunda] [END_AUTOAVALIACAO_MEMORIAL]
 """
 
 # =========================================================
@@ -220,6 +223,7 @@ def limpar_texto_ia(texto):
     return texto
 
 def chamar_ia(prompt, nome_modelo):
+    # Condição que ativa a biblioteca da OpenAI para se comunicar com o OpenRouter
     if "openrouter" in nome_modelo.lower() or "/" in nome_modelo:
         if not CHAVE_OPENROUTER: 
             raise Exception("A Chave da API do OpenRouter não foi configurada.")
@@ -228,7 +232,7 @@ def chamar_ia(prompt, nome_modelo):
         response = or_client.chat.completions.create(
             model=nome_modelo, 
             messages=[{"role": "user", "content": prompt}], 
-            temperature=0.7
+            temperature=0.7 # Mantém a IA focada e controlada
         )
         return limpar_texto_ia(response.choices[0].message.content)
     else:
@@ -331,30 +335,13 @@ def extrair_dicionario(texto_ia):
         match = re.search(rf"\[START_{chave}\](.*?)\[END_{chave}\]", texto_ia, re.DOTALL)
         if match:
             trecho = match.group(1).strip()
+            # Barreira contra o OpenRouter deixando tudo em negrito
             while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4:
                 trecho = trecho[2:-2].strip()
             dic[f"{{{{{chave}}}}}"] = trecho
         else:
             dic[f"{{{{{chave}}}}}"] = "" 
     return dic
-
-def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
-    config = PromptConfig.query.filter_by(is_default=True).first()
-    regras = config.texto if config else PROMPT_REGRAS_BASE
-    
-    prompt = f"""Você é um professor avaliador extremamente rigoroso.
-    TEMA: {texto_tema}
-    TRABALHO ATUAL: {texto_trabalho}
-    CRÍTICA RECEBIDA: {critica}
-    TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. 
-    NUNCA formate a resposta inteira em negrito.
-    {regras}"""
-    
-    try:
-        texto_resposta = chamar_ia(prompt, nome_modelo)
-        return extrair_dicionario(texto_resposta)
-    except Exception as e: 
-        raise Exception(f"Falha na IA (Correção): {str(e)}")
 
 # =========================================================
 # ROTAS PÚBLICAS (PORTAL DO ALUNO)
@@ -381,11 +368,15 @@ def portal():
 # =========================================================
 # ROTAS DO GERADOR E DE REGERAÇÃO
 # =========================================================
+
+# LISTA ATUALIZADA: Forçamos o OpenRouter a usar modelos gigantes e 100% gratuitos
 MODELOS_DISPONIVEIS = [
     "gemini-2.5-flash", 
     "gemini-2.5-pro", 
     "gemini-2.5-flash-lite", 
-    "openrouter/auto"
+    "meta-llama/llama-3.3-70b-instruct:free", # Gigante da Meta (Gratuito no OpenRouter)
+    "qwen/qwen-2.5-72b-instruct:free",        # Excelente raciocínio (Gratuito no OpenRouter)
+    "mistralai/mistral-nemo:free"             # Ótimo para língua portuguesa (Gratuito no OpenRouter)
 ]
 
 @app.route('/')
@@ -421,7 +412,7 @@ def gerar_rascunho():
         dicionario = extrair_dicionario(texto_resposta)
         
         if not any(dicionario.values()): 
-            raise Exception("A IA não retornou o formato de tags esperado.")
+            raise Exception("A IA não retornou o formato de tags esperado. A resposta foi vazia ou fora do padrão.")
             
         db.session.add(RegistroUso(modelo_usado=modelo))
         db.session.commit()
@@ -478,11 +469,10 @@ CONTEXTO ATUAL DO TRABALHO (Leia isto para manter a total coerência):
 REGRAS GERAIS E ESTRUTURA:
 {texto_prompt}
 
-TAREFA ESPECÍFICA DE CORREÇÃO:
+TAREFA ESPECÍFICA DE CORREÇÃO PROFUNDA:
 O usuário pediu para reescrever APENAS o trecho correspondente à tag: {tag}.
-Por favor, reescreva este trecho específico com excelência acadêmica.
-É OBRIGATÓRIO que o novo trecho faça sentido e tenha conexão lógica com o "CONTEXTO ATUAL DO TRABALHO" fornecido acima. Se for um "Por quê", ele deve justificar o "Aspecto" anterior de forma fluida.
-IMPORTANTE: NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta inteira em negrito (**). Retorne APENAS o texto limpo, direto e formatado."""
+Sua missão é reescrever este trecho com excelência acadêmica, densidade de informações e alinhamento total com o "CONTEXTO ATUAL" acima. Não gere respostas rasas. 
+IMPORTANTE: NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta inteira em negrito (**). Retorne APENAS o texto limpo, direto e perfeitamente escrito."""
 
         novo_texto = chamar_ia(prompt_regeracao, modelo)
         
@@ -719,7 +709,7 @@ def cliente_detalhe(id):
     return render_template('cliente_detalhe.html', aluno=aluno)
 
 # =========================================================
-# GESTÃO DOS TEMAS SALVOS DO ALUNO (NOVO)
+# GESTÃO DOS TEMAS SALVOS DO ALUNO
 # =========================================================
 @app.route('/adicionar_tema/<int:aluno_id>', methods=['POST'])
 @login_required
