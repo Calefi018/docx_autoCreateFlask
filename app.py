@@ -24,7 +24,7 @@ app = Flask(__name__)
 def handle_exception(e):
     try: 
         db.session.rollback()
-    except: 
+    except Exception: 
         pass
     
     from werkzeug.exceptions import HTTPException
@@ -131,13 +131,13 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # =========================================================
-# PROMPT BASE ANTI-PREGUIÇA
+# PROMPT BASE EXTREMO (ANTI-PREGUIÇA)
 # =========================================================
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
     1. PROIBIDO usar palavras robóticas de IA ou formato JSON.
     2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas para destacar palavras-chave pontuais.
-    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você deve gerar as respostas para TODAS AS 17 TAGS listadas abaixo, sem exceção.
+    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos longos e robustos para TODAS AS 17 TAGS listadas abaixo, sem exceção. Não abrevie.
     4. PROFUNDIDADE EXIGIDA: Proibido gerar respostas rasas ou de apenas uma linha. O conteúdo deve ser analítico, universitário e rico em detalhes.
     
     ESTRUTURA DE PARÁGRAFOS EXIGIDA:
@@ -149,7 +149,7 @@ PROMPT_REGRAS_BASE = """
     - Conclusão reflexiva: MÁXIMO de 2 parágrafos.
     - Autoavaliação: EXATAMENTE 1 parágrafo (sem atribuir nota a si mesmo).
     
-    GERAÇÃO OBRIGATÓRIA (Cumpra todas rigorosamente):
+    GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente):
     [START_RESUMO_MEMORIAL] [Resposta Profunda] [END_RESUMO_MEMORIAL]
     [START_CONTEXTO_MEMORIAL] [Resposta Profunda] [END_CONTEXTO_MEMORIAL]
     [START_ANALISE_MEMORIAL] [Resposta Profunda] [END_ANALISE_MEMORIAL]
@@ -170,7 +170,7 @@ PROMPT_REGRAS_BASE = """
 """
 
 # =========================================================
-# INICIALIZAÇÃO BLINDADA
+# INICIALIZAÇÃO BLINDADA E ATUALIZAÇÃO FORÇADA DE BANCO
 # =========================================================
 with app.app_context():
     db.create_all()
@@ -190,30 +190,34 @@ with app.app_context():
     try:
         if not User.query.filter_by(username='admin').first():
             senha_hash = generate_password_hash('admin123')
-            admin = User(username='admin', password=senha_hash, role='admin')
-            db.session.add(admin)
+            admin_user = User(username='admin', password=senha_hash, role='admin')
+            db.session.add(admin_user)
             db.session.commit()
     except Exception: 
         db.session.rollback()
         
     try:
-        if not PromptConfig.query.first():
-            p = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
-            db.session.add(p)
+        prompt_padrao = PromptConfig.query.filter_by(is_default=True).first()
+        if not prompt_padrao:
+            novo_prompt = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
+            db.session.add(novo_prompt)
+            db.session.commit()
+        elif "TODAS AS 17 TAGS" not in prompt_padrao.texto:
+            # Força a atualização do banco se o prompt antigo estiver defasado
+            prompt_padrao.texto = PROMPT_REGRAS_BASE
             db.session.commit()
     except Exception: 
         db.session.rollback()
 
     try:
         if not SiteSettings.query.first():
-            configuracao_padrao = SiteSettings()
-            db.session.add(configuracao_padrao)
+            db.session.add(SiteSettings())
             db.session.commit()
     except Exception: 
         db.session.rollback()
 
 # =========================================================
-# MOTOR NATIVO (OPENROUTER PREMIUM + GEMINI FLASH)
+# MOTOR NATIVO OPENROUTER (COM LIMITES DE TOKENS EXPANDIDOS)
 # =========================================================
 def limpar_texto_ia(texto):
     try: 
@@ -229,7 +233,6 @@ def chamar_ia(prompt, nome_modelo):
         if not CHAVE_OPENROUTER: 
             raise Exception("A Chave da API do OpenRouter não foi configurada.")
             
-        # O prefixo openrouter/ pode ser removido pois estamos batendo direto na URL deles
         modelo_limpo = nome_modelo.replace("openrouter/", "")
             
         headers = {
@@ -239,11 +242,11 @@ def chamar_ia(prompt, nome_modelo):
             "Content-Type": "application/json"
         }
         
-        # Payload direto. Sem plugins para não quebrar a compatibilidade de modelos da Meta/Qwen
         payload = {
             "model": modelo_limpo,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7
+            "temperature": 0.7,
+            "max_tokens": 6000 # Impede que a IA corte o texto e esqueça as últimas tags
         }
         
         try:
@@ -251,15 +254,14 @@ def chamar_ia(prompt, nome_modelo):
                 "https://openrouter.ai/api/v1/chat/completions", 
                 headers=headers, 
                 json=payload, 
-                timeout=90 # IAs Premium respondem muito mais rápido, 90s é ideal
+                timeout=120
             )
             
-            # Captura rigorosa de erro (Ex: Erro 404 de modelo que não existe)
             if resposta.status_code != 200:
                 erro_txt = resposta.text
                 try: 
                     erro_txt = resposta.json().get('error', {}).get('message', resposta.text)
-                except: 
+                except Exception: 
                     pass
                 raise Exception(f"Erro OpenRouter ({resposta.status_code}): {erro_txt}")
                 
@@ -267,13 +269,14 @@ def chamar_ia(prompt, nome_modelo):
             if 'choices' not in dados_ia or len(dados_ia['choices']) == 0:
                 raise Exception("A IA do OpenRouter retornou uma resposta vazia.")
                 
-            return limpar_texto_ia(dados_ia['choices'][0]['message']['content'])
+            texto_retornado = dados_ia['choices'][0]['message']['content']
+            return limpar_texto_ia(texto_retornado)
             
         except requests.exceptions.RequestException as e:
             raise Exception(f"Falha de rede ao contactar o OpenRouter: {str(e)}")
             
     else:
-        # Motor Nativo do Google Gemini (Geralmente a sua primeira opção)
+        # Google Gemini Nativo
         if not client: 
             raise Exception("A Chave da API nativa do Google não foi configurada.")
             
@@ -308,11 +311,13 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                 "Propostas de solução", "Conclusão reflexiva", 
                 "Referências", "Autoavaliação"
             ]
+            
             for t in titulos_memorial:
                 if texto_original.strip().startswith(t): 
                     texto_original = texto_original.replace(t, f"**{t}**\n", 1)
                     
             titulos_aspectos = ["Aspecto 1:", "Aspecto 2:", "Aspecto 3:", "Por quê:"]
+            
             for t in titulos_aspectos:
                 if t in texto_original: 
                     texto_original = texto_original.replace(t, f"\n**{t}** " if "Por quê:" in t else f"**{t}** ")
@@ -349,6 +354,7 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
     arquivo_saida = io.BytesIO()
     doc.save(arquivo_saida)
     arquivo_saida.seek(0)
+    
     return arquivo_saida
 
 def extrair_texto_docx(arquivo_bytes):
@@ -363,16 +369,21 @@ def extrair_dicionario(texto_ia):
         "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"
     ]
     dic = {}
+    
     for chave in chaves:
-        match = re.search(rf"\[START_{chave}\](.*?)\[END_{chave}\]", texto_ia, re.DOTALL)
+        # REGEX BLINDADO: Impede que o sistema ignore a tag se a IA esquecer de colocar o [END]
+        padrao = rf"\[START_{chave}\](.*?)(?=\[END_{chave}\]|\[START_|$)"
+        match = re.search(padrao, texto_ia, re.DOTALL | re.IGNORECASE)
+        
         if match:
             trecho = match.group(1).strip()
-            # Vacina dupla contra o negrito rebelde da IA
+            # Loop que remove negritos globais colocados indevidamente pela IA
             while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4:
                 trecho = trecho[2:-2].strip()
             dic[f"{{{{{chave}}}}}"] = trecho
         else:
             dic[f"{{{{{chave}}}}}"] = "" 
+            
     return dic
 
 def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
@@ -400,6 +411,7 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
 def portal():
     aluno = None
     erro = None
+    
     if request.method == 'POST':
         telefone_busca = request.form.get('telefone')
         tel_limpo = re.sub(r'\D', '', telefone_busca)
@@ -418,14 +430,12 @@ def portal():
 # =========================================================
 # ROTAS DO GERADOR E DE REGERAÇÃO
 # =========================================================
-
-# AS IAs VIPs (AGORA USANDO OS SEUS CRÉDITOS DO OPENROUTER SEM "RATE LIMIT")
 MODELOS_DISPONIVEIS = [
-    "gemini-2.5-flash",                       # Seu Google Nativo (Muito rápido)
-    "meta-llama/llama-3.3-70b-instruct",      # Gigante Meta Premium (Mais inteligente, sem 404)
-    "qwen/qwen-2.5-72b-instruct",             # Gigante Asiático Premium 
-    "mistralai/mistral-nemo",                 # Inteligência Europeia Premium
-    "google/gemini-2.5-flash"                 # Gemini via OpenRouter Premium (Garante redundância)
+    "gemini-2.5-flash",                       # Nativo Google (15 Req/Min)
+    "google/gemini-2.5-flash",                # OpenRouter Premium
+    "meta-llama/llama-3.3-70b-instruct",      # OpenRouter Premium
+    "qwen/qwen-2.5-72b-instruct",             # OpenRouter Premium
+    "mistralai/mistral-nemo"                  # OpenRouter Premium
 ]
 
 @app.route('/')
@@ -450,6 +460,7 @@ def gerar_rascunho():
     config = None
     if prompt_id and str(prompt_id).isdigit():
         config = PromptConfig.query.get(int(prompt_id))
+        
     if not config:
         config = PromptConfig.query.filter_by(is_default=True).first()
         
@@ -464,23 +475,25 @@ def gerar_rascunho():
             texto_resposta = chamar_ia(prompt_completo, modelo)
             dicionario = extrair_dicionario(texto_resposta)
             
-            if not any(dicionario.values()): 
-                raise Exception(f"A IA {modelo} retornou uma resposta oca ou sem tags.")
+            # FILTRO ANTI-PREGUIÇA
+            tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
+            if tags_preenchidas < 10: 
+                raise Exception(f"A IA {modelo} teve preguiça e gerou apenas {tags_preenchidas} tags. O sistema tentará a IA de reserva.")
                 
-            db.session.add(RegistroUso(modelo_usado=modelo))
+            novo_registro = RegistroUso(modelo_usado=modelo)
+            db.session.add(novo_registro)
             db.session.commit()
             
             return jsonify({"sucesso": True, "dicionario": dicionario, "modelo_utilizado": modelo})
             
         except Exception as e:
             ultimo_erro = str(e)
-            print(f"Tentativa falhou no modelo {modelo}. Motivo: {ultimo_erro}. Tentando o próximo...")
             continue
             
     return jsonify({
         "sucesso": False, 
-        "erro": f"Erro Fatal. Todas as IAs do sistema reportaram falha técnica ou esgotamento. Último erro: {ultimo_erro}", 
-        "fallback": False 
+        "erro": f"Erro Fatal. Todas as IAs do sistema reportaram falha técnica ou preguiça extrema. Último erro: {ultimo_erro}", 
+        "fallback": False
     })
 
 @app.route('/regerar_trecho', methods=['POST'])
@@ -500,6 +513,7 @@ def regerar_trecho():
         config = None
         if prompt_id and str(prompt_id).isdigit():
             config = PromptConfig.query.get(int(prompt_id))
+            
         if not config:
             config = PromptConfig.query.filter_by(is_default=True).first()
             
@@ -513,11 +527,9 @@ def regerar_trecho():
         prompt_regeracao = f"""Você é um professor avaliador rigoroso.
 TEMA/CASO DO DESAFIO:\n{tema}
 
-CONTEXTO ATUAL DO TRABALHO (Para manter a coerência):
-{texto_contexto}
+CONTEXTO ATUAL DO TRABALHO (Para manter a coerência):\n{texto_contexto}
 
-REGRAS GERAIS E ESTRUTURA:
-{texto_prompt}
+REGRAS GERAIS E ESTRUTURA:\n{texto_prompt}
 
 TAREFA ESPECÍFICA DE CORREÇÃO:
 Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o contexto. NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta toda em negrito (**). Retorne APENAS o texto limpo."""
@@ -528,14 +540,14 @@ Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o 
         for modelo in fila_modelos:
             try:
                 novo_texto = chamar_ia(prompt_regeracao, modelo)
-                
                 novo_texto = re.sub(rf"\[START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
                 novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE).strip()
                 
                 while novo_texto.startswith('**') and novo_texto.endswith('**') and len(novo_texto) > 4: 
                     novo_texto = novo_texto[2:-2].strip()
-                
+                    
                 return jsonify({"sucesso": True, "novo_texto": novo_texto, "modelo_utilizado": modelo})
+                
             except Exception as e:
                 ultimo_erro = str(e)
                 continue
@@ -575,10 +587,7 @@ def gerar_docx_final():
                 
             db.session.commit()
             
-        return jsonify({
-            "sucesso": True, 
-            "arquivo_base64": base64.b64encode(arquivo_bytes).decode('utf-8')
-        })
+        return jsonify({"sucesso": True, "arquivo_base64": base64.b64encode(arquivo_bytes).decode('utf-8')})
         
     except Exception as e: 
         return jsonify({"sucesso": False, "erro": str(e)})
@@ -596,6 +605,7 @@ def dashboard():
     
     hoje = datetime.utcnow()
     labels_meses = []
+    
     for i in range(5, -1, -1):
         m = hoje.month - i
         y = hoje.year
@@ -616,8 +626,8 @@ def dashboard():
                     faturamento_dict[chave] += (a.valor or 70.0)
                     
     uso_modelos = db.session.query(RegistroUso.modelo_usado, db.func.count(RegistroUso.id)).group_by(RegistroUso.modelo_usado).all()
-    
     meses_nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+    
     grafico_meses_labels = [f"{meses_nomes[m-1]}/{str(y)[2:]}" for y, m in labels_meses]
     grafico_meses_valores = [faturamento_dict[k] for k in labels_meses]
     
@@ -626,9 +636,9 @@ def dashboard():
         a_receber=a_receber, 
         receita_realizada=receita_realizada, 
         total_trabalhos=len(todos_alunos), 
-        uso_modelos=uso_modelos,
+        uso_modelos=uso_modelos, 
         graf_meses_lbl=grafico_meses_labels, 
-        graf_meses_val=grafico_meses_valores,
+        graf_meses_val=grafico_meses_valores, 
         graf_dias_lbl=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'], 
         graf_dias_val=pedidos_dias
     )
@@ -665,9 +675,10 @@ def gerenciar_prompts():
 @login_required
 def delete_prompt(id):
     p = PromptConfig.query.get_or_404(id)
-    if not p.is_default:
+    if not p.is_default: 
         db.session.delete(p)
         db.session.commit()
+        
     return redirect(url_for('gerenciar_prompts'))
 
 # =========================================================
@@ -680,7 +691,7 @@ def clientes():
         novo_aluno = Aluno(
             user_id=current_user.id, 
             nome=request.form.get('nome'), 
-            curso=request.form.get('curso'),
+            curso=request.form.get('curso'), 
             telefone=request.form.get('telefone'), 
             valor=float(request.form.get('valor', 70.0)), 
             status='Pendente'
@@ -694,9 +705,12 @@ def clientes():
     alunos_pendentes = [a for a in todos_alunos if a.status != 'Pago']
     alunos_pagos = [a for a in todos_alunos if a.status == 'Pago']
     
-    config = SiteSettings.query.first()
-    
-    return render_template('clientes.html', alunos_pendentes=alunos_pendentes, alunos_pagos=alunos_pagos, config=config)
+    return render_template(
+        'clientes.html', 
+        alunos_pendentes=alunos_pendentes, 
+        alunos_pagos=alunos_pagos, 
+        config=SiteSettings.query.first()
+    )
 
 @app.route('/editar_valor/<int:id>', methods=['POST'])
 @login_required
@@ -705,7 +719,7 @@ def editar_valor(id):
     if aluno.user_id != current_user.id and current_user.role != 'admin': 
         abort(403)
         
-    try:
+    try: 
         aluno.valor = float(request.form.get('novo_valor').replace(',', '.'))
         db.session.commit()
         flash(f'Valor atualizado!', 'success')
@@ -766,9 +780,6 @@ def cliente_detalhe(id):
         
     return render_template('cliente_detalhe.html', aluno=aluno)
 
-# =========================================================
-# GESTÃO DOS TEMAS SALVOS DO ALUNO
-# =========================================================
 @app.route('/adicionar_tema/<int:aluno_id>', methods=['POST'])
 @login_required
 def adicionar_tema(aluno_id):
@@ -779,17 +790,13 @@ def adicionar_tema(aluno_id):
     titulo = request.form.get('titulo')
     texto = request.form.get('texto')
     
-    if texto:
-        novo_tema = TemaTrabalho(
-            aluno_id=aluno.id, 
-            titulo=titulo if titulo else f"Tema {len(aluno.temas) + 1}", 
-            texto=texto
-        )
+    if texto: 
+        novo_tema = TemaTrabalho(aluno_id=aluno.id, titulo=titulo if titulo else f"Tema {len(aluno.temas) + 1}", texto=texto)
         db.session.add(novo_tema)
         db.session.commit()
-        flash('Tema salvo com sucesso na pasta do aluno!', 'success')
-    else:
-        flash('O texto do tema não pode estar vazio.', 'error')
+        flash('Tema salvo!', 'success')
+    else: 
+        flash('O texto não pode estar vazio.', 'error')
         
     return redirect(url_for('cliente_detalhe', id=aluno_id))
 
@@ -797,50 +804,35 @@ def adicionar_tema(aluno_id):
 @login_required
 def deletar_tema(tema_id):
     tema = TemaTrabalho.query.get_or_404(tema_id)
-    aluno_id = tema.aluno_id
-    aluno = Aluno.query.get(aluno_id)
+    aluno = Aluno.query.get(tema.aluno_id)
     
     if aluno.user_id != current_user.id and current_user.role != 'admin': 
         abort(403)
         
     db.session.delete(tema)
     db.session.commit()
-    flash('Tema apagado com sucesso.', 'success')
-    
-    return redirect(url_for('cliente_detalhe', id=aluno_id))
+    flash('Tema apagado.', 'success')
+    return redirect(url_for('cliente_detalhe', id=tema.aluno_id))
 
-# =========================================================
-# GESTÃO DOS DOCUMENTOS
-# =========================================================
 @app.route('/upload_doc/<int:aluno_id>', methods=['POST'])
 @login_required
 def upload_doc(aluno_id):
     arquivo = request.files['arquivo']
-    
     if arquivo:
-        filename_lower = arquivo.filename.lower()
-        if filename_lower.endswith('.docx') or filename_lower.endswith('.pdf'):
-            novo_doc = Documento(
-                aluno_id=aluno_id, 
-                nome_arquivo=arquivo.filename, 
-                dados_arquivo=arquivo.read()
-            )
+        if arquivo.filename.lower().endswith(('.docx', '.pdf')): 
+            novo_doc = Documento(aluno_id=aluno_id, nome_arquivo=arquivo.filename, dados_arquivo=arquivo.read())
             db.session.add(novo_doc)
             db.session.commit()
-            flash('Documento anexado com sucesso!', 'success')
-        else:
-            flash('Apenas arquivos .docx e .pdf são permitidos.', 'error')
+            flash('Anexado com sucesso!', 'success')
+        else: 
+            flash('Apenas .docx e .pdf.', 'error')
             
     return redirect(url_for('cliente_detalhe', id=aluno_id))
 
 @app.route('/download_doc/<int:doc_id>')
 def download_doc(doc_id):
     doc = Documento.query.get_or_404(doc_id)
-    return send_file(
-        io.BytesIO(doc.dados_arquivo), 
-        download_name=doc.nome_arquivo, 
-        as_attachment=True
-    )
+    return send_file(io.BytesIO(doc.dados_arquivo), download_name=doc.nome_arquivo, as_attachment=True)
 
 @app.route('/rename_doc/<int:doc_id>', methods=['POST'])
 @login_required
@@ -934,7 +926,7 @@ def login():
         
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
-        if user and check_password_hash(user.password, request.form.get('password')):
+        if user and check_password_hash(user.password, request.form.get('password')): 
             login_user(user)
             return redirect(url_for('index'))
         else: 
