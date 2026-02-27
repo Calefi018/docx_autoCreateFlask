@@ -213,7 +213,7 @@ with app.app_context():
         db.session.rollback()
 
 # =========================================================
-# MOTOR NATIVO (OPENROUTER REVISADO + GEMINI FLASH SEGURO)
+# MOTOR NATIVO (OPENROUTER PREMIUM + GEMINI FLASH)
 # =========================================================
 def limpar_texto_ia(texto):
     try: 
@@ -229,6 +229,7 @@ def chamar_ia(prompt, nome_modelo):
         if not CHAVE_OPENROUTER: 
             raise Exception("A Chave da API do OpenRouter não foi configurada.")
             
+        # O prefixo openrouter/ pode ser removido pois estamos batendo direto na URL deles
         modelo_limpo = nome_modelo.replace("openrouter/", "")
             
         headers = {
@@ -238,6 +239,7 @@ def chamar_ia(prompt, nome_modelo):
             "Content-Type": "application/json"
         }
         
+        # Payload direto. Sem plugins para não quebrar a compatibilidade de modelos da Meta/Qwen
         payload = {
             "model": modelo_limpo,
             "messages": [{"role": "user", "content": prompt}],
@@ -249,20 +251,16 @@ def chamar_ia(prompt, nome_modelo):
                 "https://openrouter.ai/api/v1/chat/completions", 
                 headers=headers, 
                 json=payload, 
-                timeout=60 # Reduzido para não prender o seu servidor se o OpenRouter travar
+                timeout=90 # IAs Premium respondem muito mais rápido, 90s é ideal
             )
             
-            # Tratamento de erro detalhado para não dar "desmaio"
+            # Captura rigorosa de erro (Ex: Erro 404 de modelo que não existe)
             if resposta.status_code != 200:
                 erro_txt = resposta.text
                 try: 
                     erro_txt = resposta.json().get('error', {}).get('message', resposta.text)
                 except: 
                     pass
-                
-                if resposta.status_code == 429:
-                    raise Exception(f"OpenRouter Rate Limit (IA Ocupada). Tente novamente em alguns segundos.")
-                    
                 raise Exception(f"Erro OpenRouter ({resposta.status_code}): {erro_txt}")
                 
             dados_ia = resposta.json()
@@ -275,7 +273,7 @@ def chamar_ia(prompt, nome_modelo):
             raise Exception(f"Falha de rede ao contactar o OpenRouter: {str(e)}")
             
     else:
-        # Motor Nativo do Google Gemini
+        # Motor Nativo do Google Gemini (Geralmente a sua primeira opção)
         if not client: 
             raise Exception("A Chave da API nativa do Google não foi configurada.")
             
@@ -369,7 +367,7 @@ def extrair_dicionario(texto_ia):
         match = re.search(rf"\[START_{chave}\](.*?)\[END_{chave}\]", texto_ia, re.DOTALL)
         if match:
             trecho = match.group(1).strip()
-            # Vacina dupla contra o negrito da IA
+            # Vacina dupla contra o negrito rebelde da IA
             while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4:
                 trecho = trecho[2:-2].strip()
             dic[f"{{{{{chave}}}}}"] = trecho
@@ -418,17 +416,16 @@ def portal():
     return render_template('portal.html', aluno=aluno, erro=erro)
 
 # =========================================================
-# ROTAS DO GERADOR E DE REGERAÇÃO (FILA DE SEGURANÇA)
+# ROTAS DO GERADOR E DE REGERAÇÃO
 # =========================================================
 
-# REMOVIDO "gemini-2.5-pro" DA LISTA DE FALLBACK (Pois tem limite de 2 req/min)
-# ADICIONADO "google/gemini-2.5-flash:free" (O Gemini no OpenRouter para usar se o seu Google esgotar)
+# AS IAs VIPs (AGORA USANDO OS SEUS CRÉDITOS DO OPENROUTER SEM "RATE LIMIT")
 MODELOS_DISPONIVEIS = [
-    "gemini-2.5-flash",                       # Sua Chave Nativa Google (15 Req/minuto - Super Rápido)
-    "google/gemini-2.5-flash:free",           # Via OpenRouter (Reserva do Gemini)
-    "meta-llama/llama-3.3-70b-instruct:free", # Gigante Meta via OpenRouter
-    "qwen/qwen-2.5-72b-instruct:free",        # Gigante Asiático via OpenRouter
-    "mistralai/mistral-nemo:free"             # Inteligência Europeia via OpenRouter
+    "gemini-2.5-flash",                       # Seu Google Nativo (Muito rápido)
+    "meta-llama/llama-3.3-70b-instruct",      # Gigante Meta Premium (Mais inteligente, sem 404)
+    "qwen/qwen-2.5-72b-instruct",             # Gigante Asiático Premium 
+    "mistralai/mistral-nemo",                 # Inteligência Europeia Premium
+    "google/gemini-2.5-flash"                 # Gemini via OpenRouter Premium (Garante redundância)
 ]
 
 @app.route('/')
@@ -459,7 +456,6 @@ def gerar_rascunho():
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
     prompt_completo = f"TEMA:\n{tema}\n\n{texto_prompt}"
     
-    # Fila Inteligente: Tenta o escolhido. Se falhar, vai rodando até um funcionar.
     fila_modelos = [modelo_selecionado] + [m for m in MODELOS_DISPONIVEIS if m != modelo_selecionado]
     ultimo_erro = ""
 
@@ -469,7 +465,7 @@ def gerar_rascunho():
             dicionario = extrair_dicionario(texto_resposta)
             
             if not any(dicionario.values()): 
-                raise Exception(f"A IA {modelo} não retornou as tags corretas.")
+                raise Exception(f"A IA {modelo} retornou uma resposta oca ou sem tags.")
                 
             db.session.add(RegistroUso(modelo_usado=modelo))
             db.session.commit()
@@ -481,10 +477,9 @@ def gerar_rascunho():
             print(f"Tentativa falhou no modelo {modelo}. Motivo: {ultimo_erro}. Tentando o próximo...")
             continue
             
-    # Se sair do for, é porque TODAS as IAs gratuitas do mundo falharam
     return jsonify({
         "sucesso": False, 
-        "erro": f"Todas as IAs estão bloqueadas ou excederam o limite no momento. Último erro: {ultimo_erro}", 
+        "erro": f"Erro Fatal. Todas as IAs do sistema reportaram falha técnica ou esgotamento. Último erro: {ultimo_erro}", 
         "fallback": False 
     })
 
@@ -533,6 +528,7 @@ Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o 
         for modelo in fila_modelos:
             try:
                 novo_texto = chamar_ia(prompt_regeracao, modelo)
+                
                 novo_texto = re.sub(rf"\[START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
                 novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE).strip()
                 
@@ -544,7 +540,7 @@ Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o 
                 ultimo_erro = str(e)
                 continue
                 
-        return jsonify({"sucesso": False, "erro": f"Todas as IAs falharam ao regerar. Erro: {ultimo_erro}"})
+        return jsonify({"sucesso": False, "erro": f"Todas as IAs falharam ao regerar o trecho. Erro: {ultimo_erro}"})
         
     except Exception as e:
         traceback.print_exc()
