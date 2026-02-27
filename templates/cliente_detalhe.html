@@ -79,13 +79,65 @@
         </div>
     </div>
 
+    <div class="card" style="margin-top: 20px; border-top: 4px solid var(--warning);">
+        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
+            <i class="ph-fill ph-book-bookmark"></i> Banco de Temas do Aluno
+        </h3>
+        <p style="color: var(--text-muted); font-size: 0.85em; margin-bottom: 20px;">
+            Salve os temas, instruções ou portfólios deste cliente. Você pode ter vários temas salvos e copiá-los facilmente quando for gerar um novo trabalho.
+        </p>
+        
+        <form action="/adicionar_tema/{{ aluno.id }}" method="POST" style="margin-bottom: 30px; background: rgba(15,17,26,0.4); padding: 15px; border-radius: 8px; border: 1px dashed var(--border);">
+            <input type="text" name="titulo" placeholder="Título Opcional (Ex: Desafio de Pedagogia - Semestre 2)" style="margin-bottom: 10px;">
+            <textarea name="texto" rows="4" placeholder="Cole o texto completo do tema ou instruções aqui..." required style="margin-bottom: 10px;"></textarea>
+            
+            <button type="submit" class="btn btn-warning" style="width: 100%; color: #000;">
+                <i class="ph-bold ph-plus"></i> Guardar Tema na Pasta
+            </button>
+        </form>
+
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            {% for tema in aluno.temas %}
+            <div style="background: rgba(30, 33, 48, 0.5); border: 1px solid var(--border); border-radius: 8px; padding: 15px;">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                    <h4 style="margin: 0; color: #fff;">
+                        <i class="ph-fill ph-text-align-left" style="color: var(--warning);"></i> 
+                        {{ tema.titulo or 'Tema salvo' }}
+                        <small style="color: var(--text-muted); font-size: 0.75rem; margin-left: 10px; font-weight: normal;">
+                            {{ tema.data_cadastro.strftime('%d/%m/%Y') }}
+                        </small>
+                    </h4>
+                    
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="copiarTema({{ tema.id }})" class="btn btn-blue" style="padding: 6px 10px; font-size: 0.8rem;" title="Copiar para usar no Gerador">
+                            <i class="ph-bold ph-copy"></i> Copiar Texto
+                        </button>
+                        
+                        <a href="/deletar_tema/{{ tema.id }}" class="btn btn-danger" style="padding: 6px 10px; font-size: 0.8rem;" onclick="event.preventDefault(); confirmarDelecaoTema(this.href)" title="Apagar Tema">
+                            <i class="ph-bold ph-trash"></i>
+                        </a>
+                    </div>
+                </div>
+                
+                <div id="tema-texto-{{ tema.id }}" style="background: rgba(15, 17, 26, 0.6); padding: 15px; border-radius: 6px; font-size: 0.85rem; color: var(--text-muted); max-height: 200px; overflow-y: auto; white-space: pre-wrap; border: 1px solid rgba(255,255,255,0.05);">{{ tema.texto }}</div>
+                
+            </div>
+            {% else %}
+                <p style="color: var(--text-muted); text-align: center; padding: 20px; border: 1px dashed var(--border); border-radius: 8px;">
+                    Nenhum tema salvo para este aluno.
+                </p>
+            {% endfor %}
+        </div>
+    </div>
+
     <script>
         function renomearDoc(docId, nomeAtual) {
             Swal.fire({
                 title: 'Renomear Arquivo',
                 input: 'text',
                 inputValue: nomeAtual,
-                inputLabel: 'Digite o novo nome (não precisa colocar o .pdf ou .docx, o sistema coloca sozinho)',
+                inputLabel: 'Digite o novo nome (o sistema mantem o .pdf ou .docx sozinho)',
                 showCancelButton: true,
                 confirmButtonText: 'Renomear',
                 background: '#1e2130', 
@@ -105,6 +157,42 @@
                     form.appendChild(input); 
                     document.body.appendChild(form); 
                     form.submit();
+                }
+            });
+        }
+
+        // Lógica Limpa para Copiar o Texto do Tema
+        function copiarTema(id) {
+            let texto = document.getElementById('tema-texto-' + id).innerText;
+            navigator.clipboard.writeText(texto).then(() => {
+                const Toast = Swal.mixin({ 
+                    toast: true, 
+                    position: 'top-end', 
+                    showConfirmButton: false, 
+                    timer: 2500, 
+                    background: '#1e2130', 
+                    color: '#10b981' 
+                });
+                Toast.fire({ icon: 'success', title: 'Tema copiado! Vá para o Gerador e cole.' });
+            });
+        }
+
+        // Confirmação segura para apagar Tema
+        function confirmarDelecaoTema(url) {
+            Swal.fire({
+                title: 'Apagar Tema?',
+                text: 'Tem certeza que deseja remover este tema do banco de dados?',
+                icon: 'warning', 
+                background: '#1e2130', 
+                color: '#e2e8f0', 
+                showCancelButton: true, 
+                confirmButtonColor: '#ef4444', 
+                cancelButtonColor: '#334155', 
+                confirmButtonText: 'Sim, apagar', 
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) { 
+                    window.location.href = url; 
                 }
             });
         }
