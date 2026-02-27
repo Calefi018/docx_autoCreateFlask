@@ -131,42 +131,42 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # =========================================================
-# PROMPT BASE EXTREMO (ANTI-PREGUIÇA)
+# PROMPT BASE EXTREMO (OBJETIVO E COM LIMITE DE CARACTERES)
 # =========================================================
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
     1. PROIBIDO usar palavras robóticas de IA ou formato JSON.
     2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas para destacar palavras-chave pontuais.
-    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos longos e robustos para TODAS AS 17 TAGS listadas abaixo, sem exceção. Não abrevie.
-    4. PROFUNDIDADE EXIGIDA: Proibido gerar respostas rasas ou de apenas uma linha. O conteúdo deve ser analítico, universitário e rico em detalhes.
+    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar as 17 TAGS listadas abaixo, sem exceção.
+    4. LIMITE DE 6000 CARACTERES (CRÍTICO): A Etapa 5 (Memorial Analítico) tem um limite estrito de 6000 caracteres no total. Portanto, seja extremamente objetivo e conciso. Não enrole. Vá direto ao ponto, mantendo a qualidade acadêmica, mas usando frases curtas e diretas.
     
-    ESTRUTURA DE PARÁGRAFOS EXIGIDA:
-    - Resumo: EXATAMENTE 1 parágrafo robusto.
-    - Contexto: EXATAMENTE 1 parágrafo detalhado.
-    - Análise: EXATAMENTE 1 parágrafo profundo.
-    - Aspectos e Por quês: Justificativas completas e lógicas.
-    - Propostas de solução: MÁXIMO de 2 parágrafos.
-    - Conclusão reflexiva: MÁXIMO de 2 parágrafos.
-    - Autoavaliação: EXATAMENTE 1 parágrafo (sem atribuir nota a si mesmo).
+    ESTRUTURA DE PARÁGRAFOS EXIGIDA (MANTENHA CURTO E OBJETIVO):
+    - Resumo: 1 parágrafo curto e direto.
+    - Contexto: 1 parágrafo curto e direto.
+    - Análise: 1 parágrafo conciso com 2 a 3 conceitos.
+    - Aspectos e Por quês: Justificativas diretas e objetivas (máx 3 linhas cada).
+    - Propostas de solução: Máximo de 2 parágrafos objetivos.
+    - Conclusão reflexiva: 1 a 2 parágrafos curtos.
+    - Autoavaliação: 1 parágrafo curto.
     
-    GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente):
-    [START_RESUMO_MEMORIAL] [Resposta Profunda] [END_RESUMO_MEMORIAL]
-    [START_CONTEXTO_MEMORIAL] [Resposta Profunda] [END_CONTEXTO_MEMORIAL]
-    [START_ANALISE_MEMORIAL] [Resposta Profunda] [END_ANALISE_MEMORIAL]
-    [START_ASPECTO_1] [Resposta Profunda] [END_ASPECTO_1]
-    [START_POR_QUE_1] [Resposta Profunda] [END_POR_QUE_1]
-    [START_ASPECTO_2] [Resposta Profunda] [END_ASPECTO_2]
-    [START_POR_QUE_2] [Resposta Profunda] [END_POR_QUE_2]
-    [START_ASPECTO_3] [Resposta Profunda] [END_ASPECTO_3]
-    [START_POR_QUE_3] [Resposta Profunda] [END_POR_QUE_3]
-    [START_CONCEITOS_TEORICOS] [Resposta Profunda] [END_CONCEITOS_TEORICOS]
-    [START_ANALISE_CONCEITO_1] [Resposta Profunda] [END_ANALISE_CONCEITO_1]
-    [START_ENTENDIMENTO_TEORICO] [Resposta Profunda] [END_ENTENDIMENTO_TEORICO]
-    [START_SOLUCOES_TEORICAS] [Resposta Profunda] [END_SOLUCOES_TEORICAS]
-    [START_PROPOSTAS_MEMORIAL] [Resposta Profunda] [END_PROPOSTAS_MEMORIAL]
-    [START_CONCLUSAO_MEMORIAL] [Resposta Profunda] [END_CONCLUSAO_MEMORIAL]
-    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT reais] [END_REFERENCIAS_ADICIONAIS]
-    [START_AUTOAVALIACAO_MEMORIAL] [Resposta Profunda] [END_AUTOAVALIACAO_MEMORIAL]
+    GERAÇÃO OBRIGATÓRIA (Copie e preencha todas as tags rigorosamente):
+    [START_RESUMO_MEMORIAL] [Resposta objetiva e concisa] [END_RESUMO_MEMORIAL]
+    [START_CONTEXTO_MEMORIAL] [Resposta objetiva e concisa] [END_CONTEXTO_MEMORIAL]
+    [START_ANALISE_MEMORIAL] [Resposta objetiva e concisa] [END_ANALISE_MEMORIAL]
+    [START_ASPECTO_1] [Resposta objetiva] [END_ASPECTO_1]
+    [START_POR_QUE_1] [Resposta objetiva] [END_POR_QUE_1]
+    [START_ASPECTO_2] [Resposta objetiva] [END_ASPECTO_2]
+    [START_POR_QUE_2] [Resposta objetiva] [END_POR_QUE_2]
+    [START_ASPECTO_3] [Resposta objetiva] [END_ASPECTO_3]
+    [START_POR_QUE_3] [Resposta objetiva] [END_POR_QUE_3]
+    [START_CONCEITOS_TEORICOS] [Resposta objetiva] [END_CONCEITOS_TEORICOS]
+    [START_ANALISE_CONCEITO_1] [Resposta objetiva] [END_ANALISE_CONCEITO_1]
+    [START_ENTENDIMENTO_TEORICO] [Resposta objetiva] [END_ENTENDIMENTO_TEORICO]
+    [START_SOLUCOES_TEORICAS] [Resposta objetiva] [END_SOLUCOES_TEORICAS]
+    [START_PROPOSTAS_MEMORIAL] [Resposta objetiva e concisa] [END_PROPOSTAS_MEMORIAL]
+    [START_CONCLUSAO_MEMORIAL] [Resposta objetiva e concisa] [END_CONCLUSAO_MEMORIAL]
+    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT curtas] [END_REFERENCIAS_ADICIONAIS]
+    [START_AUTOAVALIACAO_MEMORIAL] [Resposta objetiva e concisa] [END_AUTOAVALIACAO_MEMORIAL]
 """
 
 # =========================================================
@@ -202,8 +202,8 @@ with app.app_context():
             novo_prompt = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
             db.session.add(novo_prompt)
             db.session.commit()
-        elif "TODAS AS 17 TAGS" not in prompt_padrao.texto:
-            # Força a atualização do banco se o prompt antigo estiver defasado
+        # Gatilho de segurança: Se o banco tiver o prompt velho (sem o limite estrito), ele força a atualização.
+        elif "LIMITE DE 6000 CARACTERES" not in prompt_padrao.texto:
             prompt_padrao.texto = PROMPT_REGRAS_BASE
             db.session.commit()
     except Exception: 
@@ -217,7 +217,7 @@ with app.app_context():
         db.session.rollback()
 
 # =========================================================
-# MOTOR NATIVO OPENROUTER (COM LIMITES DE TOKENS EXPANDIDOS)
+# MOTOR NATIVO OPENROUTER E GEMINI FLASH
 # =========================================================
 def limpar_texto_ia(texto):
     try: 
@@ -246,7 +246,7 @@ def chamar_ia(prompt, nome_modelo):
             "model": modelo_limpo,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
-            "max_tokens": 6000 # Impede que a IA corte o texto e esqueça as últimas tags
+            "max_tokens": 6000 # Mantém o fôlego alto para a IA conseguir ler até a 17ª tag, mas o prompt cuida de ser conciso nas respostas.
         }
         
         try:
@@ -394,7 +394,7 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
     TEMA: {texto_tema}
     TRABALHO ATUAL: {texto_trabalho}
     CRÍTICA RECEBIDA: {critica}
-    TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. 
+    TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. Seja conciso e não ultrapasse os 6000 caracteres no total.
     NUNCA formate a resposta inteira em negrito.
     {regras}"""
     
@@ -475,7 +475,7 @@ def gerar_rascunho():
             texto_resposta = chamar_ia(prompt_completo, modelo)
             dicionario = extrair_dicionario(texto_resposta)
             
-            # FILTRO ANTI-PREGUIÇA
+            # FILTRO ANTI-PREGUIÇA (Agora adaptado para garantir que a IA gere as 17 tags sem ser redundante demais)
             tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
             if tags_preenchidas < 10: 
                 raise Exception(f"A IA {modelo} teve preguiça e gerou apenas {tags_preenchidas} tags. O sistema tentará a IA de reserva.")
@@ -532,7 +532,7 @@ CONTEXTO ATUAL DO TRABALHO (Para manter a coerência):\n{texto_contexto}
 REGRAS GERAIS E ESTRUTURA:\n{texto_prompt}
 
 TAREFA ESPECÍFICA DE CORREÇÃO:
-Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o contexto. NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta toda em negrito (**). Retorne APENAS o texto limpo."""
+Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o contexto e seja objetivo. NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta toda em negrito (**). Retorne APENAS o texto limpo."""
         
         fila_modelos = [modelo_selecionado] + [m for m in MODELOS_DISPONIVEIS if m != modelo_selecionado]
         ultimo_erro = ""
@@ -587,7 +587,10 @@ def gerar_docx_final():
                 
             db.session.commit()
             
-        return jsonify({"sucesso": True, "arquivo_base64": base64.b64encode(arquivo_bytes).decode('utf-8')})
+        return jsonify({
+            "sucesso": True, 
+            "arquivo_base64": base64.b64encode(arquivo_bytes).decode('utf-8')
+        })
         
     except Exception as e: 
         return jsonify({"sucesso": False, "erro": str(e)})
@@ -926,7 +929,7 @@ def login():
         
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
-        if user and check_password_hash(user.password, request.form.get('password')): 
+        if user and check_password_hash(user.password, request.form.get('password')):
             login_user(user)
             return redirect(url_for('index'))
         else: 
