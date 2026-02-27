@@ -131,42 +131,36 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # =========================================================
-# PROMPT BASE EXTREMO (OBJETIVO E COM LIMITE DE CARACTERES)
+# PROMPT BASE EXTREMO (PROFUNDIDADE HÍBRIDA)
 # =========================================================
 PROMPT_REGRAS_BASE = """
-    REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
+    REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO E PROFUNDIDADE HÍBRIDA):
     1. PROIBIDO usar palavras robóticas de IA ou formato JSON.
     2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas para destacar palavras-chave pontuais.
     3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar as 17 TAGS listadas abaixo, sem exceção.
-    4. LIMITE DE 6000 CARACTERES (CRÍTICO): A Etapa 5 (Memorial Analítico) tem um limite estrito de 6000 caracteres no total. Portanto, seja extremamente objetivo e conciso. Não enrole. Vá direto ao ponto, mantendo a qualidade acadêmica, mas usando frases curtas e diretas.
     
-    ESTRUTURA DE PARÁGRAFOS EXIGIDA (MANTENHA CURTO E OBJETIVO):
-    - Resumo: 1 parágrafo curto e direto.
-    - Contexto: 1 parágrafo curto e direto.
-    - Análise: 1 parágrafo conciso com 2 a 3 conceitos.
-    - Aspectos e Por quês: Justificativas diretas e objetivas (máx 3 linhas cada).
-    - Propostas de solução: Máximo de 2 parágrafos objetivos.
-    - Conclusão reflexiva: 1 a 2 parágrafos curtos.
-    - Autoavaliação: 1 parágrafo curto.
+    ESTRUTURA DE PROFUNDIDADE (DUAS VELOCIDADES):
+    - ETAPAS INICIAIS (Aspectos, Por quês, Conceitos Teóricos e Soluções): Estas seções DEVEM ser PROFUNDAS, acadêmicas, densas e muito bem elaboradas. Explore os detalhes com textos longos e robustos. Não seja raso nestas partes.
+    - ETAPA 5 - MEMORIAL ANALÍTICO (Resumo, Contexto, Análise, Propostas, Conclusão, Autoavaliação): Aqui há um LIMITE CRÍTICO de 6000 caracteres no total. Portanto, APENAS NAS TAGS DO MEMORIAL, seja extremamente objetivo, conciso e vá direto ao ponto.
     
     GERAÇÃO OBRIGATÓRIA (Copie e preencha todas as tags rigorosamente):
-    [START_RESUMO_MEMORIAL] [Resposta objetiva e concisa] [END_RESUMO_MEMORIAL]
-    [START_CONTEXTO_MEMORIAL] [Resposta objetiva e concisa] [END_CONTEXTO_MEMORIAL]
-    [START_ANALISE_MEMORIAL] [Resposta objetiva e concisa] [END_ANALISE_MEMORIAL]
-    [START_ASPECTO_1] [Resposta objetiva] [END_ASPECTO_1]
-    [START_POR_QUE_1] [Resposta objetiva] [END_POR_QUE_1]
-    [START_ASPECTO_2] [Resposta objetiva] [END_ASPECTO_2]
-    [START_POR_QUE_2] [Resposta objetiva] [END_POR_QUE_2]
-    [START_ASPECTO_3] [Resposta objetiva] [END_ASPECTO_3]
-    [START_POR_QUE_3] [Resposta objetiva] [END_POR_QUE_3]
-    [START_CONCEITOS_TEORICOS] [Resposta objetiva] [END_CONCEITOS_TEORICOS]
-    [START_ANALISE_CONCEITO_1] [Resposta objetiva] [END_ANALISE_CONCEITO_1]
-    [START_ENTENDIMENTO_TEORICO] [Resposta objetiva] [END_ENTENDIMENTO_TEORICO]
-    [START_SOLUCOES_TEORICAS] [Resposta objetiva] [END_SOLUCOES_TEORICAS]
-    [START_PROPOSTAS_MEMORIAL] [Resposta objetiva e concisa] [END_PROPOSTAS_MEMORIAL]
-    [START_CONCLUSAO_MEMORIAL] [Resposta objetiva e concisa] [END_CONCLUSAO_MEMORIAL]
-    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT curtas] [END_REFERENCIAS_ADICIONAIS]
-    [START_AUTOAVALIACAO_MEMORIAL] [Resposta objetiva e concisa] [END_AUTOAVALIACAO_MEMORIAL]
+    [START_RESUMO_MEMORIAL] [ETAPA 5: Resposta objetiva e curta] [END_RESUMO_MEMORIAL]
+    [START_CONTEXTO_MEMORIAL] [ETAPA 5: Resposta objetiva e curta] [END_CONTEXTO_MEMORIAL]
+    [START_ANALISE_MEMORIAL] [ETAPA 5: Resposta objetiva e curta] [END_ANALISE_MEMORIAL]
+    [START_ASPECTO_1] [Resposta Profunda, Densa e Longa] [END_ASPECTO_1]
+    [START_POR_QUE_1] [Resposta Profunda, Densa e Longa] [END_POR_QUE_1]
+    [START_ASPECTO_2] [Resposta Profunda, Densa e Longa] [END_ASPECTO_2]
+    [START_POR_QUE_2] [Resposta Profunda, Densa e Longa] [END_POR_QUE_2]
+    [START_ASPECTO_3] [Resposta Profunda, Densa e Longa] [END_ASPECTO_3]
+    [START_POR_QUE_3] [Resposta Profunda, Densa e Longa] [END_POR_QUE_3]
+    [START_CONCEITOS_TEORICOS] [Resposta Profunda, Densa e Longa] [END_CONCEITOS_TEORICOS]
+    [START_ANALISE_CONCEITO_1] [Resposta Profunda, Densa e Longa] [END_ANALISE_CONCEITO_1]
+    [START_ENTENDIMENTO_TEORICO] [Resposta Profunda, Densa e Longa] [END_ENTENDIMENTO_TEORICO]
+    [START_SOLUCOES_TEORICAS] [Resposta Profunda, Densa e Longa] [END_SOLUCOES_TEORICAS]
+    [START_PROPOSTAS_MEMORIAL] [ETAPA 5: Resposta objetiva e curta] [END_PROPOSTAS_MEMORIAL]
+    [START_CONCLUSAO_MEMORIAL] [ETAPA 5: Resposta objetiva e curta] [END_CONCLUSAO_MEMORIAL]
+    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT reais] [END_REFERENCIAS_ADICIONAIS]
+    [START_AUTOAVALIACAO_MEMORIAL] [ETAPA 5: Resposta objetiva e curta] [END_AUTOAVALIACAO_MEMORIAL]
 """
 
 # =========================================================
@@ -202,8 +196,8 @@ with app.app_context():
             novo_prompt = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
             db.session.add(novo_prompt)
             db.session.commit()
-        # Gatilho de segurança: Se o banco tiver o prompt velho (sem o limite estrito), ele força a atualização.
-        elif "LIMITE DE 6000 CARACTERES" not in prompt_padrao.texto:
+        # Gatilho de segurança Híbrida: Atualiza o banco para a versão de profundidade dividida
+        elif "PROFUNDIDADE HÍBRIDA" not in prompt_padrao.texto:
             prompt_padrao.texto = PROMPT_REGRAS_BASE
             db.session.commit()
     except Exception: 
@@ -217,7 +211,7 @@ with app.app_context():
         db.session.rollback()
 
 # =========================================================
-# MOTOR NATIVO OPENROUTER E GEMINI FLASH
+# MOTOR NATIVO OPENROUTER (COM LIMITES DE TOKENS EXPANDIDOS)
 # =========================================================
 def limpar_texto_ia(texto):
     try: 
@@ -246,7 +240,7 @@ def chamar_ia(prompt, nome_modelo):
             "model": modelo_limpo,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
-            "max_tokens": 6000 # Mantém o fôlego alto para a IA conseguir ler até a 17ª tag, mas o prompt cuida de ser conciso nas respostas.
+            "max_tokens": 6000 # Mantém o fôlego alto para a IA não cortar as respostas profundas iniciais
         }
         
         try:
@@ -371,13 +365,11 @@ def extrair_dicionario(texto_ia):
     dic = {}
     
     for chave in chaves:
-        # REGEX BLINDADO: Impede que o sistema ignore a tag se a IA esquecer de colocar o [END]
         padrao = rf"\[START_{chave}\](.*?)(?=\[END_{chave}\]|\[START_|$)"
         match = re.search(padrao, texto_ia, re.DOTALL | re.IGNORECASE)
         
         if match:
             trecho = match.group(1).strip()
-            # Loop que remove negritos globais colocados indevidamente pela IA
             while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4:
                 trecho = trecho[2:-2].strip()
             dic[f"{{{{{chave}}}}}"] = trecho
@@ -394,7 +386,7 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
     TEMA: {texto_tema}
     TRABALHO ATUAL: {texto_trabalho}
     CRÍTICA RECEBIDA: {critica}
-    TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. Seja conciso e não ultrapasse os 6000 caracteres no total.
+    TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. 
     NUNCA formate a resposta inteira em negrito.
     {regras}"""
     
@@ -431,11 +423,11 @@ def portal():
 # ROTAS DO GERADOR E DE REGERAÇÃO
 # =========================================================
 MODELOS_DISPONIVEIS = [
-    "gemini-2.5-flash",                       # Nativo Google (15 Req/Min)
-    "google/gemini-2.5-flash",                # OpenRouter Premium
-    "meta-llama/llama-3.3-70b-instruct",      # OpenRouter Premium
-    "qwen/qwen-2.5-72b-instruct",             # OpenRouter Premium
-    "mistralai/mistral-nemo"                  # OpenRouter Premium
+    "gemini-2.5-flash",                       
+    "google/gemini-2.5-flash",                
+    "meta-llama/llama-3.3-70b-instruct",      
+    "qwen/qwen-2.5-72b-instruct",             
+    "mistralai/mistral-nemo"                  
 ]
 
 @app.route('/')
@@ -475,7 +467,6 @@ def gerar_rascunho():
             texto_resposta = chamar_ia(prompt_completo, modelo)
             dicionario = extrair_dicionario(texto_resposta)
             
-            # FILTRO ANTI-PREGUIÇA (Agora adaptado para garantir que a IA gere as 17 tags sem ser redundante demais)
             tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
             if tags_preenchidas < 10: 
                 raise Exception(f"A IA {modelo} teve preguiça e gerou apenas {tags_preenchidas} tags. O sistema tentará a IA de reserva.")
@@ -524,6 +515,10 @@ def regerar_trecho():
             if valor and str(valor).strip(): 
                 texto_contexto += f"{chave}:\n{valor}\n\n"
 
+        # Lógica para garantir que a IA saiba se deve ser profunda (Aspectos) ou objetiva (Memorial) na regeração
+        is_etapa5 = "MEMORIAL" in tag.upper() or "AUTOAVALIACAO" in tag.upper()
+        ordem_tamanho = "Seja extremamente objetivo e conciso para respeitar o limite de 6000 caracteres da Etapa 5." if is_etapa5 else "Seja profundo, denso, analítico e elabore uma resposta extensa e universitária."
+
         prompt_regeracao = f"""Você é um professor avaliador rigoroso.
 TEMA/CASO DO DESAFIO:\n{tema}
 
@@ -532,7 +527,9 @@ CONTEXTO ATUAL DO TRABALHO (Para manter a coerência):\n{texto_contexto}
 REGRAS GERAIS E ESTRUTURA:\n{texto_prompt}
 
 TAREFA ESPECÍFICA DE CORREÇÃO:
-Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o contexto e seja objetivo. NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta toda em negrito (**). Retorne APENAS o texto limpo."""
+Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o contexto. 
+{ordem_tamanho}
+NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta toda em negrito (**). Retorne APENAS o texto limpo."""
         
         fila_modelos = [modelo_selecionado] + [m for m in MODELOS_DISPONIVEIS if m != modelo_selecionado]
         ultimo_erro = ""
