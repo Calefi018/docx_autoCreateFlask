@@ -71,7 +71,7 @@ client = genai.Client(api_key=CHAVE_API_GOOGLE) if CHAVE_API_GOOGLE else None
 CHAVE_OPENROUTER = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
-# MODELOS DO BANCO DE DADOS
+# MODELOS DO BANCO DE DADOS (COM A NOVA TABELA DE TEMAS)
 # =========================================================
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -90,7 +90,10 @@ class Aluno(db.Model):
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='Produção') 
     valor = db.Column(db.Float, default=70.0) 
+    
+    # Relações (O aluno agora tem documentos e um banco de temas)
     documentos = db.relationship('Documento', backref='aluno', lazy=True, cascade="all, delete-orphan")
+    temas = db.relationship('TemaTrabalho', backref='aluno', lazy=True, cascade="all, delete-orphan")
 
 class Documento(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -98,6 +101,14 @@ class Documento(db.Model):
     nome_arquivo = db.Column(db.String(255), nullable=False)
     dados_arquivo = db.Column(db.LargeBinary, nullable=False) 
     data_upload = db.Column(db.DateTime, default=datetime.utcnow)
+
+# NOVA TABELA: Guarda o histórico infinito de temas do cliente
+class TemaTrabalho(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    aluno_id = db.Column(db.Integer, db.ForeignKey('aluno.id'), nullable=False)
+    titulo = db.Column(db.String(255), nullable=True) 
+    texto = db.Column(db.Text, nullable=False)
+    data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
 
 class PromptConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -126,6 +137,7 @@ PROMPT_REGRAS_BASE = """
     - PROIBIDO usar palavras robóticas de IA.
     - Escreva de forma natural e acadêmica.
     - NÃO USE FORMATO JSON.
+    - NUNCA formate o texto inteiro em negrito (**).
     - OBRIGATÓRIO (LIMITE DE PARÁGRAFOS): 
       * Resumo: EXATAMENTE 1 parágrafo.
       * Contexto: EXATAMENTE 1 parágrafo.
@@ -317,7 +329,13 @@ def extrair_dicionario(texto_ia):
     dic = {}
     for chave in chaves:
         match = re.search(rf"\[START_{chave}\](.*?)\[END_{chave}\]", texto_ia, re.DOTALL)
-        dic[f"{{{{{chave}}}}}"] = match.group(1).strip() if match else "" 
+        if match:
+            trecho = match.group(1).strip()
+            while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4:
+                trecho = trecho[2:-2].strip()
+            dic[f"{{{{{chave}}}}}"] = trecho
+        else:
+            dic[f"{{{{{chave}}}}}"] = "" 
     return dic
 
 def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
@@ -329,6 +347,7 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
     TRABALHO ATUAL: {texto_trabalho}
     CRÍTICA RECEBIDA: {critica}
     TAREFA: Reescreva as respostas aplicando as melhorias exigidas na crítica. 
+    NUNCA formate a resposta inteira em negrito.
     {regras}"""
     
     try:
@@ -390,7 +409,6 @@ def gerar_rascunho():
         modelo = request.form.get('modelo')
         prompt_id = request.form.get('prompt_id')
         
-        # Leitura blindada do ID do banco de dados
         config = None
         if prompt_id and str(prompt_id).isdigit():
             config = PromptConfig.query.get(int(prompt_id))
@@ -411,7 +429,6 @@ def gerar_rascunho():
         return jsonify({"sucesso": True, "dicionario": dicionario})
         
     except Exception as e:
-        # Sistema de Fallback de Modelo
         try: 
             next_model = MODELOS_DISPONIVEIS[(MODELOS_DISPONIVEIS.index(modelo) + 1) % len(MODELOS_DISPONIVEIS)]
         except Exception: 
@@ -428,7 +445,6 @@ def gerar_rascunho():
 @app.route('/regerar_trecho', methods=['POST'])
 @login_required
 def regerar_trecho():
-    # Toda a lógica envolvida num bloco Try/Except para NUNCA retornar uma tela 500
     try:
         dados = request.json
         if not dados:
@@ -440,7 +456,6 @@ def regerar_trecho():
         prompt_id = dados.get('prompt_id')
         contexto_atual = dados.get('dicionario', {}) 
 
-        # Leitura rigorosa e protegida do ID
         config = None
         if prompt_id and str(prompt_id).isdigit():
             config = PromptConfig.query.get(int(prompt_id))
@@ -449,7 +464,6 @@ def regerar_trecho():
             
         texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
 
-        # Compila tudo o que está preenchido nas outras caixas
         texto_contexto = ""
         for chave, valor in contexto_atual.items():
             if valor and str(valor).strip():
@@ -468,15 +482,17 @@ TAREFA ESPECÍFICA DE CORREÇÃO:
 O usuário pediu para reescrever APENAS o trecho correspondente à tag: {tag}.
 Por favor, reescreva este trecho específico com excelência acadêmica.
 É OBRIGATÓRIO que o novo trecho faça sentido e tenha conexão lógica com o "CONTEXTO ATUAL DO TRABALHO" fornecido acima. Se for um "Por quê", ele deve justificar o "Aspecto" anterior de forma fluida.
-IMPORTANTE: NÃO inclua as marcações [START_{tag}] ou [END_{tag}] na sua resposta final. Retorne APENAS o texto limpo."""
+IMPORTANTE: NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta inteira em negrito (**). Retorne APENAS o texto limpo, direto e formatado."""
 
         novo_texto = chamar_ia(prompt_regeracao, modelo)
         
-        # Limpeza preventiva caso a IA mande tags
         novo_texto = re.sub(rf"\[START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
-        novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
+        novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE).strip()
         
-        return jsonify({"sucesso": True, "novo_texto": novo_texto.strip()})
+        while novo_texto.startswith('**') and novo_texto.endswith('**') and len(novo_texto) > 4:
+            novo_texto = novo_texto[2:-2].strip()
+        
+        return jsonify({"sucesso": True, "novo_texto": novo_texto})
         
     except Exception as e:
         traceback.print_exc()
@@ -607,7 +623,7 @@ def delete_prompt(id):
     return redirect(url_for('gerenciar_prompts'))
 
 # =========================================================
-# CRM, GESTÃO DE CLIENTES E DOCUMENTOS
+# CRM E GESTÃO DE CLIENTES
 # =========================================================
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
@@ -702,6 +718,52 @@ def cliente_detalhe(id):
         
     return render_template('cliente_detalhe.html', aluno=aluno)
 
+# =========================================================
+# GESTÃO DOS TEMAS SALVOS DO ALUNO (NOVO)
+# =========================================================
+@app.route('/adicionar_tema/<int:aluno_id>', methods=['POST'])
+@login_required
+def adicionar_tema(aluno_id):
+    aluno = Aluno.query.get_or_404(aluno_id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    titulo = request.form.get('titulo')
+    texto = request.form.get('texto')
+    
+    if texto:
+        novo_tema = TemaTrabalho(
+            aluno_id=aluno.id, 
+            titulo=titulo if titulo else f"Tema {len(aluno.temas) + 1}", 
+            texto=texto
+        )
+        db.session.add(novo_tema)
+        db.session.commit()
+        flash('Tema salvo com sucesso na pasta do aluno!', 'success')
+    else:
+        flash('O texto do tema não pode estar vazio.', 'error')
+        
+    return redirect(url_for('cliente_detalhe', id=aluno_id))
+
+@app.route('/deletar_tema/<int:tema_id>', methods=['GET'])
+@login_required
+def deletar_tema(tema_id):
+    tema = TemaTrabalho.query.get_or_404(tema_id)
+    aluno_id = tema.aluno_id
+    aluno = Aluno.query.get(aluno_id)
+    
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    db.session.delete(tema)
+    db.session.commit()
+    flash('Tema apagado com sucesso.', 'success')
+    
+    return redirect(url_for('cliente_detalhe', id=aluno_id))
+
+# =========================================================
+# GESTÃO DOS DOCUMENTOS
+# =========================================================
 @app.route('/upload_doc/<int:aluno_id>', methods=['POST'])
 @login_required
 def upload_doc(aluno_id):
