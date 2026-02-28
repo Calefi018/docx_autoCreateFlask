@@ -1,201 +1,148 @@
 {% extends "base.html" %}
 {% block content %}
-    <h1 style="margin-top:0;">Meus Clientes</h1>
+    <h1 style="margin-top:0;">CRM: Gestão de Trabalhos</h1>
     
     <div class="card" style="border-top: 4px solid var(--primary);">
-        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-fill ph-user-plus"></i> Cadastrar Novo
-        </h3>
-        
+        <h3 style="margin-top: 0;"><i class="ph-fill ph-user-plus"></i> Novo Cliente / Trabalho</h3>
         <form method="POST" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <input type="text" name="nome" placeholder="Nome do Aluno" required style="flex: 2; min-width: 150px;">
             <input type="text" name="curso" placeholder="Curso/Disciplina" style="flex: 2; min-width: 150px;">
-            <input type="text" name="telefone" placeholder="WhatsApp" style="flex: 2; min-width: 150px;">
-            <input type="number" name="valor" placeholder="Valor (R$)" value="70.0" step="0.01" required style="flex: 1; min-width: 100px;">
-            <button type="submit" class="btn btn-green" style="height: 44px; margin-top: 8px;">
-                <i class="ph-bold ph-plus"></i> Cadastrar
-            </button>
+            <input type="text" name="telefone" placeholder="WhatsApp" style="flex: 1.5; min-width: 120px;">
+            <input type="text" name="ava_login" placeholder="Login AVA (Opcional)" style="flex: 1.5; min-width: 120px;">
+            <input type="text" name="ava_senha" placeholder="Senha AVA (Opcional)" style="flex: 1.5; min-width: 120px;">
+            <input type="number" name="valor" placeholder="R$" value="70.0" step="0.01" required style="flex: 1; min-width: 80px;">
+            <button type="submit" class="btn btn-green" style="height: 44px; margin-top: 8px;"><i class="ph-bold ph-plus"></i> Criar</button>
         </form>
     </div>
 
-    <h3 style="color: var(--danger); display: flex; align-items: center; gap: 8px; margin-top: 40px;">
-        <i class="ph-fill ph-hourglass-high"></i> Trabalhos a Receber (Pendentes)
-    </h3>
+    <h3 style="color: var(--warning); margin-top: 40px;"><i class="ph-fill ph-hourglass-high"></i> Fila de Produção e Pendentes</h3>
     
     {% for aluno in alunos_pendentes %}
-        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--danger); padding: 20px; flex-wrap: wrap; gap: 15px;">
-            <div>
-                <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 10px;">
-                    {{ aluno.nome }}
-                    {% if aluno.status == 'Produção' %}
-                        <span style="font-size: 0.75rem; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 4px 8px; border-radius: 4px; border: 1px solid #f59e0b;">Em Produção</span>
-                    {% else %}
-                        <span style="font-size: 0.75rem; background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 8px; border-radius: 4px; border: 1px solid #ef4444;">Concluído (Falta Pagar)</span>
-                    {% endif %}
-                </h3>
-                <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 8px; font-size: 0.9rem;">
-                    <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
-                    <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
-                    <span style="display: flex; align-items: center; background: rgba(99, 102, 241, 0.1); padding: 4px 10px; border-radius: 6px; color: var(--primary); font-weight: bold;">
-                        R$ {{ "%.2f"|format(aluno.valor or 70.0) }}
-                    </span>
+        <div class="card" style="border-left: 4px solid {% if aluno.status == 'Produção' %}var(--warning){% else %}var(--danger){% endif %}; padding: 20px; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                
+                <div>
+                    <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 10px;">
+                        {{ aluno.nome }}
+                        
+                        <form action="/mudar_status/{{ aluno.id }}" method="POST" style="margin:0;">
+                            <select name="novo_status" onchange="this.form.submit()" style="margin:0; padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; font-weight: bold; background: {% if aluno.status == 'Produção' %}#f59e0b{% else %}#ef4444{% endif %}; color: #fff; border: none; outline: none; cursor: pointer;">
+                                <option value="Produção" {% if aluno.status == 'Produção' %}selected{% endif %}>Em Produção</option>
+                                <option value="Pendente" {% if aluno.status == 'Pendente' %}selected{% endif %}>Pronto (Falta Pagar)</option>
+                                <option value="Pago">Pago (Finalizar)</option>
+                            </select>
+                        </form>
+                    </h3>
+                    
+                    <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 10px; font-size: 0.9rem; flex-wrap: wrap;">
+                        <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                        <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                        <span style="color: var(--primary); font-weight: bold;">R$ {{ "%.2f"|format(aluno.valor or 0) }}</span>
+                        
+                        {% if aluno.ava_login %}
+                        <span style="background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: flex; gap: 8px;">
+                            <b>AVA:</b> {{ aluno.ava_login }} 
+                            <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarTexto('{{ aluno.ava_login }}', '{{ aluno.ava_senha }}')" title="Copiar Login e Senha"></i>
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" onclick="novoPedido('{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn btn-warning" title="Novo trabalho para este cliente">
+                        <i class="ph-bold ph-plus-circle"></i> Novo Pedido
+                    </button>
+                    
+                    <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
+                    <button type="button" onclick="cobrarWhatsapp('{{ aluno.telefone }}', '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.valor or 70.0 }}')" class="btn" style="background: #25D366; color: white;"><i class="ph-bold ph-whatsapp-logo"></i></button>
+                    <button type="button" onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }}, '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn" style="background: var(--border);"><i class="ph-bold ph-pencil-simple"></i></button>
+                    <a href="/deletar_cliente/{{ aluno.id }}" class="btn btn-danger" onclick="return confirm('Apagar tudo deste cliente?')"><i class="ph-bold ph-trash"></i></a>
                 </div>
             </div>
-            
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <form action="/toggle_status/{{ aluno.id }}" method="POST" style="margin:0;">
-                    <button type="submit" class="btn btn-green" title="Marcar como Pago">
-                        <i class="ph-bold ph-currency-dollar"></i> Recebido
-                    </button>
-                </form>
-                
-                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue" title="Abrir Arquivos">
-                    <i class="ph-bold ph-folder-open"></i> Pasta
-                </a>
-                
-                <button type="button" onclick="cobrarWhatsapp('{{ aluno.telefone }}', '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.valor or 70.0 }}')" class="btn" style="background: #25D366; color: white;" title="Cobrar por WhatsApp">
-                    <i class="ph-bold ph-whatsapp-logo"></i> Cobrar
-                </button>
-                
-                <button type="button" onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }})" class="btn" style="background: var(--border);" title="Editar Ficha">
-                    <i class="ph-bold ph-pencil-simple"></i>
-                </button>
-                
-                <button type="button" onclick="deletarCliente({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}')" class="btn btn-danger" title="Apagar Cliente">
-                    <i class="ph-bold ph-trash"></i>
-                </button>
-            </div>
         </div>
-    {% else %}
-        <p style="color: var(--text-muted);"><i class="ph ph-info"></i> Nenhum trabalho pendente.</p>
     {% endfor %}
 
-    <hr style="border: 0; border-top: 1px solid var(--border); margin: 40px 0;">
-
-    <h3 style="color: var(--success); display: flex; align-items: center; gap: 8px;">
-        <i class="ph-fill ph-check-circle"></i> Clientes Pagos (Recebidos)
-    </h3>
-    
+    <h3 style="color: var(--success); margin-top: 40px;"><i class="ph-fill ph-check-circle"></i> Trabalhos Finalizados (Pagos)</h3>
     {% for aluno in alunos_pagos %}
-        <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--success); opacity: 0.7; padding: 20px; flex-wrap: wrap; gap: 15px;">
-            <div>
-                <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
-                <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 8px; font-size: 0.9rem;">
-                    <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
-                    <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
-                    <span style="display: flex; align-items: center; color: var(--success); font-weight: bold;">
-                        <i class="ph-bold ph-check"></i> R$ {{ "%.2f"|format(aluno.valor or 70.0) }} Recebido
-                    </span>
+        <div class="card" style="border-left: 4px solid var(--success); opacity: 0.7; padding: 20px; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
+                    <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">{{ aluno.curso }} | <span style="color: var(--success); font-weight: bold;"><i class="ph-bold ph-check"></i> Pago</span></div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <form action="/mudar_status/{{ aluno.id }}" method="POST" style="margin:0;"><input type="hidden" name="novo_status" value="Pendente"><button type="submit" class="btn" style="background: var(--border);" title="Desfazer pagamento"><i class="ph-bold ph-arrow-u-up-left"></i></button></form>
+                    <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
+                    <button type="button" onclick="novoPedido('{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn btn-warning"><i class="ph-bold ph-plus-circle"></i> Novo Pedido</button>
                 </div>
             </div>
-            
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <form action="/toggle_status/{{ aluno.id }}" method="POST" style="margin:0;">
-                    <button type="submit" class="btn" style="background: var(--border);" title="Retornar para Pendentes">
-                        <i class="ph-bold ph-arrow-u-up-left"></i> Estornar
-                    </button>
-                </form>
-                
-                <a href="/cliente/{{ aluno.id }}" class="btn btn-blue" title="Abrir Arquivos">
-                    <i class="ph-bold ph-folder-open"></i> Pasta
-                </a>
-                
-                <button type="button" onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }})" class="btn" style="background: var(--border);" title="Editar Ficha">
-                    <i class="ph-bold ph-pencil-simple"></i>
-                </button>
-                
-                <button type="button" onclick="deletarCliente({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}')" class="btn btn-danger" title="Apagar Cliente">
-                    <i class="ph-bold ph-trash"></i>
-                </button>
-            </div>
         </div>
-    {% else %}
-        <p style="color: var(--text-muted);"><i class="ph ph-info"></i> Nenhum cliente recebido ainda.</p>
     {% endfor %}
 
     <div id="zap-template" style="display:none;">{{ config.whatsapp_template if config else 'Olá {nome}, seu trabalho está pronto! Valor: R$ {valor}' }}</div>
 
     <script>
-        function cobrarWhatsapp(telefone, nome, curso, valor) {
-            let template = document.getElementById('zap-template').innerText;
-            
-            let msgFormatada = template
-                .replace(/{nome}/g, nome)
-                .replace(/{curso}/g, curso)
-                .replace(/{valor}/g, parseFloat(valor).toFixed(2));
-                
-            let zapNumero = telefone.replace(/\D/g, ''); 
-            window.open(`https://wa.me/55${zapNumero}?text=${encodeURIComponent(msgFormatada)}`, '_blank');
+        function copiarTexto(login, senha) {
+            navigator.clipboard.writeText(`Login AVA: ${login}\nSenha AVA: ${senha}`);
+            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Copiado!', background: '#1e2130', color: '#10b981' });
         }
 
-        function editarClienteTotal(id, nome, curso, telefone, valor) {
+        function cobrarWhatsapp(telefone, nome, curso, valor) {
+            let msg = document.getElementById('zap-template').innerText.replace(/{nome}/g, nome).replace(/{curso}/g, curso).replace(/{valor}/g, parseFloat(valor).toFixed(2));
+            window.open(`https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        function novoPedido(nome, tel, login, senha) {
             Swal.fire({
-                title: 'Editar Ficha do Cliente',
+                title: 'Novo Pedido para o Cliente',
                 html: `
-                    <div style="text-align: left; margin-top: 15px;">
-                        <label style="color: var(--text-muted); font-size: 0.85rem; margin-left: 5px;">Nome do Aluno</label>
-                        <input id="swal-nome" class="swal2-input" style="width: 100%; box-sizing: border-box; margin: 5px 0 15px 0; background: rgba(15,17,26,0.6); color: #fff; border: 1px solid var(--border);" value="${nome}">
-                        
-                        <label style="color: var(--text-muted); font-size: 0.85rem; margin-left: 5px;">Curso/Disciplina</label>
-                        <input id="swal-curso" class="swal2-input" style="width: 100%; box-sizing: border-box; margin: 5px 0 15px 0; background: rgba(15,17,26,0.6); color: #fff; border: 1px solid var(--border);" value="${curso}">
-                        
-                        <label style="color: var(--text-muted); font-size: 0.85rem; margin-left: 5px;">WhatsApp</label>
-                        <input id="swal-tel" class="swal2-input" style="width: 100%; box-sizing: border-box; margin: 5px 0 15px 0; background: rgba(15,17,26,0.6); color: #fff; border: 1px solid var(--border);" value="${telefone}">
-                        
-                        <label style="color: var(--text-muted); font-size: 0.85rem; margin-left: 5px;">Valor Combinado (R$)</label>
-                        <input id="swal-valor" type="number" step="0.01" class="swal2-input" style="width: 100%; box-sizing: border-box; margin: 5px 0; background: rgba(15,17,26,0.6); color: #fff; border: 1px solid var(--border);" value="${valor}">
+                    <div style="text-align: left;">
+                        <input id="sw-nome" value="${nome}" type="hidden">
+                        <input id="sw-tel" value="${tel}" type="hidden">
+                        <input id="sw-login" value="${login}" type="hidden">
+                        <input id="sw-senha" value="${senha}" type="hidden">
+                        <p style="color:var(--text-muted); font-size:0.9rem;">Criando nova ficha de trabalho para <b>${nome}</b>.</p>
+                        <label>Qual a nova disciplina?</label>
+                        <input id="sw-curso" class="swal2-input" style="width:100%; margin: 5px 0 15px 0;">
+                        <label>Qual o valor (R$)?</label>
+                        <input id="sw-valor" type="number" step="0.01" value="70.0" class="swal2-input" style="width:100%; margin: 5px 0;">
                     </div>
                 `,
-                background: '#1e2130', 
-                color: '#e2e8f0', 
-                showCancelButton: true, 
-                confirmButtonText: 'Salvar Alterações', 
-                confirmButtonColor: '#6366f1',
-                preConfirm: () => { 
-                    return { 
-                        nome: document.getElementById('swal-nome').value, 
-                        curso: document.getElementById('swal-curso').value, 
-                        telefone: document.getElementById('swal-tel').value, 
-                        valor: document.getElementById('swal-valor').value 
-                    } 
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    let form = document.createElement('form'); 
-                    form.method = 'POST'; 
-                    form.action = '/editar_cliente/' + id;
-                    
-                    let campos = ['nome', 'curso', 'telefone', 'valor'];
-                    
-                    campos.forEach(field => { 
-                        let input = document.createElement('input'); 
-                        input.type = 'hidden'; 
-                        input.name = field; 
-                        input.value = result.value[field]; 
-                        form.appendChild(input); 
+                background: '#1e2130', color: '#e2e8f0', confirmButtonText: 'Criar Novo Trabalho', confirmButtonColor: '#f59e0b', showCancelButton: true,
+                preConfirm: () => {
+                    let form = document.createElement('form'); form.method = 'POST'; form.action = '/clientes';
+                    ['nome','tel','login','senha','curso','valor'].forEach(k => {
+                        let i = document.createElement('input'); i.type = 'hidden'; 
+                        i.name = k === 'tel' ? 'telefone' : (k.includes('login') ? 'ava_login' : (k.includes('senha') ? 'ava_senha' : k));
+                        i.value = document.getElementById('sw-'+k).value; form.appendChild(i);
                     });
-                    
-                    document.body.appendChild(form); 
-                    form.submit();
+                    document.body.appendChild(form); form.submit();
                 }
             });
         }
 
-        function deletarCliente(id, nome) {
+        function editarClienteTotal(id, nome, curso, telefone, valor, login, senha) {
             Swal.fire({
-                title: 'Tem Certeza Absoluta?',
-                html: `Você está prestes a apagar a ficha de <b>${nome}</b>.<br>Isto também <b style="color: var(--danger);">apagará todos os arquivos Word e PDF</b> vinculados a este cliente.<br><br>Esta ação é irreversível!`,
-                icon: 'warning', 
-                background: '#1e2130', 
-                color: '#e2e8f0', 
-                showCancelButton: true, 
-                confirmButtonColor: '#ef4444', 
-                cancelButtonColor: '#334155', 
-                confirmButtonText: '<i class="ph-bold ph-trash"></i> Sim, Apagar Tudo', 
-                cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) { 
-                    window.location.href = '/deletar_cliente/' + id; 
+                title: 'Editar Ficha',
+                html: `
+                    <div style="text-align: left; display: flex; flex-direction: column; gap: 10px;">
+                        <input id="sw-nome" class="swal2-input" value="${nome}" placeholder="Nome">
+                        <input id="sw-curso" class="swal2-input" value="${curso}" placeholder="Curso">
+                        <input id="sw-tel" class="swal2-input" value="${telefone}" placeholder="WhatsApp">
+                        <input id="sw-login" class="swal2-input" value="${login}" placeholder="Login AVA">
+                        <input id="sw-senha" class="swal2-input" value="${senha}" placeholder="Senha AVA">
+                        <input id="sw-valor" type="number" step="0.01" class="swal2-input" value="${valor}" placeholder="Valor R$">
+                    </div>
+                `,
+                background: '#1e2130', color: '#e2e8f0', showCancelButton: true, confirmButtonText: 'Salvar', confirmButtonColor: '#6366f1',
+                preConfirm: () => {
+                    let form = document.createElement('form'); form.method = 'POST'; form.action = '/editar_cliente/' + id;
+                    ['nome','curso','tel','login','senha','valor'].forEach(k => {
+                        let i = document.createElement('input'); i.type = 'hidden'; 
+                        i.name = k === 'tel' ? 'telefone' : (k.includes('login') ? 'ava_login' : (k.includes('senha') ? 'ava_senha' : k));
+                        i.value = document.getElementById('sw-'+k).value; form.appendChild(i);
+                    });
+                    document.body.appendChild(form); form.submit();
                 }
             });
         }
