@@ -54,6 +54,9 @@
     </div>
 
     <script>
+        // Variável global para armazenar os temas sem quebrar o HTML com aspas ou caracteres especiais
+        let temasCarregados = [];
+
         document.getElementById('aluno_id').addEventListener('change', function() {
             let aluno_id = this.value;
             let container = document.getElementById('container_temas_salvos');
@@ -61,9 +64,13 @@
             if(!aluno_id) { container.style.display = 'none'; return; }
             
             fetch('/api/temas/' + aluno_id).then(r => r.json()).then(temas => {
+                temasCarregados = temas; // Guarda os temas na memória do navegador
                 if(temas.length > 0) {
                     select.innerHTML = '<option value="">Selecione para preencher automaticamente...</option>';
-                    temas.forEach(t => { select.innerHTML += `<option value="${t.texto}">${t.titulo || 'Tema sem Título'}</option>`; });
+                    temas.forEach(t => { 
+                        // Agora usamos o ID do tema no value, e não o texto inteiro
+                        select.innerHTML += `<option value="${t.id}">${t.titulo || 'Tema sem Título'}</option>`; 
+                    });
                     container.style.display = 'block';
                 } else {
                     container.style.display = 'none';
@@ -72,7 +79,14 @@
         });
 
         document.getElementById('select_tema_salvo').addEventListener('change', function() {
-            if(this.value) document.getElementById('tema').value = this.value;
+            let temaIdSelecionado = this.value;
+            if(temaIdSelecionado) {
+                // Procura o texto completo na memória baseado no ID selecionado
+                let temaEncontrado = temasCarregados.find(t => t.id == temaIdSelecionado);
+                if(temaEncontrado) {
+                    document.getElementById('tema').value = temaEncontrado.texto;
+                }
+            }
         });
 
         let dicionarioEditavel = {};
