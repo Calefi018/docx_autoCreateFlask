@@ -1,10 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
     <h1 style="margin-top:0;">Gerador de Trabalhos</h1>
-    <p style="color: var(--text-muted); margin-bottom: 30px;">
-        Gere o documento completo, edite manualmente se necessário, ou peça à IA para regerar trechos específicos (com contexto total do que já foi escrito).
-    </p>
-
+    
     <form id="formGerar" class="card">
         <label><b>1. Para qual Cliente é este trabalho?</b></label>
         <select name="aluno_id" id="aluno_id">
@@ -14,24 +11,27 @@
             {% endfor %}
         </select>
 
-        <label><b>2. Tema do Desafio</b></label>
-        <textarea name="tema" rows="6" placeholder="Cole aqui o texto do portal com as instruções..." required></textarea>
+        <div id="container_temas_salvos" style="display: none; margin-top: 15px;">
+            <label style="color: var(--warning);"><b><i class="ph-fill ph-book-bookmark"></i> Temas Salvos do Cliente</b></label>
+            <select id="select_tema_salvo">
+                <option value="">Selecione para preencher automaticamente...</option>
+            </select>
+        </div>
+
+        <label style="margin-top: 15px; display: block;"><b>2. Tema do Desafio</b></label>
+        <textarea name="tema" id="tema" rows="6" placeholder="Cole aqui as instruções..." required></textarea>
 
         <div style="display:flex; gap:15px; flex-wrap:wrap;">
             <div style="flex:1; min-width: 250px;">
                 <label><b>3. Padrão / Cérebro da IA</b></label>
                 <select name="prompt_id">
-                    {% for p in prompts %}
-                        <option value="{{ p.id }}">{{ p.nome }}</option>
-                    {% endfor %}
+                    {% for p in prompts %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
                 </select>
             </div>
             <div style="flex:1; min-width: 250px;">
-                <label><b>4. Inteligência Artificial Principal</b></label>
+                <label><b>4. Inteligência Principal</b></label>
                 <select name="modelo" id="select_modelo">
-                    {% for modelo in modelos %}
-                        <option value="{{ modelo }}">{{ modelo }}</option>
-                    {% endfor %}
+                    {% for modelo in modelos %}<option value="{{ modelo }}">{{ modelo }}</option>{% endfor %}
                 </select>
             </div>
         </div>
@@ -41,287 +41,108 @@
         </button>
         
         <div id="loading" style="display:none; text-align:center; margin-top: 20px;">
-            <p id="progress-text" style="font-weight: 600; color: var(--primary); margin-bottom: 8px;">
-                A IA está a construir o raciocínio...
-            </p>
-            <div style="width: 100%; background-color: var(--bg-color); border-radius: 8px; height: 12px; overflow: hidden; border: 1px solid var(--border);">
-                <div id="progress-bar-fill" style="width: 0%; height: 100%; background-color: var(--primary); transition: width 0.5s ease;"></div>
-            </div>
-            <small style="color: var(--text-muted); display: block; margin-top: 8px;">
-                Aguarde. Modelos complexos podem demorar até 2 minutos para processar tudo com excelência.
-            </small>
+            <p id="progress-text" style="font-weight: bold; color: var(--primary);">A IA está a construir o raciocínio...</p>
         </div>
     </form>
 
-    <div id="area-edicao" class="card" style="display:none; margin-top: 30px; border: 1px solid var(--secondary);">
-        <h2 style="color: var(--secondary); margin-top:0; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-fill ph-pencil-simple"></i> Pré-visualização e Edição Contextual
-        </h2>
-        <p style="color: var(--text-muted); font-size: 0.95em; margin-bottom: 25px;">
-            Se a IA pular um trecho (a caixa ficará vermelha e vazia), clique em <b>"Regerar Trecho"</b> para ela completar o buraco!
-        </p>
-        
+    <div id="area-edicao" class="card" style="display:none; margin-top: 30px;">
+        <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição Contextual</h2>
         <div id="caixas-texto"></div>
-
-        <button class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">
+        <button class="btn btn-green" style="width: 100%; padding: 15px; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">
             <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final
         </button>
     </div>
 
     <script>
-        let dicionarioEditavel = {};
-        let progressInterval;
-
-        // Lista Oficial Exata (As 17 Caixas que TÊM que aparecer)
-        const ordemOficial = [
-            "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL",
-            "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3",
-            "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS",
-            "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"
-        ];
-
-        function animarCarregamento() {
-            let width = 0;
-            const bar = document.getElementById('progress-bar-fill');
-            const txt = document.getElementById('progress-text');
-            bar.style.width = '0%';
-            progressInterval = setInterval(() => {
-                if (width < 95) { 
-                    width += 1; 
-                    bar.style.width = width + '%'; 
-                    txt.innerText = `Processando referências e moldando coesão... ${width}%`; 
+        document.getElementById('aluno_id').addEventListener('change', function() {
+            let aluno_id = this.value;
+            let container = document.getElementById('container_temas_salvos');
+            let select = document.getElementById('select_tema_salvo');
+            if(!aluno_id) { container.style.display = 'none'; return; }
+            
+            fetch('/api/temas/' + aluno_id).then(r => r.json()).then(temas => {
+                if(temas.length > 0) {
+                    select.innerHTML = '<option value="">Selecione para preencher automaticamente...</option>';
+                    temas.forEach(t => { select.innerHTML += `<option value="${t.texto}">${t.titulo || 'Tema sem Título'}</option>`; });
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
                 }
-            }, 1000);
-        }
+            });
+        });
 
-        function pararCarregamento() {
-            clearInterval(progressInterval);
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('btn-submit').style.display = 'block';
-        }
+        document.getElementById('select_tema_salvo').addEventListener('change', function() {
+            if(this.value) document.getElementById('tema').value = this.value;
+        });
+
+        let dicionarioEditavel = {};
+        const ordemOficial = ["RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS", "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"];
 
         function iniciarGeracao() {
-            const form = document.getElementById('formGerar');
-            const formdata = new FormData(form);
-
             document.getElementById('btn-submit').style.display = 'none';
             document.getElementById('area-edicao').style.display = 'none';
             document.getElementById('loading').style.display = 'block';
-            animarCarregamento();
-            
-            fetch('/gerar_rascunho', { 
-                method: 'POST', 
-                body: formdata 
-            })
-            .then(res => res.json())
-            .then(data => {
-                pararCarregamento();
-                
-                if(!data.sucesso) {
-                    Swal.fire({ icon: 'error', title: 'Falha Geral', text: data.erro, background: '#1e2130', color: '#e2e8f0' });
-                    return;
-                }
-                
-                // Se a IA que funcionou for diferente da que você escolheu, ele avisa!
-                const modeloEscolhido = document.getElementById('select_modelo').value;
-                if(data.modelo_utilizado !== modeloEscolhido) {
-                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 5000, background: '#1e2130', color: '#f59e0b' });
-                    Toast.fire({ icon: 'warning', title: `Modelo principal ocupado. Trabalho gerado usando a reserva: ${data.modelo_utilizado}` });
-                }
-                
+            fetch('/gerar_rascunho', { method: 'POST', body: new FormData(document.getElementById('formGerar')) })
+            .then(res => res.json()).then(data => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('btn-submit').style.display = 'block';
+                if(!data.sucesso) { Swal.fire('Erro', data.erro, 'error'); return; }
                 dicionarioEditavel = data.dicionario;
                 montarEditor(dicionarioEditavel);
                 document.getElementById('area-edicao').style.display = 'block';
-                window.scrollTo({ top: document.getElementById('area-edicao').offsetTop, behavior: 'smooth' });
-            })
-            .catch(err => { 
-                pararCarregamento(); 
-                Swal.fire('Erro', 'Falha na conexão com o servidor da IA.', 'error'); 
             });
         }
 
-        function regerarTrechoEspecifico(tagOriginal, textareaElement, btnElement, wrapperElement, labelElement, tituloOriginal) {
-            
-            const textareas = document.querySelectorAll('#caixas-texto textarea');
-            textareas.forEach(ta => { 
-                dicionarioEditavel[ta.dataset.chave] = ta.value; 
-            });
-
-            const modeloSelecionado = document.getElementById('select_modelo').value;
-            const temaTexto = document.querySelector('textarea[name="tema"]').value;
-            const promptIdSelecionado = document.querySelector('select[name="prompt_id"]').value;
-
-            const btnOriginalText = btnElement.innerHTML;
-            btnElement.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Lendo contexto...';
-            btnElement.disabled = true;
-            btnElement.style.opacity = '0.7';
-            textareaElement.disabled = true;
-
-            fetch('/regerar_trecho', { 
-                method: 'POST', 
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
+        function regerarTrechoEspecifico(tag, txtElement, btn, wrapper, lbl, tit) {
+            btn.innerText = "Lendo..."; btn.disabled = true;
+            fetch('/regerar_trecho', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    tema: temaTexto,
-                    tag: tagOriginal,
-                    modelo: modeloSelecionado,
-                    prompt_id: promptIdSelecionado,
-                    dicionario: dicionarioEditavel
+                    tema: document.getElementById('tema').value, tag: tag, 
+                    modelo: document.getElementById('select_modelo').value, 
+                    prompt_id: document.querySelector('[name="prompt_id"]').value, dicionario: dicionarioEditavel
                 })
-            })
-            .then(async res => {
-                const isJson = res.headers.get('content-type')?.includes('application/json');
-                const data = isJson ? await res.json() : null;
-
-                if (!res.ok) {
-                    const errorText = (data && data.erro) ? data.erro : `Falha no Servidor (Erro ${res.status})`;
-                    throw new Error(errorText);
-                }
-                if (!data) throw new Error("Resposta inválida do servidor.");
-                
-                return data;
-            })
-            .then(data => {
-                btnElement.innerHTML = btnOriginalText;
-                btnElement.disabled = false;
-                btnElement.style.opacity = '1';
-                textareaElement.disabled = false;
-
-                if(!data.sucesso) {
-                    Swal.fire({ icon: 'error', title: 'Erro na IA', text: data.erro, background: '#1e2130', color: '#e2e8f0' });
-                    return;
-                }
-
-                textareaElement.value = data.novo_texto;
-                
-                let chave_completa = "{" + "{" + tagOriginal + "}" + "}";
-                dicionarioEditavel[chave_completa] = data.novo_texto;
-
-                // Remove o "vermelho de erro" se o trecho foi regerado com sucesso
-                wrapperElement.style.background = 'rgba(30, 33, 48, 0.3)';
-                wrapperElement.style.border = '1px solid var(--border)';
-                labelElement.innerHTML = `<b>${tituloOriginal}</b>`;
-                labelElement.style.color = "var(--secondary)";
-
-                const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, background: '#1e2130', color: '#10b981' });
-                Toast.fire({ icon: 'success', title: 'Trecho reescrito com sucesso!' });
-            })
-            .catch(err => {
-                btnElement.innerHTML = btnOriginalText;
-                btnElement.disabled = false;
-                btnElement.style.opacity = '1';
-                textareaElement.disabled = false;
-                
-                Swal.fire({ icon: 'error', title: 'Falha Técnica', text: err.message, background: '#1e2130', color: '#e2e8f0' });
+            }).then(r => r.json()).then(data => {
+                btn.innerText = "Regerar"; btn.disabled = false;
+                if(!data.sucesso) return Swal.fire('Erro', data.erro, 'error');
+                txtElement.value = data.novo_texto;
+                dicionarioEditavel["{{"+tag+"}}"] = data.novo_texto;
+                wrapper.style.border = '1px solid var(--border)';
+                lbl.innerHTML = `<b>${tit}</b>`; lbl.style.color = "var(--secondary)";
             });
         }
 
-        // NOVO MOTOR VISUAL (Raio-X de Omissões)
         function montarEditor(dic) {
-            const container = document.getElementById('caixas-texto');
-            container.innerHTML = ''; 
-            
-            ordemOficial.forEach(chave_base => {
-                let chave_completa = "{" + "{" + chave_base + "}" + "}";
-                let tituloAmigavel = chave_base.replace(/_/g, ' ');
+            const container = document.getElementById('caixas-texto'); container.innerHTML = ''; 
+            ordemOficial.forEach(chave => {
+                let txt = dic["{{"+chave+"}}"] ? dic["{{"+chave+"}}"].trim() : "";
+                let is_vazio = (txt === "");
+                let wrap = document.createElement('div');
+                wrap.style.cssText = `margin-bottom:20px; padding:15px; border-radius:8px; border: 1px solid ${is_vazio ? '#ef4444' : 'var(--border)'}; background: rgba(30,33,48,0.3);`;
                 
-                // Se a IA não gerou a tag, o texto fica vazio
-                let texto_caixa = dic[chave_completa] ? dic[chave_completa].trim() : "";
-                let is_vazio = (texto_caixa === "");
+                let head = document.createElement('div'); head.style.cssText = "display:flex; justify-content:space-between; margin-bottom:10px;";
+                let lbl = document.createElement('label'); lbl.innerHTML = `<b>${chave.replace(/_/g,' ')}</b>`; lbl.style.color = is_vazio ? "#ef4444" : "var(--secondary)";
+                let btn = document.createElement('button'); btn.className = 'btn'; btn.innerText = "Regerar";
                 
-                let wrapper = document.createElement('div');
-                wrapper.style.marginBottom = '20px';
-                // Se estiver vazio, pinta a caixa de vermelho escuro
-                wrapper.style.background = is_vazio ? 'rgba(239, 68, 68, 0.05)' : 'rgba(30, 33, 48, 0.3)';
-                wrapper.style.padding = '15px';
-                wrapper.style.borderRadius = '8px';
-                wrapper.style.border = is_vazio ? '1px dashed #ef4444' : '1px solid var(--border)';
+                let ta = document.createElement('textarea'); ta.value = txt; ta.rows = is_vazio ? 2 : 4;
+                ta.onchange = (e) => { dicionarioEditavel["{{"+chave+"}}"] = e.target.value; };
+                btn.onclick = () => regerarTrechoEspecifico(chave, ta, btn, wrap, lbl, chave.replace(/_/g,' '));
                 
-                let headerBox = document.createElement('div');
-                headerBox.style.display = 'flex';
-                headerBox.style.justifyContent = 'space-between';
-                headerBox.style.alignItems = 'center';
-                headerBox.style.marginBottom = '10px';
-                
-                let label = document.createElement('label');
-                // Se a IA pulou, avisa o usuário
-                label.innerHTML = is_vazio ? `<b>${tituloAmigavel} <span style="color:#ef4444; font-size:0.8rem; font-weight:normal;">(A IA pulou. Regere!)</span></b>` : `<b>${tituloAmigavel}</b>`;
-                label.style.color = is_vazio ? "#ef4444" : "var(--secondary)";
-                label.style.fontSize = "1.05rem";
-                label.style.margin = "0";
-                
-                let btnRegerar = document.createElement('button');
-                btnRegerar.type = 'button';
-                btnRegerar.className = 'btn';
-                btnRegerar.style.padding = '6px 12px';
-                btnRegerar.style.fontSize = '0.85rem';
-                btnRegerar.style.backgroundColor = is_vazio ? '#ef4444' : '#4f46e5';
-                btnRegerar.innerHTML = '<i class="ph-bold ph-arrows-clockwise"></i> Regerar Trecho';
-                
-                let textarea = document.createElement('textarea');
-                textarea.rows = is_vazio ? 2 : 5;
-                textarea.value = texto_caixa;
-                textarea.dataset.chave = chave_completa;
-                textarea.style.margin = '0';
-                textarea.onchange = (e) => { dicionarioEditavel[e.target.dataset.chave] = e.target.value; };
-                
-                btnRegerar.onclick = () => regerarTrechoEspecifico(chave_base, textarea, btnRegerar, wrapper, label, tituloAmigavel);
-
-                headerBox.appendChild(label);
-                headerBox.appendChild(btnRegerar);
-                
-                wrapper.appendChild(headerBox);
-                wrapper.appendChild(textarea);
-                
-                container.appendChild(wrapper);
+                head.appendChild(lbl); head.appendChild(btn); wrap.appendChild(head); wrap.appendChild(ta); container.appendChild(wrap);
             });
         }
 
         function salvarEDocx() {
-            document.getElementById('btn-docx').innerHTML = "<i class='ph-bold ph-spinner animate-spin'></i> Construindo Documento Final...";
             document.getElementById('btn-docx').disabled = true;
-
-            const textareas = document.querySelectorAll('#caixas-texto textarea');
-            textareas.forEach(ta => { dicionarioEditavel[ta.dataset.chave] = ta.value; });
-            const alunoId = document.getElementById('aluno_id').value;
-
-            fetch('/gerar_docx_final', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ dicionario: dicionarioEditavel, aluno_id: alunoId })
-            })
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById('btn-docx').innerHTML = "<i class='ph-bold ph-check-circle'></i> Aprovar Tudo e Baixar DOCX Final";
+            document.querySelectorAll('#caixas-texto textarea').forEach(t => dicionarioEditavel["{{"+t.dataset.chave+"}}"] = t.value);
+            fetch('/gerar_docx_final', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dicionario: dicionarioEditavel, aluno_id: document.getElementById('aluno_id').value }) })
+            .then(r => r.json()).then(d => {
                 document.getElementById('btn-docx').disabled = false;
-                
-                if(!data.sucesso) { 
-                    Swal.fire('Erro', data.erro, 'error'); 
-                    return; 
-                }
-                
-                const link = document.createElement('a');
-                link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + data.arquivo_base64;
-                link.download = "Trabalho_Finalizado.docx"; 
-                link.click();
-                
+                if(!d.sucesso) return Swal.fire('Erro', d.erro, 'error');
+                let a = document.createElement('a'); a.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_base64;
+                a.download = "Trabalho_IA.docx"; a.click();
+                Swal.fire('Sucesso!', 'Documento final gerado e salvo.', 'success');
                 document.getElementById('area-edicao').style.display = 'none';
-                
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Trabalho Concluído!',
-                    text: 'O Word foi baixado e salvo na pasta do cliente. Ele foi movido para os Pendentes aguardando pagamento.',
-                    background: '#1e2130', 
-                    color: '#e2e8f0', 
-                    confirmButtonColor: '#10b981'
-                });
-            })
-            .catch(err => {
-                document.getElementById('btn-docx').innerHTML = "<i class='ph-bold ph-check-circle'></i> Aprovar Tudo e Baixar DOCX Final";
-                document.getElementById('btn-docx').disabled = false;
-                Swal.fire('Erro', 'Falha fatal ao gerar o arquivo Word.', 'error');
             });
         }
     </script>
