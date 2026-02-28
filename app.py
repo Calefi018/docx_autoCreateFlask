@@ -131,42 +131,53 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # =========================================================
-# PROMPT BASE (ORÇAMENTO DE CARACTERES EXATO)
+# PROMPT BASE REFINADO (LIMITES EXATOS E TÍTULOS EM NEGRITO)
 # =========================================================
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
-    1. PROIBIDO usar palavras robóticas de IA ou formato JSON.
-    2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas para destacar palavras-chave pontuais.
+    1. PROIBIDO usar palavras robóticas de IA, resumos no final ou formato JSON.
+    2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas para destacar palavras-chave pontuais e os TÍTULOS obrigatórios da Etapa 5.
     3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos para TODAS AS 17 TAGS listadas abaixo, sem exceção.
-    
-    ESTRUTURA DE PROFUNDIDADE E LIMITE DE CARACTERES (MUITO IMPORTANTE):
-    - ETAPAS 1 A 4 (Aspectos, Por quês, Conceitos, Soluções Teóricas): Estas seções DEVEM ser extremamente PROFUNDAS, acadêmicas, densas e com textos longos e detalhados. Explore sem medo.
-    - ETAPA 5 - MEMORIAL ANALÍTICO (Resumo, Contexto, Análise, Propostas, Conclusão, Autoavaliação): O somatório dos textos destas tags exclusivas da Etapa 5 DEVE ter entre 5500 a 5800 caracteres (o limite rigoroso do portal é 6000). Para atingir essa perfeição:
-      * Resumo: 1 parágrafo denso (~500 caracteres).
-      * Contexto: 1 parágrafo bem elaborado (~600 caracteres).
-      * Análise: 1 parágrafo analítico (~700 caracteres).
-      * Propostas de solução: 2 parágrafos aprofundados (~1500 caracteres no total).
-      * Conclusão reflexiva: 2 parágrafos consistentes (~1000 caracteres no total).
-      * Autoavaliação: 1 parágrafo reflexivo (~600 caracteres).
-    
-    GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente):
-    [START_RESUMO_MEMORIAL] [Memorial: ~500 caracteres] [END_RESUMO_MEMORIAL]
-    [START_CONTEXTO_MEMORIAL] [Memorial: ~600 caracteres] [END_CONTEXTO_MEMORIAL]
-    [START_ANALISE_MEMORIAL] [Memorial: ~700 caracteres] [END_ANALISE_MEMORIAL]
-    [START_ASPECTO_1] [Resposta Profunda e Longa] [END_ASPECTO_1]
+
+    ESTRUTURA DE PROFUNDIDADE E LIMITES (MUITO IMPORTANTE):
+    - ETAPA 2 (Aspectos e Por quês): Os "Aspectos" DEVEM ser frases CURTAS, RÁPIDAS e DIRETAS (máximo 1 a 2 linhas, identificando o problema). Os "Por quês" devem ser LONGOS, profundos e acadêmicos.
+    - ETAPAS 3 e 4 (Conceitos, Análise, Soluções): Textos profundos, acadêmicos, densos e detalhados.
+    - ETAPA 5 - MEMORIAL ANALÍTICO (O MAIS IMPORTANTE): O limite RIGOROSO do portal é de 6000 caracteres no total desta etapa. Como IAs tendem a escrever a mais, o seu limite MÁXIMO alvo é de 4200 caracteres somando todas as tags da Etapa 5 para deixar uma margem de segurança.
+      * OBRIGATÓRIO: Inicie o texto de cada tag da Etapa 5 exatamente com o seu respectivo título em negrito.
+      * Resumo: 1 parágrafo denso (~400 caracteres). Inicie com **Resumo**
+      * Contexto: 1 parágrafo bem elaborado (~400 caracteres). Inicie com **Contextualização do desafio**
+      * Análise: 1 parágrafo com 2 a 3 conceitos (~600 caracteres). Inicie com **Análise**
+      * Propostas de solução: 2 parágrafos diretos e embasados (~900 caracteres no total). Inicie com **Propostas de solução**
+      * Conclusão reflexiva: Até 2 parágrafos (~600 caracteres). Inicie com **Conclusão reflexiva**
+      * Referências: Formato ABNT. Inicie com **Referências**
+      * Autoavaliação: 1 parágrafo reflexivo (~400 caracteres). Inicie com **Autoavaliação**
+
+    GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente neste formato):
+    [START_ASPECTO_1] [Frase curta e direta identificando o problema, ex: Falta de planejamento financeiro claro.] [END_ASPECTO_1]
     [START_POR_QUE_1] [Resposta Profunda e Longa] [END_POR_QUE_1]
-    [START_ASPECTO_2] [Resposta Profunda e Longa] [END_ASPECTO_2]
+    [START_ASPECTO_2] [Frase curta e direta] [END_ASPECTO_2]
     [START_POR_QUE_2] [Resposta Profunda e Longa] [END_POR_QUE_2]
-    [START_ASPECTO_3] [Resposta Profunda e Longa] [END_ASPECTO_3]
+    [START_ASPECTO_3] [Frase curta e direta] [END_ASPECTO_3]
     [START_POR_QUE_3] [Resposta Profunda e Longa] [END_POR_QUE_3]
     [START_CONCEITOS_TEORICOS] [Resposta Profunda e Longa] [END_CONCEITOS_TEORICOS]
     [START_ANALISE_CONCEITO_1] [Resposta Profunda e Longa] [END_ANALISE_CONCEITO_1]
     [START_ENTENDIMENTO_TEORICO] [Resposta Profunda e Longa] [END_ENTENDIMENTO_TEORICO]
     [START_SOLUCOES_TEORICAS] [Resposta Profunda e Longa] [END_SOLUCOES_TEORICAS]
-    [START_PROPOSTAS_MEMORIAL] [Memorial: ~1500 caracteres] [END_PROPOSTAS_MEMORIAL]
-    [START_CONCLUSAO_MEMORIAL] [Memorial: ~1000 caracteres] [END_CONCLUSAO_MEMORIAL]
-    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT] [END_REFERENCIAS_ADICIONAIS]
-    [START_AUTOAVALIACAO_MEMORIAL] [Memorial: ~600 caracteres] [END_AUTOAVALIACAO_MEMORIAL]
+
+    [START_RESUMO_MEMORIAL] **Resumo**
+    [Escreva o texto aqui...] [END_RESUMO_MEMORIAL]
+    [START_CONTEXTO_MEMORIAL] **Contextualização do desafio**
+    [Escreva o texto aqui...] [END_CONTEXTO_MEMORIAL]
+    [START_ANALISE_MEMORIAL] **Análise**
+    [Escreva o texto aqui...] [END_ANALISE_MEMORIAL]
+    [START_PROPOSTAS_MEMORIAL] **Propostas de solução**
+    [Escreva o texto aqui...] [END_PROPOSTAS_MEMORIAL]
+    [START_CONCLUSAO_MEMORIAL] **Conclusão reflexiva**
+    [Escreva o texto aqui...] [END_CONCLUSAO_MEMORIAL]
+    [START_REFERENCIAS_ADICIONAIS] **Referências**
+    [Escreva o texto aqui...] [END_REFERENCIAS_ADICIONAIS]
+    [START_AUTOAVALIACAO_MEMORIAL] **Autoavaliação**
+    [Escreva o texto aqui...] [END_AUTOAVALIACAO_MEMORIAL]
 """
 
 # =========================================================
@@ -202,8 +213,8 @@ with app.app_context():
             novo_prompt = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
             db.session.add(novo_prompt)
             db.session.commit()
-        elif "5500 a 5800 caracteres" not in prompt_padrao.texto:
-            # Força a atualização do banco se o prompt antigo não tiver a matemática de orçamento
+        elif "4200 caracteres" not in prompt_padrao.texto:
+            # Força a atualização do banco se o prompt antigo não tiver a nova regra de margem de segurança (4200)
             prompt_padrao.texto = PROMPT_REGRAS_BASE
             db.session.commit()
     except Exception: 
