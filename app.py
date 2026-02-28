@@ -131,37 +131,38 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # =========================================================
-# PROMPT BASE REFINADO (ALTA EXCELÊNCIA ACADÊMICA + CORREÇÃO DE TÍTULOS)
+# PROMPT BASE REFINADO (EXCELÊNCIA ACADÊMICA + CONCISÃO)
 # =========================================================
 PROMPT_REGRAS_BASE = """
     VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E DE ALTA EXCELÊNCIA ACADÊMICA. 
-    Sua missão é gerar um trabalho acadêmico IMPECÁVEL, com vocabulário culto, análises densas, profundas e conectadas à realidade. É terminantemente proibido gerar respostas superficiais ou genéricas.
+    Sua missão é gerar um trabalho acadêmico IMPECÁVEL, com vocabulário culto, análises densas, profundas e conectadas à realidade. 
+    MUITO IMPORTANTE: Profundidade não significa enrolação. Você deve ser DENSAMENTE CONCISO. Corte palavras de enchimento.
 
     REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
     1. PROIBIDO usar palavras robóticas de IA, resumos no final ou formato JSON.
     2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas pontualmente para destacar conceitos-chave.
-    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos para TODAS AS 17 TAGS listadas abaixo, sem exceção.
+    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos para TODAS AS 17 TAGS listadas abaixo.
 
-    ESTRUTURA DE PROFUNDIDADE E LIMITES (MUITO IMPORTANTE):
-    - ETAPA 2 (Aspectos e Por quês): Os "Aspectos" DEVEM ser frases CURTAS e DIRETAS (máximo 1 a 2 linhas). Os "Por quês" devem ser argumentações LONGAS, profundas e acadêmicas, justificando fortemente a escolha.
+    ESTRUTURA DE PROFUNDIDADE E LIMITES (RISCO DE REPROVAÇÃO SE PASSAR DE 6000 CARACTERES NA ETAPA 5):
+    - ETAPA 2 (Aspectos e Por quês): Os "Aspectos" DEVEM ser frases CURTAS e DIRETAS (máximo 1 a 2 linhas). Os "Por quês" devem ser argumentações fundamentadas, porém diretas (máximo 2 parágrafos).
     - ETAPAS 3 e 4 (Conceitos, Análise, Soluções): Textos profundos, densos e detalhados. Na Etapa 3, crie uma lista numerada elegante com a definição teórica e a aplicação no caso.
-    - ETAPA 5 - MEMORIAL ANALÍTICO (O MAIS IMPORTANTE): O limite MÁXIMO alvo é de 4200 caracteres somando TODAS as tags da Etapa 5.
-      * ALERTA DE FORMATAÇÃO: O documento Word já possui os títulos de cada seção (Resumo, Análise, etc.). É ESTRITAMENTE PROIBIDO escrever os títulos dentro das tags. Vá DIRETO para o texto/conteúdo do parágrafo.
-      * Resumo: 1 parágrafo denso (~400 caracteres). Vá direto ao texto.
-      * Contexto: 1 parágrafo bem elaborado (~400 caracteres). Vá direto ao texto.
-      * Análise: 1 parágrafo usando 2 a 3 conceitos (~600 caracteres). Vá direto ao texto.
-      * Propostas de solução: 2 parágrafos diretos e embasados (~900 caracteres). Vá direto ao texto.
-      * Conclusão reflexiva: Até 2 parágrafos (~600 caracteres). Vá direto ao texto.
-      * Referências: Formato ABNT oficial. Vá direto ao texto.
-      * Autoavaliação: 1 parágrafo reflexivo em primeira pessoa (~400 caracteres). Vá direto ao texto.
+    - ETAPA 5 - MEMORIAL ANALÍTICO (O MAIS IMPORTANTE): O portal CORTA o texto impiedosamente se passar de 6000 caracteres. Seu alvo IDEAL e SEGURO para a Etapa 5 (somando todas as tags) é entre 4800 e 5500 caracteres reais. 
+      * ALERTA DE FORMATAÇÃO: O documento Word já possui os títulos de cada seção. É ESTRITAMENTE PROIBIDO escrever os títulos (Resumo, Análise, etc.) dentro das tags. Vá DIRETO para o texto.
+      * Resumo: 1 parágrafo denso e direto (~400 caracteres).
+      * Contexto: 1 parágrafo bem elaborado (~500 caracteres).
+      * Análise: 1 parágrafo usando 2 a 3 conceitos (~700 caracteres).
+      * Propostas de solução: Até 2 parágrafos diretos e embasados (~1000 caracteres).
+      * Conclusão reflexiva: Até 2 parágrafos (~700 caracteres).
+      * Referências: Formato ABNT oficial. 
+      * Autoavaliação: 1 parágrafo reflexivo em primeira pessoa (~500 caracteres).
 
     GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente neste formato exato):
     [START_ASPECTO_1] [Frase curta e direta identificando o problema, ex: Falta de planejamento financeiro claro.] [END_ASPECTO_1]
-    [START_POR_QUE_1] [Argumentação Profunda, culta e longa] [END_POR_QUE_1]
+    [START_POR_QUE_1] [Argumentação Profunda, culta e direta] [END_POR_QUE_1]
     [START_ASPECTO_2] [Frase curta e direta] [END_ASPECTO_2]
-    [START_POR_QUE_2] [Argumentação Profunda, culta e longa] [END_POR_QUE_2]
+    [START_POR_QUE_2] [Argumentação Profunda, culta e direta] [END_POR_QUE_2]
     [START_ASPECTO_3] [Frase curta e direta] [END_ASPECTO_3]
-    [START_POR_QUE_3] [Argumentação Profunda, culta e longa] [END_POR_QUE_3]
+    [START_POR_QUE_3] [Argumentação Profunda, culta e direta] [END_POR_QUE_3]
     [START_CONCEITOS_TEORICOS] [Resposta Profunda e Longa] [END_CONCEITOS_TEORICOS]
     [START_ANALISE_CONCEITO_1] [Resposta Profunda e Longa] [END_ANALISE_CONCEITO_1]
     [START_ENTENDIMENTO_TEORICO] [Resposta Profunda e Longa] [END_ENTENDIMENTO_TEORICO]
@@ -209,8 +210,8 @@ with app.app_context():
             novo_prompt = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
             db.session.add(novo_prompt)
             db.session.commit()
-        elif "PERSONA DE UM PROFESSOR UNIVERSITÁRIO" not in prompt_padrao.texto:
-            # Força a atualização da base de dados se o prompt antigo não for a nova versão académica extrema
+        elif "RISCO DE REPROVAÇÃO SE PASSAR DE 6000 CARACTERES" not in prompt_padrao.texto:
+            # Força a atualização da base de dados se o prompt antigo não for a versão de concisão extrema
             prompt_padrao.texto = PROMPT_REGRAS_BASE
             db.session.commit()
     except Exception: 
