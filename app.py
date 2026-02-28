@@ -131,42 +131,42 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # =========================================================
-# PROMPT BASE EXTREMO (ANTI-PREGUIÇA)
+# PROMPT BASE (ORÇAMENTO DE CARACTERES EXATO)
 # =========================================================
 PROMPT_REGRAS_BASE = """
     REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
     1. PROIBIDO usar palavras robóticas de IA ou formato JSON.
     2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas para destacar palavras-chave pontuais.
-    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos longos e robustos para TODAS AS 17 TAGS listadas abaixo, sem exceção. Não abrevie.
-    4. PROFUNDIDADE EXIGIDA: Proibido gerar respostas rasas ou de apenas uma linha. O conteúdo deve ser analítico, universitário e rico em detalhes.
+    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos para TODAS AS 17 TAGS listadas abaixo, sem exceção.
     
-    ESTRUTURA DE PARÁGRAFOS EXIGIDA:
-    - Resumo: EXATAMENTE 1 parágrafo robusto.
-    - Contexto: EXATAMENTE 1 parágrafo detalhado.
-    - Análise: EXATAMENTE 1 parágrafo profundo.
-    - Aspectos e Por quês: Justificativas completas e lógicas.
-    - Propostas de solução: MÁXIMO de 2 parágrafos.
-    - Conclusão reflexiva: MÁXIMO de 2 parágrafos.
-    - Autoavaliação: EXATAMENTE 1 parágrafo (sem atribuir nota a si mesmo).
+    ESTRUTURA DE PROFUNDIDADE E LIMITE DE CARACTERES (MUITO IMPORTANTE):
+    - ETAPAS 1 A 4 (Aspectos, Por quês, Conceitos, Soluções Teóricas): Estas seções DEVEM ser extremamente PROFUNDAS, acadêmicas, densas e com textos longos e detalhados. Explore sem medo.
+    - ETAPA 5 - MEMORIAL ANALÍTICO (Resumo, Contexto, Análise, Propostas, Conclusão, Autoavaliação): O somatório dos textos destas tags exclusivas da Etapa 5 DEVE ter entre 5500 a 5800 caracteres (o limite rigoroso do portal é 6000). Para atingir essa perfeição:
+      * Resumo: 1 parágrafo denso (~500 caracteres).
+      * Contexto: 1 parágrafo bem elaborado (~600 caracteres).
+      * Análise: 1 parágrafo analítico (~700 caracteres).
+      * Propostas de solução: 2 parágrafos aprofundados (~1500 caracteres no total).
+      * Conclusão reflexiva: 2 parágrafos consistentes (~1000 caracteres no total).
+      * Autoavaliação: 1 parágrafo reflexivo (~600 caracteres).
     
     GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente):
-    [START_RESUMO_MEMORIAL] [Resposta Profunda] [END_RESUMO_MEMORIAL]
-    [START_CONTEXTO_MEMORIAL] [Resposta Profunda] [END_CONTEXTO_MEMORIAL]
-    [START_ANALISE_MEMORIAL] [Resposta Profunda] [END_ANALISE_MEMORIAL]
-    [START_ASPECTO_1] [Resposta Profunda] [END_ASPECTO_1]
-    [START_POR_QUE_1] [Resposta Profunda] [END_POR_QUE_1]
-    [START_ASPECTO_2] [Resposta Profunda] [END_ASPECTO_2]
-    [START_POR_QUE_2] [Resposta Profunda] [END_POR_QUE_2]
-    [START_ASPECTO_3] [Resposta Profunda] [END_ASPECTO_3]
-    [START_POR_QUE_3] [Resposta Profunda] [END_POR_QUE_3]
-    [START_CONCEITOS_TEORICOS] [Resposta Profunda] [END_CONCEITOS_TEORICOS]
-    [START_ANALISE_CONCEITO_1] [Resposta Profunda] [END_ANALISE_CONCEITO_1]
-    [START_ENTENDIMENTO_TEORICO] [Resposta Profunda] [END_ENTENDIMENTO_TEORICO]
-    [START_SOLUCOES_TEORICAS] [Resposta Profunda] [END_SOLUCOES_TEORICAS]
-    [START_PROPOSTAS_MEMORIAL] [Resposta Profunda] [END_PROPOSTAS_MEMORIAL]
-    [START_CONCLUSAO_MEMORIAL] [Resposta Profunda] [END_CONCLUSAO_MEMORIAL]
-    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT reais] [END_REFERENCIAS_ADICIONAIS]
-    [START_AUTOAVALIACAO_MEMORIAL] [Resposta Profunda] [END_AUTOAVALIACAO_MEMORIAL]
+    [START_RESUMO_MEMORIAL] [Memorial: ~500 caracteres] [END_RESUMO_MEMORIAL]
+    [START_CONTEXTO_MEMORIAL] [Memorial: ~600 caracteres] [END_CONTEXTO_MEMORIAL]
+    [START_ANALISE_MEMORIAL] [Memorial: ~700 caracteres] [END_ANALISE_MEMORIAL]
+    [START_ASPECTO_1] [Resposta Profunda e Longa] [END_ASPECTO_1]
+    [START_POR_QUE_1] [Resposta Profunda e Longa] [END_POR_QUE_1]
+    [START_ASPECTO_2] [Resposta Profunda e Longa] [END_ASPECTO_2]
+    [START_POR_QUE_2] [Resposta Profunda e Longa] [END_POR_QUE_2]
+    [START_ASPECTO_3] [Resposta Profunda e Longa] [END_ASPECTO_3]
+    [START_POR_QUE_3] [Resposta Profunda e Longa] [END_POR_QUE_3]
+    [START_CONCEITOS_TEORICOS] [Resposta Profunda e Longa] [END_CONCEITOS_TEORICOS]
+    [START_ANALISE_CONCEITO_1] [Resposta Profunda e Longa] [END_ANALISE_CONCEITO_1]
+    [START_ENTENDIMENTO_TEORICO] [Resposta Profunda e Longa] [END_ENTENDIMENTO_TEORICO]
+    [START_SOLUCOES_TEORICAS] [Resposta Profunda e Longa] [END_SOLUCOES_TEORICAS]
+    [START_PROPOSTAS_MEMORIAL] [Memorial: ~1500 caracteres] [END_PROPOSTAS_MEMORIAL]
+    [START_CONCLUSAO_MEMORIAL] [Memorial: ~1000 caracteres] [END_CONCLUSAO_MEMORIAL]
+    [START_REFERENCIAS_ADICIONAIS] [Referências ABNT] [END_REFERENCIAS_ADICIONAIS]
+    [START_AUTOAVALIACAO_MEMORIAL] [Memorial: ~600 caracteres] [END_AUTOAVALIACAO_MEMORIAL]
 """
 
 # =========================================================
@@ -202,8 +202,8 @@ with app.app_context():
             novo_prompt = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
             db.session.add(novo_prompt)
             db.session.commit()
-        elif "TODAS AS 17 TAGS" not in prompt_padrao.texto:
-            # Força a atualização do banco se o prompt antigo estiver defasado
+        elif "5500 a 5800 caracteres" not in prompt_padrao.texto:
+            # Força a atualização do banco se o prompt antigo não tiver a matemática de orçamento
             prompt_padrao.texto = PROMPT_REGRAS_BASE
             db.session.commit()
     except Exception: 
@@ -246,7 +246,7 @@ def chamar_ia(prompt, nome_modelo):
             "model": modelo_limpo,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
-            "max_tokens": 6000 # Impede que a IA corte o texto e esqueça as últimas tags
+            "max_tokens": 8000 # Expandido para 8000. Dá fôlego gigante para não cortar a IA a meio.
         }
         
         try:
@@ -311,13 +311,11 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
                 "Propostas de solução", "Conclusão reflexiva", 
                 "Referências", "Autoavaliação"
             ]
-            
             for t in titulos_memorial:
                 if texto_original.strip().startswith(t): 
                     texto_original = texto_original.replace(t, f"**{t}**\n", 1)
                     
             titulos_aspectos = ["Aspecto 1:", "Aspecto 2:", "Aspecto 3:", "Por quê:"]
-            
             for t in titulos_aspectos:
                 if t in texto_original: 
                     texto_original = texto_original.replace(t, f"\n**{t}** " if "Por quê:" in t else f"**{t}** ")
@@ -354,7 +352,6 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
     arquivo_saida = io.BytesIO()
     doc.save(arquivo_saida)
     arquivo_saida.seek(0)
-    
     return arquivo_saida
 
 def extrair_texto_docx(arquivo_bytes):
@@ -371,13 +368,11 @@ def extrair_dicionario(texto_ia):
     dic = {}
     
     for chave in chaves:
-        # REGEX BLINDADO: Impede que o sistema ignore a tag se a IA esquecer de colocar o [END]
         padrao = rf"\[START_{chave}\](.*?)(?=\[END_{chave}\]|\[START_|$)"
         match = re.search(padrao, texto_ia, re.DOTALL | re.IGNORECASE)
         
         if match:
             trecho = match.group(1).strip()
-            # Loop que remove negritos globais colocados indevidamente pela IA
             while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4:
                 trecho = trecho[2:-2].strip()
             dic[f"{{{{{chave}}}}}"] = trecho
@@ -431,11 +426,11 @@ def portal():
 # ROTAS DO GERADOR E DE REGERAÇÃO
 # =========================================================
 MODELOS_DISPONIVEIS = [
-    "gemini-2.5-flash",                       # Nativo Google (15 Req/Min)
-    "google/gemini-2.5-flash",                # OpenRouter Premium
-    "meta-llama/llama-3.3-70b-instruct",      # OpenRouter Premium
-    "qwen/qwen-2.5-72b-instruct",             # OpenRouter Premium
-    "mistralai/mistral-nemo"                  # OpenRouter Premium
+    "gemini-2.5-flash",                       
+    "google/gemini-2.5-flash",                
+    "meta-llama/llama-3.3-70b-instruct",      
+    "qwen/qwen-2.5-72b-instruct",             
+    "mistralai/mistral-nemo"                  
 ]
 
 @app.route('/')
@@ -475,7 +470,6 @@ def gerar_rascunho():
             texto_resposta = chamar_ia(prompt_completo, modelo)
             dicionario = extrair_dicionario(texto_resposta)
             
-            # FILTRO ANTI-PREGUIÇA
             tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
             if tags_preenchidas < 10: 
                 raise Exception(f"A IA {modelo} teve preguiça e gerou apenas {tags_preenchidas} tags. O sistema tentará a IA de reserva.")
@@ -587,7 +581,10 @@ def gerar_docx_final():
                 
             db.session.commit()
             
-        return jsonify({"sucesso": True, "arquivo_base64": base64.b64encode(arquivo_bytes).decode('utf-8')})
+        return jsonify({
+            "sucesso": True, 
+            "arquivo_base64": base64.b64encode(arquivo_bytes).decode('utf-8')
+        })
         
     except Exception as e: 
         return jsonify({"sucesso": False, "erro": str(e)})
@@ -926,7 +923,7 @@ def login():
         
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
-        if user and check_password_hash(user.password, request.form.get('password')): 
+        if user and check_password_hash(user.password, request.form.get('password')):
             login_user(user)
             return redirect(url_for('index'))
         else: 
