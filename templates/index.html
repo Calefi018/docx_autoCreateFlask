@@ -21,27 +21,51 @@
         <label style="margin-top: 15px; display: block;"><b>2. Tema do Desafio</b></label>
         <textarea name="tema" id="tema" rows="6" placeholder="Cole aqui as instruções..." required></textarea>
 
-        <div style="display:flex; gap:15px; flex-wrap:wrap;">
+        <div style="display:flex; gap:15px; flex-wrap:wrap; margin-top: 15px;">
             <div style="flex:1; min-width: 250px;">
                 <label><b>3. Padrão / Cérebro da IA</b></label>
                 <select name="prompt_id">
-                    {% for p in prompts %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
+                    {% for p in prompts %}
+                        <option value="{{ p.id }}">{{ p.nome }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div style="flex:1; min-width: 250px;">
                 <label><b>4. Inteligência Principal</b></label>
                 <select name="modelo" id="select_modelo">
-                    {% for modelo in modelos %}<option value="{{ modelo }}">{{ modelo }}</option>{% endfor %}
+                    {% for modelo in modelos %}
+                        <option value="{{ modelo }}">{{ modelo }}</option>
+                    {% endfor %}
                 </select>
             </div>
         </div>
 
-        <button type="button" class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top:10px;" id="btn-submit" onclick="iniciarGeracao()">
+        <button type="button" class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top: 20px;" id="btn-submit" onclick="iniciarGeracao()">
             <i class="ph-bold ph-magic-wand"></i> Gerar Trabalho Completo com IA
         </button>
         
-        <div id="loading" style="display:none; text-align:center; margin-top: 20px;">
-            <p id="progress-text" style="font-weight: bold; color: var(--primary);">A IA está a construir o raciocínio...</p>
+        <div id="loading" style="display:none; margin-top: 30px; text-align: center; padding: 30px; border: 1px solid var(--border); border-radius: 12px; background: rgba(30,33,48,0.8); box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+            <div style="font-size: 3.5rem; color: var(--primary); margin-bottom: 15px;">
+                <i class="ph-bold ph-brain" style="animation: pulse-brain 1.5s infinite;"></i>
+            </div>
+            <h3 style="color: var(--primary); margin-top: 0; font-size: 1.3rem;">A Inteligência Artificial está a escrever...</h3>
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 25px;">A elaboração das respostas demora em média 15 a 40 segundos.<br>Por favor, não feche nem atualize a página.</p>
+            
+            <div style="width: 100%; height: 12px; background: rgba(0,0,0,0.5); border-radius: 6px; overflow: hidden; position: relative;">
+                <div style="position: absolute; top: 0; left: -50%; height: 100%; width: 50%; background: linear-gradient(90deg, transparent, var(--primary), #a855f7, transparent); border-radius: 6px; animation: slide-bar 1.5s infinite linear;"></div>
+            </div>
+            
+            <style>
+                @keyframes pulse-brain { 
+                    0% { transform: scale(1); opacity: 0.8; } 
+                    50% { transform: scale(1.1); opacity: 1; text-shadow: 0 0 15px var(--primary); } 
+                    100% { transform: scale(1); opacity: 0.8; } 
+                }
+                @keyframes slide-bar { 
+                    0% { left: -50%; } 
+                    100% { left: 100%; } 
+                }
+            </style>
         </div>
     </form>
 
@@ -54,7 +78,7 @@
     </div>
 
     <script>
-        // Memória Cache: Evita o corte de temas contendo aspas (" ou ')
+        // Variável global para armazenar os temas sem quebrar o HTML com aspas ou caracteres especiais
         let temasCarregados = [];
 
         document.getElementById('aluno_id').addEventListener('change', function() {
@@ -70,10 +94,11 @@
             fetch('/api/temas/' + aluno_id)
             .then(r => r.json())
             .then(temas => {
-                temasCarregados = temas; 
+                temasCarregados = temas; // Guarda os temas na memória do navegador
                 if(temas.length > 0) {
                     select.innerHTML = '<option value="">Selecione para preencher automaticamente...</option>';
                     temas.forEach(t => { 
+                        // Usamos o ID do tema no value, protegendo contra aspas no texto
                         select.innerHTML += `<option value="${t.id}">${t.titulo || 'Tema sem Título'}</option>`; 
                     });
                     container.style.display = 'block';
@@ -86,6 +111,7 @@
         document.getElementById('select_tema_salvo').addEventListener('change', function() {
             let temaIdSelecionado = this.value;
             if(temaIdSelecionado) {
+                // Procura o texto completo na memória baseado no ID selecionado
                 let temaEncontrado = temasCarregados.find(t => t.id == temaIdSelecionado);
                 if(temaEncontrado) {
                     document.getElementById('tema').value = temaEncontrado.texto;
@@ -94,7 +120,12 @@
         });
 
         let dicionarioEditavel = {};
-        const ordemOficial = ["RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS", "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"];
+        const ordemOficial = [
+            "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", 
+            "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", 
+            "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS", 
+            "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"
+        ];
 
         function iniciarGeracao() {
             const btn = document.getElementById('btn-submit');
@@ -208,7 +239,10 @@
                 ta.rows = is_vazio ? 2 : 4;
                 ta.dataset.chave = chave; // Crucial para a função de salvar conseguir resgatar o valor depois
                 
-                ta.onchange = (e) => { dicionarioEditavel[chaveSegura] = e.target.value; };
+                ta.onchange = (e) => { 
+                    dicionarioEditavel[chaveSegura] = e.target.value; 
+                };
+                
                 btn.onclick = () => regerarTrechoEspecifico(chave, ta, btn, wrap, lbl, chave.replace(/_/g,' '));
                 
                 head.appendChild(lbl); 
@@ -222,7 +256,7 @@
         function salvarEDocx() {
             const btn = document.getElementById('btn-docx');
             btn.disabled = true;
-            btn.innerHTML = `<i class="ph-bold ph-spinner"></i> Gerando Documento...`;
+            btn.innerHTML = `<i class="ph-bold ph-spinner ph-spin"></i> Gerando Documento...`;
             
             // Grava as edições manuais feitas no browser antes de enviar
             document.querySelectorAll('#caixas-texto textarea').forEach(t => {
