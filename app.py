@@ -18,7 +18,7 @@ from google.genai import types
 app = Flask(__name__)
 
 # =========================================================
-# TELA DE RAIO-X (Tratamento de Erros)
+# TELA DE RAIO-X (Tratamento de Erros Global)
 # =========================================================
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -133,61 +133,18 @@ class SiteSettings(db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+# =========================================================
+# PROMPT BASE DE FÁBRICA (SEGURANÇA SE BD ESTIVER VAZIO)
+# =========================================================
+PROMPT_REGRAS_BASE = """VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E DE ALTA EXCELÊNCIA ACADÊMICA."""
 
 # =========================================================
-# PROMPT BASE REFINADO (ALTA EXCELÊNCIA ACADÊMICA)
-# =========================================================
-PROMPT_REGRAS_BASE = """
-VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E DE ALTA EXCELÊNCIA ACADÊMICA. 
-Sua missão é gerar um trabalho acadêmico IMPECÁVEL, com vocabulário culto, análises densas, profundas e conectadas à realidade. 
-
-REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
-1. PROIBIDO usar palavras robóticas de IA, resumos no final ou formato JSON.
-2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas pontualmente para destacar conceitos-chave.
-3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos para TODAS AS 17 TAGS listadas abaixo, sem exceção.
-4. O documento Word já possui os títulos. É ESTRITAMENTE PROIBIDO escrever os títulos (Resumo, Análise, etc.) dentro das tags. Vá DIRETO para o texto/conteúdo.
-
-ESTRUTURA DE PROFUNDIDADE E LIMITES:
-- ETAPA 2 (Aspectos e Por quês): Os "Aspectos" podem ter até 3 linhas (seja claro e direto). Os "Por quês" DEVEM ser aprofundados, ricos e detalhados (1 a 2 parágrafos densos).
-- ETAPAS 3 e 4 (Conceitos, Análise, Soluções): Textos BEM profundos, densos e detalhados. Mostre excelência e domínio teórico.
-- ETAPA 5 - MEMORIAL ANALÍTICO (ATENÇÃO: LIMITE RIGOROSO DO PORTAL): 
-O portal da faculdade CORTA o texto se a Etapa 5 ultrapassar 6000 caracteres.
-Para garantir a nota máxima sem ser cortado, gere respostas densas, mas obedeça aos seguintes alvos de tamanho para CADA TAG:
-* Resumo: 1 parágrafo denso (~500 caracteres).
-* Contexto: 1 parágrafo bem elaborado (~600 caracteres).
-* Análise: 1 a 2 parágrafos aprofundados usando conceitos (~900 caracteres).
-* Propostas de solução: Textos diretos e fortemente embasados (~1200 caracteres).
-* Conclusão reflexiva: Até 2 parágrafos (~800 caracteres).
-* Referências: Formato ABNT oficial.
-* Autoavaliação: 1 parágrafo reflexivo em primeira pessoa (~600 caracteres).
-
-GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente neste formato exato):
-[START_ASPECTO_1] [Frase de até 3 linhas] [END_ASPECTO_1]
-[START_POR_QUE_1] [Argumentação acadêmica profunda e detalhada] [END_POR_QUE_1]
-[START_ASPECTO_2] [Frase de até 3 linhas] [END_ASPECTO_2]
-[START_POR_QUE_2] [Argumentação acadêmica profunda e detalhada] [END_POR_QUE_2]
-[START_ASPECTO_3] [Frase de até 3 linhas] [END_ASPECTO_3]
-[START_POR_QUE_3] [Argumentação acadêmica profunda e detalhada] [END_POR_QUE_3]
-[START_CONCEITOS_TEORICOS] [Resposta Profunda e Longa] [END_CONCEITOS_TEORICOS]
-[START_ANALISE_CONCEITO_1] [Resposta Profunda e Longa] [END_ANALISE_CONCEITO_1]
-[START_ENTENDIMENTO_TEORICO] [Resposta Profunda e Longa] [END_ENTENDIMENTO_TEORICO]
-[START_SOLUCOES_TEORICAS] [Resposta Profunda e Longa] [END_SOLUCOES_TEORICAS]
-
-[START_RESUMO_MEMORIAL] [Escreva direto o texto. Denso, focado em ~500 caracteres.] [END_RESUMO_MEMORIAL]
-[START_CONTEXTO_MEMORIAL] [Escreva direto o texto. Denso, focado em ~600 caracteres.] [END_CONTEXTO_MEMORIAL]
-[START_ANALISE_MEMORIAL] [Escreva direto o texto. Profundo, focado em ~900 caracteres.] [END_ANALISE_MEMORIAL]
-[START_PROPOSTAS_MEMORIAL] [Escreva direto o texto. Embasado, focado em ~1200 caracteres.] [END_PROPOSTAS_MEMORIAL]
-[START_CONCLUSAO_MEMORIAL] [Escreva direto o texto. Reflexivo, focado em ~800 caracteres.] [END_CONCLUSAO_MEMORIAL]
-[START_REFERENCIAS_ADICIONAIS] [Escreva as referências diretas aqui] [END_REFERENCIAS_ADICIONAIS]
-[START_AUTOAVALIACAO_MEMORIAL] [Escreva direto o texto. Reflexivo, focado em ~600 caracteres.] [END_AUTOAVALIACAO_MEMORIAL]
-"""
-
-# =========================================================
-# INICIALIZAÇÃO BLINDADA E ATUALIZAÇÃO FORÇADA DE BANCO
+# INICIALIZAÇÃO BLINDADA E MIGRAÇÕES
 # =========================================================
 with app.app_context():
     db.create_all()
     
+    # Tentativas de adicionar colunas novas de forma segura (ignora erro se já existirem)
     try: 
         db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Produção'"))
         db.session.commit()
@@ -218,6 +175,7 @@ with app.app_context():
     except Exception: 
         db.session.rollback()
 
+    # Cria usuário admin padrão se não existir
     try:
         if not User.query.filter_by(username='admin').first():
             senha_hash = generate_password_hash('admin123')
@@ -227,6 +185,7 @@ with app.app_context():
     except Exception: 
         db.session.rollback()
         
+    # Cria prompt padrão se a tabela estiver vazia
     try:
         prompt_padrao = PromptConfig.query.filter_by(is_default=True).first()
         if not prompt_padrao:
@@ -236,6 +195,7 @@ with app.app_context():
     except Exception: 
         db.session.rollback()
 
+    # Cria configurações padrão de site se estiver vazio
     try:
         if not SiteSettings.query.first():
             db.session.add(SiteSettings())
@@ -244,7 +204,7 @@ with app.app_context():
         db.session.rollback()
 
 # =========================================================
-# MOTOR NATIVO OPENROUTER (COM LIMITES DE TOKENS EXPANDIDOS)
+# MOTOR NATIVO DE IA
 # =========================================================
 def limpar_texto_ia(texto):
     try: 
@@ -318,7 +278,7 @@ def chamar_ia(prompt, nome_modelo):
         return limpar_texto_ia(resposta.text)
 
 # =========================================================
-# PROCESSAMENTO DE WORD
+# PROCESSAMENTO DE WORD E TAGS
 # =========================================================
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
     doc = Document(arquivo_template)
@@ -435,12 +395,12 @@ def portal():
     erro = None
     
     if request.method == 'POST':
-        telefone_busca = request.form.get('telefone')
+        telefone_busca = request.form.get('telefone', '')
         tel_limpo = re.sub(r'\D', '', telefone_busca)
         
         todos_alunos = Aluno.query.all()
         for a in todos_alunos:
-            if re.sub(r'\D', '', a.telefone) == tel_limpo:
+            if a.telefone and re.sub(r'\D', '', a.telefone) == tel_limpo:
                 aluno = a
                 break
                 
@@ -476,7 +436,8 @@ def index():
 @login_required
 def get_temas_aluno(aluno_id):
     temas = TemaTrabalho.query.filter_by(aluno_id=aluno_id).all()
-    return jsonify([{"id": t.id, "titulo": t.titulo, "texto": t.texto} for t in temas])
+    lista_temas = [{"id": t.id, "titulo": t.titulo, "texto": t.texto} for t in temas]
+    return jsonify(lista_temas)
 
 @app.route('/gerar_rascunho', methods=['POST'])
 @login_required
@@ -485,11 +446,9 @@ def gerar_rascunho():
     modelo_selecionado = request.form.get('modelo')
     prompt_id = request.form.get('prompt_id')
     
-    config = None
     if prompt_id and str(prompt_id).isdigit():
         config = PromptConfig.query.get(int(prompt_id))
-        
-    if not config:
+    else:
         config = PromptConfig.query.filter_by(is_default=True).first()
         
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
@@ -505,7 +464,7 @@ def gerar_rascunho():
             
             tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
             if tags_preenchidas < 10: 
-                raise Exception(f"A IA {modelo} teve preguiça e gerou apenas {tags_preenchidas} tags. O sistema tentará a IA de reserva.")
+                raise Exception(f"A IA {modelo} teve preguiça e gerou poucas tags.")
                 
             novo_registro = RegistroUso(modelo_usado=modelo)
             db.session.add(novo_registro)
@@ -519,7 +478,7 @@ def gerar_rascunho():
             
     return jsonify({
         "sucesso": False, 
-        "erro": f"Erro Fatal. Todas as IAs do sistema reportaram falha técnica ou preguiça extrema. Último erro: {ultimo_erro}", 
+        "erro": f"Erro Fatal. Todas as IAs reportaram falha técnica. Último erro: {ultimo_erro}", 
         "fallback": False
     })
 
@@ -537,11 +496,9 @@ def regerar_trecho():
         prompt_id = dados.get('prompt_id')
         contexto_atual = dados.get('dicionario', {}) 
 
-        config = None
         if prompt_id and str(prompt_id).isdigit():
             config = PromptConfig.query.get(int(prompt_id))
-            
-        if not config:
+        else:
             config = PromptConfig.query.filter_by(is_default=True).first()
             
         texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
@@ -634,7 +591,8 @@ def validar_senha_prompt(senha):
 @app.route('/prompts')
 @login_required
 def gerenciar_prompts():
-    return render_template('prompts.html', prompts=PromptConfig.query.all())
+    prompts = PromptConfig.query.all()
+    return render_template('prompts.html', prompts=prompts)
 
 @app.route('/prompts/action', methods=['POST'])
 @login_required
@@ -644,17 +602,20 @@ def prompt_action():
         return redirect(url_for('gerenciar_prompts'))
         
     acao = request.form.get('acao')
+    
     if acao == 'add':
         novo_prompt = PromptConfig(
             nome=request.form.get('nome'), 
             texto=request.form.get('texto')
         )
         db.session.add(novo_prompt)
+        
     elif acao == 'edit':
         p = PromptConfig.query.get(int(request.form.get('prompt_id')))
         if p:
             p.nome = request.form.get('nome')
             p.texto = request.form.get('texto')
+            
     elif acao == 'delete':
         p = PromptConfig.query.get(int(request.form.get('prompt_id')))
         if p:
@@ -737,6 +698,12 @@ def configuracoes():
 @login_required
 def clientes():
     if request.method == 'POST':
+        try:
+            valor_str = request.form.get('valor', '70.0').replace(',', '.')
+            valor_float = float(valor_str) if valor_str.strip() else 70.0
+        except ValueError:
+            valor_float = 70.0
+            
         novo_aluno = Aluno(
             user_id=current_user.id, 
             nome=request.form.get('nome'), 
@@ -744,7 +711,7 @@ def clientes():
             telefone=request.form.get('telefone'), 
             ava_login=request.form.get('ava_login'),
             ava_senha=request.form.get('ava_senha'),
-            valor=float(request.form.get('valor', 70.0)), 
+            valor=valor_float, 
             status='Produção'
         )
         db.session.add(novo_aluno)
@@ -756,11 +723,12 @@ def clientes():
     alunos_pendentes = [a for a in todos_alunos if a.status != 'Pago']
     alunos_pagos = [a for a in todos_alunos if a.status == 'Pago']
     
+    config = SiteSettings.query.first()
     return render_template(
         'clientes.html', 
         alunos_pendentes=alunos_pendentes, 
         alunos_pagos=alunos_pagos, 
-        config=SiteSettings.query.first()
+        config=config
     )
 
 @app.route('/editar_cliente/<int:id>', methods=['POST'])
@@ -777,7 +745,8 @@ def editar_cliente(id):
     aluno.ava_senha = request.form.get('ava_senha')
     
     try: 
-        aluno.valor = float(request.form.get('valor').replace(',', '.'))
+        valor_str = request.form.get('valor', '70.0').replace(',', '.')
+        aluno.valor = float(valor_str) if valor_str.strip() else 70.0
     except Exception: 
         pass
         
@@ -828,7 +797,11 @@ def adicionar_tema(aluno_id):
     texto = request.form.get('texto')
     
     if texto: 
-        novo_tema = TemaTrabalho(aluno_id=aluno.id, titulo=titulo if titulo else f"Tema {len(aluno.temas) + 1}", texto=texto)
+        novo_tema = TemaTrabalho(
+            aluno_id=aluno.id, 
+            titulo=titulo if titulo else f"Tema {len(aluno.temas) + 1}", 
+            texto=texto
+        )
         db.session.add(novo_tema)
         db.session.commit()
         flash('Tema salvo!', 'success')
@@ -868,22 +841,57 @@ def deletar_tema(tema_id):
 @app.route('/upload_doc/<int:aluno_id>', methods=['POST'])
 @login_required
 def upload_doc(aluno_id):
-    arquivo = request.files['arquivo']
-    if arquivo:
-        if arquivo.filename.lower().endswith(('.docx', '.pdf')): 
-            novo_doc = Documento(aluno_id=aluno_id, nome_arquivo=arquivo.filename, dados_arquivo=arquivo.read())
+    try:
+        arquivo = request.files.get('arquivo')
+        if arquivo and arquivo.filename.lower().endswith(('.docx', '.pdf')): 
+            novo_doc = Documento(
+                aluno_id=aluno_id, 
+                nome_arquivo=arquivo.filename, 
+                dados_arquivo=arquivo.read()
+            )
             db.session.add(novo_doc)
             db.session.commit()
             flash('Anexado com sucesso!', 'success')
         else: 
-            flash('Apenas .docx e .pdf.', 'error')
-            
+            flash('Apenas arquivos .docx e .pdf.', 'error')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao fazer upload: {str(e)}', 'error')
+        
     return redirect(url_for('cliente_detalhe', id=aluno_id))
 
 @app.route('/download_doc/<int:doc_id>')
 def download_doc(doc_id):
     doc = Documento.query.get_or_404(doc_id)
-    return send_file(io.BytesIO(doc.dados_arquivo), download_name=doc.nome_arquivo, as_attachment=True)
+    return send_file(
+        io.BytesIO(doc.dados_arquivo), 
+        download_name=doc.nome_arquivo, 
+        as_attachment=True
+    )
+
+@app.route('/rename_doc/<int:doc_id>', methods=['POST'])
+@login_required
+def rename_doc(doc_id):
+    try:
+        doc = Documento.query.get_or_404(doc_id)
+        novo_nome = request.form.get('novo_nome', '').strip()
+        
+        if novo_nome:
+            extensao = os.path.splitext(doc.nome_arquivo)[1] 
+            if not novo_nome.lower().endswith(extensao.lower()): 
+                novo_nome += extensao
+                
+            doc.nome_arquivo = novo_nome
+            db.session.commit()
+            flash('Arquivo renomeado com sucesso!', 'success')
+        else:
+            flash('O nome do arquivo não pode ficar vazio.', 'error')
+            
+        return redirect(url_for('cliente_detalhe', id=doc.aluno_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao tentar renomear o arquivo: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('clientes'))
 
 @app.route('/delete_doc/<int:doc_id>')
 @login_required
@@ -999,12 +1007,14 @@ def admin():
         abort(403)
         
     if request.method == 'POST':
-        db.session.add(User(
+        data_expiracao = request.form.get('expiration_date')
+        novo_user = User(
             username=request.form.get('username'), 
             password=generate_password_hash(request.form.get('password')),
             role=request.form.get('role'), 
-            expiration_date=datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
-        ))
+            expiration_date=datetime.strptime(data_expiracao, '%Y-%m-%d').date() if data_expiracao else None
+        )
+        db.session.add(novo_user)
         db.session.commit()
         flash('Usuário criado com sucesso.', 'success')
 
@@ -1019,11 +1029,16 @@ def edit_user(id):
         
     user = User.query.get_or_404(id)
     if request.method == 'POST':
-        if request.form.get('password'): 
-            user.password = generate_password_hash(request.form.get('password'))
+        nova_senha = request.form.get('password')
+        if nova_senha: 
+            user.password = generate_password_hash(nova_senha)
+            
         if current_user.role == 'admin': 
             user.role = request.form.get('role')
-        user.expiration_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
+            
+        data_expiracao = request.form.get('expiration_date')
+        user.expiration_date = datetime.strptime(data_expiracao, '%Y-%m-%d').date() if data_expiracao else None
+        
         db.session.commit()
         flash('Usuário atualizado com sucesso!', 'success')
         return redirect(url_for('admin'))
