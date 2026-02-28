@@ -1,26 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
     <h1 style="margin-top:0;">Configurações do Sistema</h1>
-    <p style="color: var(--text-muted); margin-bottom: 30px;">
-        Personalize as automações e mensagens da plataforma.
-    </p>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">Personalize as automações e a segurança.</p>
 
     <div class="card" style="border-top: 4px solid var(--success);">
-        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: var(--success);">
-            <i class="ph-fill ph-whatsapp-logo"></i> Mensagem Padrão de Cobrança
-        </h3>
-        
-        <p style="color: var(--text-muted); font-size: 0.95em; line-height: 1.5;">
-            Sempre que clicar no botão verde <b>"Cobrar"</b> no CRM, o sistema abrirá o seu WhatsApp Web com este texto. <br>
-            Use as tags mágicas <b>{nome}</b>, <b>{curso}</b> e <b>{valor}</b> no meio do texto. O sistema vai substituí-las na hora de enviar.
-        </p>
-        
+        <h3 style="margin-top: 0; color: var(--success);"><i class="ph-fill ph-whatsapp-logo"></i> Mensagem de Cobrança</h3>
+        <p style="color: var(--text-muted); font-size: 0.95em;">Tags mágicas que pode usar: <b>{nome}</b>, <b>{curso}</b> e <b>{valor}</b>.</p>
         <form method="POST">
-            <textarea name="whatsapp_template" rows="8" required style="font-family: monospace; font-size: 1rem; color: #fff; background: rgba(15, 17, 26, 0.8); border: 1px solid var(--border); padding: 20px;">{{ config.whatsapp_template if config else 'Olá {nome}, seu trabalho de {curso} ficou pronto! 🎉\nO valor é de R$ {valor}.' }}</textarea>
+            <textarea name="whatsapp_template" rows="5" required style="font-family: monospace;">{{ config.whatsapp_template if config else 'Olá {nome}, seu trabalho está pronto! Valor: R$ {valor}' }}</textarea>
             
-            <button type="submit" class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top: 10px;">
-                <i class="ph-bold ph-floppy-disk"></i> Guardar Mensagem
-            </button>
+            {% if current_user.role == 'admin' %}
+            <h3 style="margin-top: 30px; color: var(--danger);"><i class="ph-fill ph-lock-key"></i> Senha Master de Prompts</h3>
+            <p style="color: var(--text-muted); font-size: 0.95em;">Protege a exclusão e edição dos Cérebros da IA (Invisível para os sub-admins).</p>
+            <input type="password" name="prompt_password" placeholder="Digite uma senha forte..." value="{{ config.prompt_password or '' }}">
+            {% endif %}
+
+            <button type="submit" class="btn btn-green" style="width: 100%; padding: 15px; margin-top: 15px;"><i class="ph-bold ph-floppy-disk"></i> Guardar Tudo</button>
         </form>
     </div>
 {% endblock %}
