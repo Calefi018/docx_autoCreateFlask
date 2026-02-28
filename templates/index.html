@@ -54,21 +54,26 @@
     </div>
 
     <script>
-        // Variável global para armazenar os temas sem quebrar o HTML com aspas ou caracteres especiais
+        // Memória Cache: Evita o corte de temas contendo aspas (" ou ')
         let temasCarregados = [];
 
         document.getElementById('aluno_id').addEventListener('change', function() {
             let aluno_id = this.value;
             let container = document.getElementById('container_temas_salvos');
             let select = document.getElementById('select_tema_salvo');
-            if(!aluno_id) { container.style.display = 'none'; return; }
             
-            fetch('/api/temas/' + aluno_id).then(r => r.json()).then(temas => {
-                temasCarregados = temas; // Guarda os temas na memória do navegador
+            if(!aluno_id) { 
+                container.style.display = 'none'; 
+                return; 
+            }
+            
+            fetch('/api/temas/' + aluno_id)
+            .then(r => r.json())
+            .then(temas => {
+                temasCarregados = temas; 
                 if(temas.length > 0) {
                     select.innerHTML = '<option value="">Selecione para preencher automaticamente...</option>';
                     temas.forEach(t => { 
-                        // Agora usamos o ID do tema no value, e não o texto inteiro
                         select.innerHTML += `<option value="${t.id}">${t.titulo || 'Tema sem Título'}</option>`; 
                     });
                     container.style.display = 'block';
@@ -81,7 +86,6 @@
         document.getElementById('select_tema_salvo').addEventListener('change', function() {
             let temaIdSelecionado = this.value;
             if(temaIdSelecionado) {
-                // Procura o texto completo na memória baseado no ID selecionado
                 let temaEncontrado = temasCarregados.find(t => t.id == temaIdSelecionado);
                 if(temaEncontrado) {
                     document.getElementById('tema').value = temaEncontrado.texto;
@@ -93,70 +97,173 @@
         const ordemOficial = ["RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS", "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"];
 
         function iniciarGeracao() {
-            document.getElementById('btn-submit').style.display = 'none';
-            document.getElementById('area-edicao').style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
-            fetch('/gerar_rascunho', { method: 'POST', body: new FormData(document.getElementById('formGerar')) })
-            .then(res => res.json()).then(data => {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('btn-submit').style.display = 'block';
-                if(!data.sucesso) { Swal.fire('Erro', data.erro, 'error'); return; }
+            const btn = document.getElementById('btn-submit');
+            const area = document.getElementById('area-edicao');
+            const loading = document.getElementById('loading');
+
+            btn.style.display = 'none';
+            area.style.display = 'none';
+            loading.style.display = 'block';
+
+            fetch('/gerar_rascunho', { 
+                method: 'POST', 
+                body: new FormData(document.getElementById('formGerar')) 
+            })
+            .then(res => {
+                if(!res.ok) throw new Error("Falha ao comunicar com o servidor.");
+                return res.json();
+            })
+            .then(data => {
+                loading.style.display = 'none';
+                btn.style.display = 'block';
+                
+                if(!data.sucesso) { 
+                    Swal.fire('Erro da Inteligência', data.erro, 'error'); 
+                    return; 
+                }
+                
                 dicionarioEditavel = data.dicionario;
                 montarEditor(dicionarioEditavel);
-                document.getElementById('area-edicao').style.display = 'block';
+                area.style.display = 'block';
+            })
+            .catch(err => {
+                loading.style.display = 'none';
+                btn.style.display = 'block';
+                Swal.fire('Erro Crítico', 'Falha na requisição: ' + err.message, 'error');
             });
         }
 
         function regerarTrechoEspecifico(tag, txtElement, btn, wrapper, lbl, tit) {
-            btn.innerText = "Lendo..."; btn.disabled = true;
+            btn.innerText = "Lendo..."; 
+            btn.disabled = true;
+            
             fetch('/regerar_trecho', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    tema: document.getElementById('tema').value, tag: tag, 
+                    tema: document.getElementById('tema').value, 
+                    tag: tag, 
                     modelo: document.getElementById('select_modelo').value, 
-                    prompt_id: document.querySelector('[name="prompt_id"]').value, dicionario: dicionarioEditavel
+                    prompt_id: document.querySelector('[name="prompt_id"]').value, 
+                    dicionario: dicionarioEditavel
                 })
-            }).then(r => r.json()).then(data => {
-                btn.innerText = "Regerar"; btn.disabled = false;
-                if(!data.sucesso) return Swal.fire('Erro', data.erro, 'error');
+            })
+            .then(r => {
+                if(!r.ok) throw new Error("Erro de rede");
+                return r.json();
+            })
+            .then(data => {
+                btn.innerText = "Regerar"; 
+                btn.disabled = false;
+                
+                if(!data.sucesso) {
+                    Swal.fire('Erro', data.erro, 'error');
+                    return;
+                }
+                
                 txtElement.value = data.novo_texto;
-                dicionarioEditavel["{{"+tag+"}}"] = data.novo_texto;
+                
+                // Fugindo do motor Jinja2 do Flask com separação de string
+                let chaveSegura = "{" + "{" + tag + "}" + "}"; 
+                dicionarioEditavel[chaveSegura] = data.novo_texto;
+                
                 wrapper.style.border = '1px solid var(--border)';
-                lbl.innerHTML = `<b>${tit}</b>`; lbl.style.color = "var(--secondary)";
+                lbl.innerHTML = `<b>${tit}</b>`; 
+                lbl.style.color = "var(--secondary)";
+            })
+            .catch(err => {
+                btn.innerText = "Regerar"; 
+                btn.disabled = false;
+                Swal.fire('Falha', 'Não foi possível regerar: ' + err.message, 'error');
             });
         }
 
         function montarEditor(dic) {
-            const container = document.getElementById('caixas-texto'); container.innerHTML = ''; 
+            const container = document.getElementById('caixas-texto'); 
+            container.innerHTML = ''; 
+            
             ordemOficial.forEach(chave => {
-                let txt = dic["{{"+chave+"}}"] ? dic["{{"+chave+"}}"].trim() : "";
+                // Truque cirúrgico: Impede o Flask (Jinja2) de destruir o JS ao avaliar as chaves
+                let chaveSegura = "{" + "{" + chave + "}" + "}"; 
+                
+                let txt = dic[chaveSegura] ? dic[chaveSegura].trim() : "";
                 let is_vazio = (txt === "");
+                
                 let wrap = document.createElement('div');
                 wrap.style.cssText = `margin-bottom:20px; padding:15px; border-radius:8px; border: 1px solid ${is_vazio ? '#ef4444' : 'var(--border)'}; background: rgba(30,33,48,0.3);`;
                 
-                let head = document.createElement('div'); head.style.cssText = "display:flex; justify-content:space-between; margin-bottom:10px;";
-                let lbl = document.createElement('label'); lbl.innerHTML = `<b>${chave.replace(/_/g,' ')}</b>`; lbl.style.color = is_vazio ? "#ef4444" : "var(--secondary)";
-                let btn = document.createElement('button'); btn.className = 'btn'; btn.innerText = "Regerar";
+                let head = document.createElement('div'); 
+                head.style.cssText = "display:flex; justify-content:space-between; margin-bottom:10px;";
                 
-                let ta = document.createElement('textarea'); ta.value = txt; ta.rows = is_vazio ? 2 : 4;
-                ta.onchange = (e) => { dicionarioEditavel["{{"+chave+"}}"] = e.target.value; };
+                let lbl = document.createElement('label'); 
+                lbl.innerHTML = `<b>${chave.replace(/_/g,' ')}</b>`; 
+                lbl.style.color = is_vazio ? "#ef4444" : "var(--secondary)";
+                
+                let btn = document.createElement('button'); 
+                btn.className = 'btn'; 
+                btn.innerText = "Regerar";
+                
+                let ta = document.createElement('textarea'); 
+                ta.value = txt; 
+                ta.rows = is_vazio ? 2 : 4;
+                ta.dataset.chave = chave; // Crucial para a função de salvar conseguir resgatar o valor depois
+                
+                ta.onchange = (e) => { dicionarioEditavel[chaveSegura] = e.target.value; };
                 btn.onclick = () => regerarTrechoEspecifico(chave, ta, btn, wrap, lbl, chave.replace(/_/g,' '));
                 
-                head.appendChild(lbl); head.appendChild(btn); wrap.appendChild(head); wrap.appendChild(ta); container.appendChild(wrap);
+                head.appendChild(lbl); 
+                head.appendChild(btn); 
+                wrap.appendChild(head); 
+                wrap.appendChild(ta); 
+                container.appendChild(wrap);
             });
         }
 
         function salvarEDocx() {
-            document.getElementById('btn-docx').disabled = true;
-            document.querySelectorAll('#caixas-texto textarea').forEach(t => dicionarioEditavel["{{"+t.dataset.chave+"}}"] = t.value);
-            fetch('/gerar_docx_final', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dicionario: dicionarioEditavel, aluno_id: document.getElementById('aluno_id').value }) })
-            .then(r => r.json()).then(d => {
-                document.getElementById('btn-docx').disabled = false;
-                if(!d.sucesso) return Swal.fire('Erro', d.erro, 'error');
-                let a = document.createElement('a'); a.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_base64;
-                a.download = "Trabalho_IA.docx"; a.click();
-                Swal.fire('Sucesso!', 'Documento final gerado e salvo.', 'success');
+            const btn = document.getElementById('btn-docx');
+            btn.disabled = true;
+            btn.innerHTML = `<i class="ph-bold ph-spinner"></i> Gerando Documento...`;
+            
+            // Grava as edições manuais feitas no browser antes de enviar
+            document.querySelectorAll('#caixas-texto textarea').forEach(t => {
+                let chaveSegura = "{" + "{" + t.dataset.chave + "}" + "}";
+                dicionarioEditavel[chaveSegura] = t.value;
+            });
+            
+            fetch('/gerar_docx_final', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ 
+                    dicionario: dicionarioEditavel, 
+                    aluno_id: document.getElementById('aluno_id').value 
+                }) 
+            })
+            .then(r => {
+                if(!r.ok) throw new Error("Erro ao criar DOCX no servidor.");
+                return r.json();
+            })
+            .then(d => {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final`;
+                
+                if(!d.sucesso) {
+                    Swal.fire('Erro', d.erro, 'error');
+                    return;
+                }
+                
+                // Força o Download automático
+                let a = document.createElement('a'); 
+                a.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_base64;
+                a.download = "Trabalho_IA.docx"; 
+                a.click();
+                
+                Swal.fire('Sucesso!', 'Documento final gerado e salvo na pasta Downloads e na pasta do Cliente.', 'success');
                 document.getElementById('area-edicao').style.display = 'none';
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final`;
+                Swal.fire('Falha Crítica', err.message, 'error');
             });
         }
     </script>
