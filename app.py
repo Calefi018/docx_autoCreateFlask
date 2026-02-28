@@ -131,12 +131,12 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # =========================================================
-# PROMPT BASE REFINADO (EXCELÊNCIA ACADÊMICA + CAMISA DE FORÇA DE TAMANHO)
+# PROMPT BASE REFINADO (EXCELÊNCIA ACADÊMICA + CAMISA DE FORÇA DE TAMANHO NA ETAPA 5)
 # =========================================================
 PROMPT_REGRAS_BASE = """
     VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E FOCADO EM SÍNTESE. 
-    Sua missão é gerar um trabalho acadêmico IMPECÁVEL e com vocabulário culto, porém ESTRITAMENTE CONCISO e DIRETO. 
-    MUITO IMPORTANTE: O sistema do portal da faculdade CORTA IMPLACAVELMENTE o texto se passar de 6000 caracteres na Etapa 5. O aluno será reprovado se você escrever demais. PROFUNDIDADE NÃO É TAMANHO. Use palavras densas, mas em frases curtas e objetivas.
+    Sua missão é gerar um trabalho acadêmico IMPECÁVEL e com vocabulário culto, porém ESTRITAMENTE CONCISO e DIRETO nas seções com limite de tamanho. 
+    MUITO IMPORTANTE: O sistema do portal da faculdade CORTA IMPLACAVELMENTE o texto se passar de 6000 caracteres na Etapa 5. O aluno será reprovado se você escrever demais. PROFUNDIDADE NÃO É TAMANHO. Use palavras densas, mas em frases objetivas.
 
     REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
     1. PROIBIDO usar palavras robóticas de IA, resumos no final ou formato JSON.
@@ -145,18 +145,18 @@ PROMPT_REGRAS_BASE = """
     4. O documento Word já possui os títulos. É ESTRITAMENTE PROIBIDO escrever os títulos (Resumo, Análise, etc.) dentro das tags. Vá DIRETO para o conteúdo.
 
     ESTRUTURA DE PROFUNDIDADE E LIMITES (RISCO DE REPROVAÇÃO POR TAMANHO):
-    - ETAPA 2 (Aspectos e Por quês): Os "Aspectos" DEVEM ser frases CURTAS (máximo 1 linha). Os "Por quês" devem ter no MÁXIMO 1 PARÁGRAFO.
+    - ETAPA 2 (Aspectos e Por quês): Os "Aspectos" podem ter ATÉ 3 LINHAS. Os "Por quês" podem ser brevemente aprofundados (sem limites rígidos de parágrafos curtos).
     - ETAPAS 3 e 4 (Conceitos, Análise, Soluções): Textos densos, mas limitados a 2 parágrafos curtos no máximo.
     - ETAPA 5 - MEMORIAL ANALÍTICO (O MAIS IMPORTANTE - LIMITE FATAL NO PORTAL):
-      Para garantir a aprovação sem cortar o texto, obedeça cegamente a estas regras de contagem de palavras e linhas.
+      Para garantir a aprovação sem cortar o texto, obedeça cegamente a estas regras de contagem de palavras e linhas para a Etapa 5.
 
     GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente neste formato exato):
-    [START_ASPECTO_1] [Frase curta de 1 linha.] [END_ASPECTO_1]
-    [START_POR_QUE_1] [Argumentação acadêmica de máximo 1 parágrafo curto.] [END_POR_QUE_1]
-    [START_ASPECTO_2] [Frase curta de 1 linha.] [END_ASPECTO_2]
-    [START_POR_QUE_2] [Argumentação acadêmica de máximo 1 parágrafo curto.] [END_POR_QUE_2]
-    [START_ASPECTO_3] [Frase curta de 1 linha.] [END_ASPECTO_3]
-    [START_POR_QUE_3] [Argumentação acadêmica de máximo 1 parágrafo curto.] [END_POR_QUE_3]
+    [START_ASPECTO_1] [Frase de até 3 linhas identificando o problema.] [END_ASPECTO_1]
+    [START_POR_QUE_1] [Argumentação acadêmica e brevemente aprofundada.] [END_POR_QUE_1]
+    [START_ASPECTO_2] [Frase de até 3 linhas.] [END_ASPECTO_2]
+    [START_POR_QUE_2] [Argumentação acadêmica e brevemente aprofundada.] [END_POR_QUE_2]
+    [START_ASPECTO_3] [Frase de até 3 linhas.] [END_ASPECTO_3]
+    [START_POR_QUE_3] [Argumentação acadêmica e brevemente aprofundada.] [END_POR_QUE_3]
     [START_CONCEITOS_TEORICOS] [Explicação teórica direta e objetiva, máximo 2 parágrafos.] [END_CONCEITOS_TEORICOS]
     [START_ANALISE_CONCEITO_1] [Análise direta, máximo 1 parágrafo.] [END_ANALISE_CONCEITO_1]
     [START_ENTENDIMENTO_TEORICO] [Entendimento direto, máximo 1 parágrafo.] [END_ENTENDIMENTO_TEORICO]
@@ -204,8 +204,8 @@ with app.app_context():
             novo_prompt = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
             db.session.add(novo_prompt)
             db.session.commit()
-        # Gatilho novo para forçar a substituição do prompt com limites estritos
-        elif "RISCO DE REPROVAÇÃO POR TAMANHO" not in prompt_padrao.texto:
+        # Gatilho novo para forçar a substituição do prompt com a liberação de 3 linhas para os aspectos
+        elif "ATÉ 3 LINHAS" not in prompt_padrao.texto:
             prompt_padrao.texto = PROMPT_REGRAS_BASE
             db.session.commit()
     except Exception: 
