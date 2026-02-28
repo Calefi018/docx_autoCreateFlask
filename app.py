@@ -87,6 +87,8 @@ class Aluno(db.Model):
     nome = db.Column(db.String(100), nullable=False)
     curso = db.Column(db.String(100))
     telefone = db.Column(db.String(20))
+    ava_login = db.Column(db.String(255), nullable=True) 
+    ava_senha = db.Column(db.String(255), nullable=True) 
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='Produção') 
     valor = db.Column(db.Float, default=70.0) 
@@ -125,50 +127,59 @@ class SiteSettings(db.Model):
         db.Text, 
         default="Olá {nome}, seu trabalho de {curso} ficou pronto com excelência! 🎉\nO valor acordado foi R$ {valor}.\n\nSegue a minha chave PIX para liberação do arquivo: [SUA CHAVE AQUI]"
     )
+    prompt_password = db.Column(db.String(255), nullable=True)
 
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+
 # =========================================================
-# PROMPT BASE REFINADO (EXCELÊNCIA ACADÊMICA + CAMISA DE FORÇA DE TAMANHO NA ETAPA 5)
+# PROMPT BASE REFINADO (ALTA EXCELÊNCIA ACADÊMICA)
 # =========================================================
 PROMPT_REGRAS_BASE = """
-    VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E FOCADO EM SÍNTESE. 
-    Sua missão é gerar um trabalho acadêmico IMPECÁVEL e com vocabulário culto, porém ESTRITAMENTE CONCISO e DIRETO nas seções com limite de tamanho. 
-    MUITO IMPORTANTE: O sistema do portal da faculdade CORTA IMPLACAVELMENTE o texto se passar de 6000 caracteres na Etapa 5. O aluno será reprovado se você escrever demais. PROFUNDIDADE NÃO É TAMANHO. Use palavras densas, mas em frases objetivas.
+VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E DE ALTA EXCELÊNCIA ACADÊMICA. 
+Sua missão é gerar um trabalho acadêmico IMPECÁVEL, com vocabulário culto, análises densas, profundas e conectadas à realidade. 
 
-    REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
-    1. PROIBIDO usar palavras robóticas de IA, resumos no final ou formato JSON.
-    2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas pontualmente.
-    3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos para TODAS AS 17 TAGS listadas abaixo.
-    4. O documento Word já possui os títulos. É ESTRITAMENTE PROIBIDO escrever os títulos (Resumo, Análise, etc.) dentro das tags. Vá DIRETO para o conteúdo.
+REGRA DE OURO E OBRIGAÇÕES DE SISTEMA (MANDATÓRIO):
+1. PROIBIDO usar palavras robóticas de IA, resumos no final ou formato JSON.
+2. NUNCA formate o texto inteiro em negrito (**). Use negrito apenas pontualmente para destacar conceitos-chave.
+3. ATENÇÃO MÁXIMA: É ESTRITAMENTE PROIBIDO DEIXAR QUALQUER TAG DE FORA. Você DEVE gerar textos para TODAS AS 17 TAGS listadas abaixo, sem exceção.
+4. O documento Word já possui os títulos. É ESTRITAMENTE PROIBIDO escrever os títulos (Resumo, Análise, etc.) dentro das tags. Vá DIRETO para o texto/conteúdo.
 
-    ESTRUTURA DE PROFUNDIDADE E LIMITES (RISCO DE REPROVAÇÃO POR TAMANHO):
-    - ETAPA 2 (Aspectos e Por quês): Os "Aspectos" podem ter ATÉ 3 LINHAS. Os "Por quês" podem ser brevemente aprofundados (sem limites rígidos de parágrafos curtos).
-    - ETAPAS 3 e 4 (Conceitos, Análise, Soluções): Textos densos, mas limitados a 2 parágrafos curtos no máximo.
-    - ETAPA 5 - MEMORIAL ANALÍTICO (O MAIS IMPORTANTE - LIMITE FATAL NO PORTAL):
-      Para garantir a aprovação sem cortar o texto, obedeça cegamente a estas regras de contagem de palavras e linhas para a Etapa 5.
+ESTRUTURA DE PROFUNDIDADE E LIMITES:
+- ETAPA 2 (Aspectos e Por quês): Os "Aspectos" podem ter até 3 linhas (seja claro e direto). Os "Por quês" DEVEM ser aprofundados, ricos e detalhados (1 a 2 parágrafos densos).
+- ETAPAS 3 e 4 (Conceitos, Análise, Soluções): Textos BEM profundos, densos e detalhados. Mostre excelência e domínio teórico.
+- ETAPA 5 - MEMORIAL ANALÍTICO (ATENÇÃO: LIMITE RIGOROSO DO PORTAL): 
+O portal da faculdade CORTA o texto se a Etapa 5 ultrapassar 6000 caracteres.
+Para garantir a nota máxima sem ser cortado, gere respostas densas, mas obedeça aos seguintes alvos de tamanho para CADA TAG:
+* Resumo: 1 parágrafo denso (~500 caracteres).
+* Contexto: 1 parágrafo bem elaborado (~600 caracteres).
+* Análise: 1 a 2 parágrafos aprofundados usando conceitos (~900 caracteres).
+* Propostas de solução: Textos diretos e fortemente embasados (~1200 caracteres).
+* Conclusão reflexiva: Até 2 parágrafos (~800 caracteres).
+* Referências: Formato ABNT oficial.
+* Autoavaliação: 1 parágrafo reflexivo em primeira pessoa (~600 caracteres).
 
-    GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente neste formato exato):
-    [START_ASPECTO_1] [Frase de até 3 linhas identificando o problema.] [END_ASPECTO_1]
-    [START_POR_QUE_1] [Argumentação acadêmica e brevemente aprofundada.] [END_POR_QUE_1]
-    [START_ASPECTO_2] [Frase de até 3 linhas.] [END_ASPECTO_2]
-    [START_POR_QUE_2] [Argumentação acadêmica e brevemente aprofundada.] [END_POR_QUE_2]
-    [START_ASPECTO_3] [Frase de até 3 linhas.] [END_ASPECTO_3]
-    [START_POR_QUE_3] [Argumentação acadêmica e brevemente aprofundada.] [END_POR_QUE_3]
-    [START_CONCEITOS_TEORICOS] [Explicação teórica direta e objetiva, máximo 2 parágrafos.] [END_CONCEITOS_TEORICOS]
-    [START_ANALISE_CONCEITO_1] [Análise direta, máximo 1 parágrafo.] [END_ANALISE_CONCEITO_1]
-    [START_ENTENDIMENTO_TEORICO] [Entendimento direto, máximo 1 parágrafo.] [END_ENTENDIMENTO_TEORICO]
-    [START_SOLUCOES_TEORICAS] [Soluções diretas, máximo 2 parágrafos curtos.] [END_SOLUCOES_TEORICAS]
+GERAÇÃO OBRIGATÓRIA (Copie e preencha todas rigorosamente neste formato exato):
+[START_ASPECTO_1] [Frase de até 3 linhas] [END_ASPECTO_1]
+[START_POR_QUE_1] [Argumentação acadêmica profunda e detalhada] [END_POR_QUE_1]
+[START_ASPECTO_2] [Frase de até 3 linhas] [END_ASPECTO_2]
+[START_POR_QUE_2] [Argumentação acadêmica profunda e detalhada] [END_POR_QUE_2]
+[START_ASPECTO_3] [Frase de até 3 linhas] [END_ASPECTO_3]
+[START_POR_QUE_3] [Argumentação acadêmica profunda e detalhada] [END_POR_QUE_3]
+[START_CONCEITOS_TEORICOS] [Resposta Profunda e Longa] [END_CONCEITOS_TEORICOS]
+[START_ANALISE_CONCEITO_1] [Resposta Profunda e Longa] [END_ANALISE_CONCEITO_1]
+[START_ENTENDIMENTO_TEORICO] [Resposta Profunda e Longa] [END_ENTENDIMENTO_TEORICO]
+[START_SOLUCOES_TEORICAS] [Resposta Profunda e Longa] [END_SOLUCOES_TEORICAS]
 
-    [START_RESUMO_MEMORIAL] [Escreva DIRETO o texto. APENAS 1 parágrafo. MÁXIMO de 60 PALAVRAS (aprox. 4 linhas).] [END_RESUMO_MEMORIAL]
-    [START_CONTEXTO_MEMORIAL] [Escreva DIRETO o texto. APENAS 1 parágrafo. MÁXIMO de 70 PALAVRAS (aprox. 5 linhas).] [END_CONTEXTO_MEMORIAL]
-    [START_ANALISE_MEMORIAL] [Escreva DIRETO o texto. APENAS 1 parágrafo denso. MÁXIMO de 90 PALAVRAS (aprox. 6 linhas).] [END_ANALISE_MEMORIAL]
-    [START_PROPOSTAS_MEMORIAL] [Escreva DIRETO o texto. APENAS 1 parágrafo de impacto. MÁXIMO de 120 PALAVRAS (aprox. 8 linhas).] [END_PROPOSTAS_MEMORIAL]
-    [START_CONCLUSAO_MEMORIAL] [Escreva DIRETO o texto. APENAS 1 parágrafo. MÁXIMO de 80 PALAVRAS (aprox. 5 linhas).] [END_CONCLUSAO_MEMORIAL]
-    [START_REFERENCIAS_ADICIONAIS] [Liste APENAS as referências cruciais em ABNT.] [END_REFERENCIAS_ADICIONAIS]
-    [START_AUTOAVALIACAO_MEMORIAL] [Escreva DIRETO o texto em 1ª pessoa. APENAS 1 parágrafo. MÁXIMO de 70 PALAVRAS.] [END_AUTOAVALIACAO_MEMORIAL]
+[START_RESUMO_MEMORIAL] [Escreva direto o texto. Denso, focado em ~500 caracteres.] [END_RESUMO_MEMORIAL]
+[START_CONTEXTO_MEMORIAL] [Escreva direto o texto. Denso, focado em ~600 caracteres.] [END_CONTEXTO_MEMORIAL]
+[START_ANALISE_MEMORIAL] [Escreva direto o texto. Profundo, focado em ~900 caracteres.] [END_ANALISE_MEMORIAL]
+[START_PROPOSTAS_MEMORIAL] [Escreva direto o texto. Embasado, focado em ~1200 caracteres.] [END_PROPOSTAS_MEMORIAL]
+[START_CONCLUSAO_MEMORIAL] [Escreva direto o texto. Reflexivo, focado em ~800 caracteres.] [END_CONCLUSAO_MEMORIAL]
+[START_REFERENCIAS_ADICIONAIS] [Escreva as referências diretas aqui] [END_REFERENCIAS_ADICIONAIS]
+[START_AUTOAVALIACAO_MEMORIAL] [Escreva direto o texto. Reflexivo, focado em ~600 caracteres.] [END_AUTOAVALIACAO_MEMORIAL]
 """
 
 # =========================================================
@@ -189,6 +200,24 @@ with app.app_context():
     except Exception: 
         db.session.rollback()
 
+    try: 
+        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN ava_login VARCHAR(255)"))
+        db.session.commit()
+    except Exception: 
+        db.session.rollback()
+
+    try: 
+        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN ava_senha VARCHAR(255)"))
+        db.session.commit()
+    except Exception: 
+        db.session.rollback()
+
+    try: 
+        db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN prompt_password VARCHAR(255)"))
+        db.session.commit()
+    except Exception: 
+        db.session.rollback()
+
     try:
         if not User.query.filter_by(username='admin').first():
             senha_hash = generate_password_hash('admin123')
@@ -203,10 +232,6 @@ with app.app_context():
         if not prompt_padrao:
             novo_prompt = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
             db.session.add(novo_prompt)
-            db.session.commit()
-        # Gatilho novo para forçar a substituição do prompt com a liberação de 3 linhas para os aspectos
-        elif "ATÉ 3 LINHAS" not in prompt_padrao.texto:
-            prompt_padrao.texto = PROMPT_REGRAS_BASE
             db.session.commit()
     except Exception: 
         db.session.rollback()
@@ -248,7 +273,7 @@ def chamar_ia(prompt, nome_modelo):
             "model": modelo_limpo,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
-            "max_tokens": 8000 # Expandido para 8000. Dá fôlego gigante para não cortar a IA a meio.
+            "max_tokens": 8000
         }
         
         try:
@@ -447,6 +472,12 @@ def index():
     
     return render_template('index.html', modelos=MODELOS_DISPONIVEIS, alunos=alunos_ativos, prompts=prompts)
 
+@app.route('/api/temas/<int:aluno_id>')
+@login_required
+def get_temas_aluno(aluno_id):
+    temas = TemaTrabalho.query.filter_by(aluno_id=aluno_id).all()
+    return jsonify([{"id": t.id, "titulo": t.titulo, "texto": t.texto} for t in temas])
+
 @app.route('/gerar_rascunho', methods=['POST'])
 @login_required
 def gerar_rascunho():
@@ -536,8 +567,8 @@ Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o 
         for modelo in fila_modelos:
             try:
                 novo_texto = chamar_ia(prompt_regeracao, modelo)
-                novo_texto = re.sub(rf"\[START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
-                novo_texto = re.sub(rf"\[END_{tag}\]", "", novo_texto, flags=re.IGNORECASE).strip()
+                novo_texto = re.sub(rf"\[/?START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
+                novo_texto = re.sub(rf"\[/?END_{tag}\]", "", novo_texto, flags=re.IGNORECASE).strip()
                 
                 while novo_texto.startswith('**') and novo_texto.endswith('**') and len(novo_texto) > 4: 
                     novo_texto = novo_texto[2:-2].strip()
@@ -590,6 +621,48 @@ def gerar_docx_final():
         
     except Exception as e: 
         return jsonify({"sucesso": False, "erro": str(e)})
+
+# =========================================================
+# ENGENHARIA DE PROMPTS SEGURA
+# =========================================================
+def validar_senha_prompt(senha):
+    if current_user.role != 'admin': 
+        return False
+    config = SiteSettings.query.first()
+    return not config.prompt_password or senha == config.prompt_password
+
+@app.route('/prompts')
+@login_required
+def gerenciar_prompts():
+    return render_template('prompts.html', prompts=PromptConfig.query.all())
+
+@app.route('/prompts/action', methods=['POST'])
+@login_required
+def prompt_action():
+    if not validar_senha_prompt(request.form.get('senha_master')):
+        flash('Senha Master incorreta ou sem permissão.', 'error')
+        return redirect(url_for('gerenciar_prompts'))
+        
+    acao = request.form.get('acao')
+    if acao == 'add':
+        novo_prompt = PromptConfig(
+            nome=request.form.get('nome'), 
+            texto=request.form.get('texto')
+        )
+        db.session.add(novo_prompt)
+    elif acao == 'edit':
+        p = PromptConfig.query.get(int(request.form.get('prompt_id')))
+        if p:
+            p.nome = request.form.get('nome')
+            p.texto = request.form.get('texto')
+    elif acao == 'delete':
+        p = PromptConfig.query.get(int(request.form.get('prompt_id')))
+        if p:
+            db.session.delete(p)
+        
+    db.session.commit()
+    flash('Cérebro da IA atualizado com sucesso!', 'success')
+    return redirect(url_for('gerenciar_prompts'))
 
 # =========================================================
 # DASHBOARD E CONFIGURAÇÕES
@@ -649,36 +722,13 @@ def configuracoes():
     
     if request.method == 'POST':
         config.whatsapp_template = request.form.get('whatsapp_template')
+        if current_user.role == 'admin':
+            config.prompt_password = request.form.get('prompt_password')
         db.session.commit()
         flash('Configurações salvas com sucesso!', 'success')
         return redirect(url_for('configuracoes'))
         
     return render_template('configuracoes.html', config=config)
-
-@app.route('/prompts', methods=['GET', 'POST'])
-@login_required
-def gerenciar_prompts():
-    if request.method == 'POST':
-        novo_prompt = PromptConfig(
-            nome=request.form.get('nome'), 
-            texto=request.form.get('texto')
-        )
-        db.session.add(novo_prompt)
-        db.session.commit()
-        flash('Novo Cérebro de IA adicionado!', 'success')
-        return redirect(url_for('gerenciar_prompts'))
-        
-    return render_template('prompts.html', prompts=PromptConfig.query.all())
-
-@app.route('/prompts/delete/<int:id>')
-@login_required
-def delete_prompt(id):
-    p = PromptConfig.query.get_or_404(id)
-    if not p.is_default: 
-        db.session.delete(p)
-        db.session.commit()
-        
-    return redirect(url_for('gerenciar_prompts'))
 
 # =========================================================
 # CRM E GESTÃO DE CLIENTES
@@ -692,12 +742,14 @@ def clientes():
             nome=request.form.get('nome'), 
             curso=request.form.get('curso'), 
             telefone=request.form.get('telefone'), 
+            ava_login=request.form.get('ava_login'),
+            ava_senha=request.form.get('ava_senha'),
             valor=float(request.form.get('valor', 70.0)), 
-            status='Pendente'
+            status='Produção'
         )
         db.session.add(novo_aluno)
         db.session.commit()
-        flash('Cliente cadastrado!', 'success')
+        flash('Cliente cadastrado com sucesso!', 'success')
         return redirect(url_for('clientes'))
     
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
@@ -711,22 +763,6 @@ def clientes():
         config=SiteSettings.query.first()
     )
 
-@app.route('/editar_valor/<int:id>', methods=['POST'])
-@login_required
-def editar_valor(id):
-    aluno = Aluno.query.get_or_404(id)
-    if aluno.user_id != current_user.id and current_user.role != 'admin': 
-        abort(403)
-        
-    try: 
-        aluno.valor = float(request.form.get('novo_valor').replace(',', '.'))
-        db.session.commit()
-        flash(f'Valor atualizado!', 'success')
-    except Exception: 
-        flash('Valor inválido.', 'error')
-        
-    return redirect(url_for('clientes'))
-
 @app.route('/editar_cliente/<int:id>', methods=['POST'])
 @login_required
 def editar_cliente(id):
@@ -737,6 +773,8 @@ def editar_cliente(id):
     aluno.nome = request.form.get('nome')
     aluno.curso = request.form.get('curso')
     aluno.telefone = request.form.get('telefone')
+    aluno.ava_login = request.form.get('ava_login')
+    aluno.ava_senha = request.form.get('ava_senha')
     
     try: 
         aluno.valor = float(request.form.get('valor').replace(',', '.'))
@@ -744,7 +782,18 @@ def editar_cliente(id):
         pass
         
     db.session.commit()
-    flash(f'Dados atualizados!', 'success')
+    flash('Dados atualizados!', 'success')
+    return redirect(url_for('clientes'))
+
+@app.route('/mudar_status/<int:id>', methods=['POST'])
+@login_required
+def mudar_status(id):
+    aluno = Aluno.query.get_or_404(id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    aluno.status = request.form.get('novo_status')
+    db.session.commit()
     return redirect(url_for('clientes'))
 
 @app.route('/deletar_cliente/<int:id>', methods=['GET'])
@@ -756,18 +805,7 @@ def deletar_cliente(id):
         
     db.session.delete(aluno)
     db.session.commit()
-    flash(f'Cliente apagado.', 'success')
-    return redirect(url_for('clientes'))
-
-@app.route('/toggle_status/<int:id>', methods=['POST'])
-@login_required
-def toggle_status(id):
-    aluno = Aluno.query.get_or_404(id)
-    if aluno.user_id != current_user.id and current_user.role != 'admin': 
-        abort(403)
-        
-    aluno.status = 'Pago' if aluno.status != 'Pago' else 'Pendente'
-    db.session.commit()
+    flash('Cliente apagado.', 'success')
     return redirect(url_for('clientes'))
 
 @app.route('/cliente/<int:id>', methods=['GET'])
@@ -798,6 +836,20 @@ def adicionar_tema(aluno_id):
         flash('O texto não pode estar vazio.', 'error')
         
     return redirect(url_for('cliente_detalhe', id=aluno_id))
+
+@app.route('/editar_tema/<int:tema_id>', methods=['POST'])
+@login_required
+def editar_tema(tema_id):
+    tema = TemaTrabalho.query.get_or_404(tema_id)
+    aluno = Aluno.query.get(tema.aluno_id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    tema.titulo = request.form.get('titulo')
+    tema.texto = request.form.get('texto')
+    db.session.commit()
+    flash('Tema atualizado com sucesso!', 'success')
+    return redirect(url_for('cliente_detalhe', id=tema.aluno_id))
 
 @app.route('/deletar_tema/<int:tema_id>', methods=['GET'])
 @login_required
@@ -832,20 +884,6 @@ def upload_doc(aluno_id):
 def download_doc(doc_id):
     doc = Documento.query.get_or_404(doc_id)
     return send_file(io.BytesIO(doc.dados_arquivo), download_name=doc.nome_arquivo, as_attachment=True)
-
-@app.route('/rename_doc/<int:doc_id>', methods=['POST'])
-@login_required
-def rename_doc(doc_id):
-    doc = Documento.query.get_or_404(doc_id)
-    novo_nome = request.form.get('novo_nome')
-    extensao = os.path.splitext(doc.nome_arquivo)[1] 
-    
-    if not novo_nome.lower().endswith(extensao.lower()): 
-        novo_nome += extensao
-        
-    doc.nome_arquivo = novo_nome
-    db.session.commit()
-    return redirect(url_for('cliente_detalhe', id=doc.aluno_id))
 
 @app.route('/delete_doc/<int:doc_id>')
 @login_required
@@ -960,6 +998,16 @@ def admin():
     if current_user.role not in ['admin', 'sub-admin']: 
         abort(403)
         
+    if request.method == 'POST':
+        db.session.add(User(
+            username=request.form.get('username'), 
+            password=generate_password_hash(request.form.get('password')),
+            role=request.form.get('role'), 
+            expiration_date=datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
+        ))
+        db.session.commit()
+        flash('Usuário criado com sucesso.', 'success')
+
     users = User.query.all()
     return render_template('admin.html', users=users, hoje=date.today())
 
@@ -970,6 +1018,16 @@ def edit_user(id):
         abort(403)
         
     user = User.query.get_or_404(id)
+    if request.method == 'POST':
+        if request.form.get('password'): 
+            user.password = generate_password_hash(request.form.get('password'))
+        if current_user.role == 'admin': 
+            user.role = request.form.get('role')
+        user.expiration_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
+        db.session.commit()
+        flash('Usuário atualizado com sucesso!', 'success')
+        return redirect(url_for('admin'))
+        
     return render_template('edit_user.html', user=user)
 
 @app.route('/delete_user/<int:id>')
@@ -982,6 +1040,7 @@ def delete_user(id):
     db.session.delete(user)
     db.session.commit()
     return redirect(url_for('admin'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)
