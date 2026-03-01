@@ -15,12 +15,6 @@ from docx import Document
 from google import genai 
 from google.genai import types 
 
-# Tenta importar o gerador de PDF
-try:
-    from fpdf import FPDF
-except ImportError:
-    FPDF = None
-
 app = Flask(__name__)
 
 # =========================================================
@@ -107,8 +101,6 @@ class Documento(db.Model):
     aluno_id = db.Column(db.Integer, db.ForeignKey('aluno.id'), nullable=False)
     nome_arquivo = db.Column(db.String(255), nullable=False)
     dados_arquivo = db.Column(db.LargeBinary, nullable=False) 
-    dados_pdf = db.Column(db.LargeBinary, nullable=True) # NOVO: Para guardar o PDF
-    memorial_analitico = db.Column(db.Text, nullable=True) # NOVO: Para guardar o texto a colar no AVA
     data_upload = db.Column(db.DateTime, default=datetime.utcnow)
 
 class TemaTrabalho(db.Model):
@@ -142,7 +134,7 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # =========================================================
-# PROMPT BASE DE FÁBRICA
+# PROMPT BASE DE FÁBRICA (SEGURANÇA SE BD ESTIVER VAZIO)
 # =========================================================
 PROMPT_REGRAS_BASE = """VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E DE ALTA EXCELÊNCIA ACADÊMICA."""
 
@@ -152,7 +144,7 @@ PROMPT_REGRAS_BASE = """VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁ
 with app.app_context():
     db.create_all()
     
-    # Migrações blindadas
+    # Tentativas de adicionar colunas novas de forma segura (ignora erro se já existirem)
     try: 
         db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Produção'"))
         db.session.commit()
@@ -182,21 +174,8 @@ with app.app_context():
         db.session.commit()
     except Exception: 
         db.session.rollback()
-    
-    # Novas colunas de Documentos
-    try: 
-        db.session.execute(db.text("ALTER TABLE documento ADD COLUMN dados_pdf BYTEA"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-    
-    try: 
-        db.session.execute(db.text("ALTER TABLE documento ADD COLUMN memorial_analitico TEXT"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
 
-    # Cria usuário admin padrão
+    # Cria usuário admin padrão se não existir
     try:
         if not User.query.filter_by(username='admin').first():
             senha_hash = generate_password_hash('admin123')
@@ -206,16 +185,17 @@ with app.app_context():
     except Exception: 
         db.session.rollback()
         
-    # Cria prompt padrão
+    # Cria prompt padrão se a tabela estiver vazia
     try:
-        if not PromptConfig.query.filter_by(is_default=True).first():
-            novo_prompt = PromptConfig(nome="Padrão Oficial", texto=PROMPT_REGRAS_BASE, is_default=True)
+        prompt_padrao = PromptConfig.query.filter_by(is_default=True).first()
+        if not prompt_padrao:
+            novo_prompt = PromptConfig(nome="Padrão Oficial (Desafio UNIASSELVI)", texto=PROMPT_REGRAS_BASE, is_default=True)
             db.session.add(novo_prompt)
             db.session.commit()
     except Exception: 
         db.session.rollback()
 
-    # Cria configurações padrão
+    # Cria configurações padrão de site se estiver vazio
     try:
         if not SiteSettings.query.first():
             db.session.add(SiteSettings())
@@ -373,16 +353,19 @@ def extrair_dicionario(texto_ia):
         "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"
     ]
     dic = {}
+    
     for chave in chaves:
         padrao = rf"\[START_{chave}\](.*?)(?=\[END_{chave}\]|\[START_|$)"
         match = re.search(padrao, texto_ia, re.DOTALL | re.IGNORECASE)
+        
         if match:
             trecho = match.group(1).strip()
-            while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4: 
+            while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4:
                 trecho = trecho[2:-2].strip()
             dic[f"{{{{{chave}}}}}"] = trecho
-        else: 
+        else:
             dic[f"{{{{{chave}}}}}"] = "" 
+            
     return dic
 
 def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
@@ -410,12 +393,17 @@ def gerar_correcao_ia_tags(texto_tema, texto_trabalho, critica, nome_modelo):
 def portal():
     aluno = None
     erro = None
+    
     if request.method == 'POST':
-        tel_limpo = re.sub(r'\D', '', request.form.get('telefone', ''))
-        for a in Aluno.query.all():
+        telefone_busca = request.form.get('telefone', '')
+        tel_limpo = re.sub(r'\D', '', telefone_busca)
+        
+        todos_alunos = Aluno.query.all()
+        for a in todos_alunos:
             if a.telefone and re.sub(r'\D', '', a.telefone) == tel_limpo:
                 aluno = a
                 break
+                
         if not aluno: 
             erro = "Nenhum trabalho encontrado para este número de WhatsApp."
             
@@ -562,106 +550,34 @@ def gerar_docx_final():
         aluno_id = dados.get('aluno_id')
         dicionario_editado = dados.get('dicionario', {})
         
-        # Pega o nome do arquivo informado no frontend ou usa o padrão
-        nome_arquivo_base = dados.get('nome_arquivo', f"Trabalho_{datetime.now().strftime('%d%m%Y')}").strip()
-        nome_arquivo_base = re.sub(r'\.(docx|pdf)$', '', nome_arquivo_base, flags=re.IGNORECASE)
-        
-        # 1. Gerar o DOCX
         caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
         with open(caminho_padrao, 'rb') as f: 
             arquivo_memoria = io.BytesIO(f.read())
             
         documento_pronto = preencher_template_com_tags(arquivo_memoria, dicionario_editado)
-        arquivo_docx_bytes = documento_pronto.read()
-
-        # 2. Extrair o Memorial Analítico
-        tags_memorial = [
-            "{{RESUMO_MEMORIAL}}", "{{CONTEXTO_MEMORIAL}}", "{{ANALISE_MEMORIAL}}", 
-            "{{PROPOSTAS_MEMORIAL}}", "{{CONCLUSAO_MEMORIAL}}", 
-            "{{REFERENCIAS_ADICIONAIS}}", "{{AUTOAVALIACAO_MEMORIAL}}"
-        ]
-        memorial_texto = ""
-        for tag in tags_memorial:
-            if tag in dicionario_editado and dicionario_editado[tag].strip():
-                nome_tag = tag.replace("{", "").replace("}", "").replace("_", " ").title()
-                memorial_texto += f"{nome_tag}\n{dicionario_editado[tag]}\n\n"
-        memorial_texto = memorial_texto.strip()
-
-        # 3. Gerar PDF limpo (se a biblioteca estiver instalada)
-        arquivo_pdf_bytes = None
-        if FPDF:
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.set_font("helvetica", size=12)
-            
-            # Removemos itálicos e formatações estranhas para evitar erros no gerador FPDF
-            for key, value in dicionario_editado.items():
-                if value and str(value).strip():
-                    titulo_sec = key.replace("{", "").replace("}", "").replace("_", " ").title()
-                    pdf.set_font("helvetica", style="B", size=12)
-                    pdf.multi_cell(0, 10, text=titulo_sec)
-                    
-                    pdf.set_font("helvetica", size=11)
-                    val_clean = value.replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
-                    pdf.multi_cell(0, 7, text=val_clean)
-                    pdf.ln(5)
-                    
-            arquivo_pdf_bytes = bytes(pdf.output())
-
-        # 4. Salvar na Pasta do Cliente
+        arquivo_bytes = documento_pronto.read()
+        
         if aluno_id:
             novo_doc = Documento(
                 aluno_id=aluno_id, 
-                nome_arquivo=f"{nome_arquivo_base}.docx", 
-                dados_arquivo=arquivo_docx_bytes,
-                dados_pdf=arquivo_pdf_bytes,
-                memorial_analitico=memorial_texto
+                nome_arquivo=f"Trabalho_{datetime.now().strftime('%d%m%Y')}.docx", 
+                dados_arquivo=arquivo_bytes
             )
             db.session.add(novo_doc)
             
             aluno = Aluno.query.get(aluno_id)
             if aluno and (aluno.status == 'Produção' or aluno.status is None): 
                 aluno.status = 'Pendente'
+                
             db.session.commit()
             
         return jsonify({
             "sucesso": True, 
-            "nome_base": nome_arquivo_base,
-            "arquivo_docx_base64": base64.b64encode(arquivo_docx_bytes).decode('utf-8'),
-            "arquivo_pdf_base64": base64.b64encode(arquivo_pdf_bytes).decode('utf-8') if arquivo_pdf_bytes else None
+            "arquivo_base64": base64.b64encode(arquivo_bytes).decode('utf-8')
         })
         
     except Exception as e: 
-        traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)})
-
-# =========================================================
-# ROTAS DE DOWNLOAD DE FICHEIROS
-# =========================================================
-@app.route('/download_doc/<int:doc_id>')
-def download_doc(doc_id):
-    doc = Documento.query.get_or_404(doc_id)
-    return send_file(
-        io.BytesIO(doc.dados_arquivo), 
-        download_name=doc.nome_arquivo, 
-        as_attachment=True
-    )
-
-@app.route('/download_pdf/<int:doc_id>')
-def download_pdf(doc_id):
-    doc = Documento.query.get_or_404(doc_id)
-    if not doc.dados_pdf:
-        flash('Este arquivo não possui uma versão PDF guardada.', 'error')
-        return redirect(url_for('cliente_detalhe', id=doc.aluno_id))
-    
-    nome_pdf = doc.nome_arquivo.rsplit('.', 1)[0] + '.pdf'
-    return send_file(
-        io.BytesIO(doc.dados_pdf), 
-        download_name=nome_pdf, 
-        as_attachment=True, 
-        mimetype='application/pdf'
-    )
 
 # =========================================================
 # ENGENHARIA DE PROMPTS SEGURA
@@ -943,6 +859,15 @@ def upload_doc(aluno_id):
         flash(f'Erro ao fazer upload: {str(e)}', 'error')
         
     return redirect(url_for('cliente_detalhe', id=aluno_id))
+
+@app.route('/download_doc/<int:doc_id>')
+def download_doc(doc_id):
+    doc = Documento.query.get_or_404(doc_id)
+    return send_file(
+        io.BytesIO(doc.dados_arquivo), 
+        download_name=doc.nome_arquivo, 
+        as_attachment=True
+    )
 
 @app.route('/rename_doc/<int:doc_id>', methods=['POST'])
 @login_required

@@ -72,8 +72,8 @@
     <div id="area-edicao" class="card" style="display:none; margin-top: 30px;">
         <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição Contextual</h2>
         <div id="caixas-texto"></div>
-        <button class="btn btn-green" style="width: 100%; padding: 15px; margin-top:20px;" onclick="perguntarNomeESalvar()" id="btn-docx">
-            <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar Arquivos (DOCX e PDF)
+        <button class="btn btn-green" style="width: 100%; padding: 15px; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">
+            <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final
         </button>
     </div>
 
@@ -214,7 +214,9 @@
             container.innerHTML = ''; 
             
             ordemOficial.forEach(chave => {
+                // Truque cirúrgico: Impede o Flask (Jinja2) de destruir o JS ao avaliar as chaves
                 let chaveSegura = "{" + "{" + chave + "}" + "}"; 
+                
                 let txt = dic[chaveSegura] ? dic[chaveSegura].trim() : "";
                 let is_vazio = (txt === "");
                 
@@ -235,7 +237,7 @@
                 let ta = document.createElement('textarea'); 
                 ta.value = txt; 
                 ta.rows = is_vazio ? 2 : 4;
-                ta.dataset.chave = chave; 
+                ta.dataset.chave = chave; // Crucial para a função de salvar conseguir resgatar o valor depois
                 
                 ta.onchange = (e) => { 
                     dicionarioEditavel[chaveSegura] = e.target.value; 
@@ -251,35 +253,12 @@
             });
         }
 
-        function perguntarNomeESalvar() {
-            Swal.fire({
-                title: 'Nome do Arquivo',
-                input: 'text',
-                inputLabel: 'Escolha um nome (ex: Trabalho_Maria)',
-                inputPlaceholder: 'Trabalho_Final',
-                background: '#1e2130',
-                color: '#e2e8f0',
-                showCancelButton: true,
-                confirmButtonColor: '#10b981',
-                confirmButtonText: 'Salvar e Baixar',
-                preConfirm: (nomeArquivo) => {
-                    if (!nomeArquivo) {
-                        Swal.showValidationMessage('Você precisa de informar um nome!');
-                    }
-                    return nomeArquivo;
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    processarSalvamentoDuplo(result.value);
-                }
-            });
-        }
-
-        function processarSalvamentoDuplo(nomeArquivo) {
+        function salvarEDocx() {
             const btn = document.getElementById('btn-docx');
             btn.disabled = true;
-            btn.innerHTML = `<i class="ph-bold ph-spinner ph-spin"></i> Gerando Documentos...`;
+            btn.innerHTML = `<i class="ph-bold ph-spinner ph-spin"></i> Gerando Documento...`;
             
+            // Grava as edições manuais feitas no browser antes de enviar
             document.querySelectorAll('#caixas-texto textarea').forEach(t => {
                 let chaveSegura = "{" + "{" + t.dataset.chave + "}" + "}";
                 dicionarioEditavel[chaveSegura] = t.value;
@@ -290,45 +269,34 @@
                 headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify({ 
                     dicionario: dicionarioEditavel, 
-                    aluno_id: document.getElementById('aluno_id').value,
-                    nome_arquivo: nomeArquivo
+                    aluno_id: document.getElementById('aluno_id').value 
                 }) 
             })
             .then(r => {
-                if(!r.ok) throw new Error("Erro ao criar documentos no servidor.");
+                if(!r.ok) throw new Error("Erro ao criar DOCX no servidor.");
                 return r.json();
             })
             .then(d => {
                 btn.disabled = false;
-                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar Arquivos (DOCX e PDF)`;
+                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final`;
                 
                 if(!d.sucesso) {
                     Swal.fire('Erro', d.erro, 'error');
                     return;
                 }
                 
-                // 1. Download do DOCX
-                let aDocx = document.createElement('a'); 
-                aDocx.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_docx_base64;
-                aDocx.download = d.nome_base + ".docx"; 
-                aDocx.click();
-
-                // 2. Download do PDF (Pequeno delay para o navegador não bloquear o segundo ficheiro)
-                if (d.arquivo_pdf_base64) {
-                    setTimeout(() => {
-                        let aPdf = document.createElement('a'); 
-                        aPdf.href = 'data:application/pdf;base64,' + d.arquivo_pdf_base64;
-                        aPdf.download = d.nome_base + ".pdf"; 
-                        aPdf.click();
-                    }, 800);
-                }
+                // Força o Download automático
+                let a = document.createElement('a'); 
+                a.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_base64;
+                a.download = "Trabalho_IA.docx"; 
+                a.click();
                 
-                Swal.fire('Sucesso!', 'Documentos gerados, guardados na pasta do cliente e baixados para o teu dispositivo.', 'success');
+                Swal.fire('Sucesso!', 'Documento final gerado e salvo na pasta Downloads e na pasta do Cliente.', 'success');
                 document.getElementById('area-edicao').style.display = 'none';
             })
             .catch(err => {
                 btn.disabled = false;
-                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar Arquivos (DOCX e PDF)`;
+                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final`;
                 Swal.fire('Falha Crítica', err.message, 'error');
             });
         }
