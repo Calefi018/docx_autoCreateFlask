@@ -7,3 +7,4 @@ flask-login
 werkzeug
 psycopg2-binary
 gunicorn
+fpdf2==2.7.9
