@@ -144,7 +144,6 @@ PROMPT_REGRAS_BASE = """VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁ
 with app.app_context():
     db.create_all()
     
-    # Tentativas de adicionar colunas novas de forma segura (ignora erro se já existirem)
     try: 
         db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Produção'"))
         db.session.commit()
@@ -175,7 +174,6 @@ with app.app_context():
     except Exception: 
         db.session.rollback()
 
-    # Cria usuário admin padrão se não existir
     try:
         if not User.query.filter_by(username='admin').first():
             senha_hash = generate_password_hash('admin123')
@@ -185,7 +183,6 @@ with app.app_context():
     except Exception: 
         db.session.rollback()
         
-    # Cria prompt padrão se a tabela estiver vazia
     try:
         prompt_padrao = PromptConfig.query.filter_by(is_default=True).first()
         if not prompt_padrao:
@@ -195,7 +192,6 @@ with app.app_context():
     except Exception: 
         db.session.rollback()
 
-    # Cria configurações padrão de site se estiver vazio
     try:
         if not SiteSettings.query.first():
             db.session.add(SiteSettings())
@@ -263,7 +259,6 @@ def chamar_ia(prompt, nome_modelo):
             raise Exception(f"Falha de rede ao contactar o OpenRouter: {str(e)}")
             
     else:
-        # Google Gemini Nativo
         if not client: 
             raise Exception("A Chave da API nativa do Google não foi configurada.")
             
@@ -342,8 +337,66 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
     return arquivo_saida
 
 def extrair_texto_docx(arquivo_bytes):
-    doc = Document(arquivo_bytes)
+    doc = Document(io.BytesIO(arquivo_bytes)) if isinstance(arquivo_bytes, bytes) else Document(arquivo_bytes)
     return "\n".join([p.text for p in doc.paragraphs])
+
+def extrair_etapa_5(arquivo_bytes):
+    doc = Document(io.BytesIO(arquivo_bytes))
+    capturando = False
+    blocos = []
+    
+    headers = [
+        "Resumo", 
+        "Contextualização do desafio", 
+        "Análise", 
+        "Propostas de solução", 
+        "Conclusão reflexiva", 
+        "Referências", 
+        "Autoavaliação"
+    ]
+    
+    for p in doc.paragraphs:
+        texto = p.text.strip()
+        if not texto:
+            continue
+        
+        texto_limpo = texto.replace('*', '').strip()
+        
+        # Inicia a captura ao identificar "Memorial Analítico", "Etapa 5" ou "Resumo"
+        if not capturando and ("Memorial Analítico" in texto_limpo or "ETAPA 5" in texto_limpo.upper() or texto_limpo.startswith("Resumo")):
+            capturando = True
+            blocos.append("Memorial\nAnalítico")
+            # Se a linha for apenas Etapa 5, pule. Se já for Resumo, deixe o loop de baixo processar
+            if "ETAPA 5" in texto_limpo.upper() and "Memorial" not in texto_limpo and not texto_limpo.startswith("Resumo"):
+                continue
+        
+        if capturando:
+            if texto_limpo == "Memorial Analítico":
+                continue # Já adicionado no gatilho superior
+                
+            encontrou_header = False
+            for h in headers:
+                if texto_limpo.startswith(h):
+                    blocos.append(h)
+                    # Verifica se tem texto na mesma linha (ex: "Resumo: Texto aqui...")
+                    resto = texto_limpo[len(h):].strip()
+                    if resto.startswith('-') or resto.startswith(':'):
+                        resto = resto[1:].strip()
+                    if resto:
+                        blocos.append(resto)
+                    encontrou_header = True
+                    break
+            
+            if not encontrou_header:
+                blocos.append(texto_limpo)
+    
+    # Junta os blocos com duplo espaçamento (\n\n) para ficar visualmente idêntico ao seu exemplo
+    resultado = "\n\n".join(blocos)
+    
+    if not resultado:
+        return False, "Não foi possível identificar a Etapa 5 (Memorial Analítico) neste documento. O arquivo não está no padrão esperado."
+        
+    return True, resultado
 
 def extrair_dicionario(texto_ia):
     chaves = [
@@ -438,6 +491,24 @@ def get_temas_aluno(aluno_id):
     temas = TemaTrabalho.query.filter_by(aluno_id=aluno_id).all()
     lista_temas = [{"id": t.id, "titulo": t.titulo, "texto": t.texto} for t in temas]
     return jsonify(lista_temas)
+
+@app.route('/api/extrair_memorial/<int:doc_id>', methods=['GET'])
+@login_required
+def api_extrair_memorial(doc_id):
+    doc = Documento.query.get_or_404(doc_id)
+    # Validação de segurança
+    if doc.aluno.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({"sucesso": False, "erro": "Acesso negado."}), 403
+    
+    try:
+        sucesso, texto_memorial = extrair_etapa_5(doc.dados_arquivo)
+        return jsonify({
+            "sucesso": sucesso, 
+            "texto": texto_memorial if sucesso else "", 
+            "erro": texto_memorial if not sucesso else ""
+        })
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": f"Erro interno ao ler o documento: {str(e)}"})
 
 @app.route('/gerar_rascunho', methods=['POST'])
 @login_required
@@ -558,7 +629,6 @@ def gerar_docx_final():
         documento_pronto = preencher_template_com_tags(arquivo_memoria, dicionario_editado)
         arquivo_bytes = documento_pronto.read()
         
-        # Define o nome do arquivo respeitando a customização do usuário
         if nome_arquivo:
             if not nome_arquivo.lower().endswith('.docx'):
                 nome_arquivo += '.docx'
@@ -929,7 +999,7 @@ def avaliar_avulso():
     if not arquivo or not arquivo.filename.endswith('.docx'): 
         return jsonify({"erro": "Envie um arquivo .docx válido."}), 400
         
-    texto_trabalho = extrair_texto_docx(arquivo)
+    texto_trabalho = extrair_texto_docx(arquivo.read())
     prompt = f"""Você é um professor avaliador extremamente rigoroso.
 Analise o TEMA: {tema} \nE O TRABALHO DO ALUNO: {texto_trabalho}
 Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima. 
