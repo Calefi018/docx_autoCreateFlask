@@ -130,12 +130,11 @@ class SiteSettings(db.Model):
     )
     prompt_password = db.Column(db.String(255), nullable=True)
 
-# Novo modelo para lidar com as tarefas em segundo plano (Background Tasks)
 class GeracaoTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    status = db.Column(db.String(20), default='Pendente') # Pendente, Concluido, Erro
-    resultado = db.Column(db.Text, nullable=True) # Guarda o JSON gerado
+    status = db.Column(db.String(20), default='Pendente') # Pendente, Concluido, Erro, Cancelado
+    resultado = db.Column(db.Text, nullable=True) 
     modelo_utilizado = db.Column(db.String(100), nullable=True)
     erro = db.Column(db.Text, nullable=True)
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
@@ -286,9 +285,7 @@ def chamar_ia(prompt, nome_modelo):
 # Função executada de forma invisível no servidor
 def executar_geracao_bg(app_instance, task_id, prompt_completo, fila_modelos):
     with app_instance.app_context():
-        task = GeracaoTask.query.get(task_id)
         ultimo_erro = ""
-        
         for modelo in fila_modelos:
             try:
                 texto_resposta = chamar_ia(prompt_completo, modelo)
@@ -297,13 +294,19 @@ def executar_geracao_bg(app_instance, task_id, prompt_completo, fila_modelos):
                 tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
                 if tags_preenchidas < 10: 
                     raise Exception(f"A IA {modelo} teve preguiça e gerou poucas tags.")
+                
+                # Verifica se o utilizador cancelou durante o processamento da IA
+                task_verificar = GeracaoTask.query.get(task_id)
+                if task_verificar and task_verificar.status == 'Cancelado':
+                    db.session.rollback()
+                    return # Descarta o trabalho sem salvar e morre silenciosamente
                     
                 novo_registro = RegistroUso(modelo_usado=modelo)
                 db.session.add(novo_registro)
                 
-                task.status = 'Concluido'
-                task.resultado = json.dumps(dicionario)
-                task.modelo_utilizado = modelo
+                task_verificar.status = 'Concluido'
+                task_verificar.resultado = json.dumps(dicionario)
+                task_verificar.modelo_utilizado = modelo
                 db.session.commit()
                 return
                 
@@ -312,9 +315,11 @@ def executar_geracao_bg(app_instance, task_id, prompt_completo, fila_modelos):
                 continue
                 
         # Se chegou aqui, todos os modelos falharam
-        task.status = 'Erro'
-        task.erro = f"Erro Fatal. Todas as IAs reportaram falha técnica. Último erro: {ultimo_erro}"
-        db.session.commit()
+        task_erro = GeracaoTask.query.get(task_id)
+        if task_erro and task_erro.status != 'Cancelado':
+            task_erro.status = 'Erro'
+            task_erro.erro = f"Erro Fatal. Todas as IAs reportaram falha técnica. Último erro: {ultimo_erro}"
+            db.session.commit()
 
 
 # =========================================================
@@ -567,12 +572,10 @@ def gerar_rascunho():
     
     fila_modelos = [modelo_selecionado] + [m for m in MODELOS_DISPONIVEIS if m != modelo_selecionado]
     
-    # Cria a tarefa no banco para rodar em background
     nova_task = GeracaoTask(user_id=current_user.id, status='Pendente')
     db.session.add(nova_task)
     db.session.commit()
     
-    # Inicia a Thread que processa sem travar o navegador do cliente (CORRIGIDO)
     thread = threading.Thread(
         target=executar_geracao_bg, 
         args=(app, nova_task.id, prompt_completo, fila_modelos)
@@ -580,6 +583,17 @@ def gerar_rascunho():
     thread.start()
     
     return jsonify({"sucesso": True, "task_id": nova_task.id})
+
+@app.route('/cancelar_geracao/<int:task_id>', methods=['POST'])
+@login_required
+def cancelar_geracao(task_id):
+    task = GeracaoTask.query.get(task_id)
+    # Permite cancelar apenas se for do próprio usuário e ainda estiver pendente
+    if task and task.user_id == current_user.id and task.status == 'Pendente':
+        task.status = 'Cancelado'
+        db.session.commit()
+        return jsonify({"sucesso": True})
+    return jsonify({"sucesso": False, "erro": "Tarefa não encontrada ou já concluída."})
 
 @app.route('/status_geracao/<int:task_id>', methods=['GET'])
 @login_required
@@ -594,7 +608,9 @@ def status_geracao(task_id):
     if task.status == 'Erro':
         return jsonify({"status": "Erro", "erro": task.erro})
         
-    # Concluído
+    if task.status == 'Cancelado':
+        return jsonify({"status": "Cancelado"})
+        
     return jsonify({
         "status": "Concluido", 
         "dicionario": json.loads(task.resultado), 
