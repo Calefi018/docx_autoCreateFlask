@@ -129,11 +129,12 @@ class SiteSettings(db.Model):
         default="Olá {nome}, seu trabalho de {curso} ficou pronto com excelência! 🎉\nO valor acordado foi R$ {valor}.\n\nSegue a minha chave PIX para liberação do arquivo: [SUA CHAVE AQUI]"
     )
     prompt_password = db.Column(db.String(255), nullable=True)
+    convert_api_key = db.Column(db.String(255), nullable=True) # Chave para conversão perfeita de PDF
 
 class GeracaoTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    status = db.Column(db.String(20), default='Pendente') # Pendente, Concluido, Erro, Cancelado
+    status = db.Column(db.String(20), default='Pendente') 
     resultado = db.Column(db.Text, nullable=True) 
     modelo_utilizado = db.Column(db.String(100), nullable=True)
     erro = db.Column(db.Text, nullable=True)
@@ -180,6 +181,12 @@ with app.app_context():
 
     try: 
         db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN prompt_password VARCHAR(255)"))
+        db.session.commit()
+    except Exception: 
+        db.session.rollback()
+        
+    try: 
+        db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN convert_api_key VARCHAR(255)"))
         db.session.commit()
     except Exception: 
         db.session.rollback()
@@ -282,7 +289,6 @@ def chamar_ia(prompt, nome_modelo):
             
         return limpar_texto_ia(resposta.text)
 
-# Função executada de forma invisível no servidor
 def executar_geracao_bg(app_instance, task_id, prompt_completo, fila_modelos):
     with app_instance.app_context():
         ultimo_erro = ""
@@ -295,11 +301,10 @@ def executar_geracao_bg(app_instance, task_id, prompt_completo, fila_modelos):
                 if tags_preenchidas < 10: 
                     raise Exception(f"A IA {modelo} teve preguiça e gerou poucas tags.")
                 
-                # Verifica se o utilizador cancelou durante o processamento da IA
                 task_verificar = GeracaoTask.query.get(task_id)
                 if task_verificar and task_verificar.status == 'Cancelado':
                     db.session.rollback()
-                    return # Descarta o trabalho sem salvar e morre silenciosamente
+                    return 
                     
                 novo_registro = RegistroUso(modelo_usado=modelo)
                 db.session.add(novo_registro)
@@ -314,7 +319,6 @@ def executar_geracao_bg(app_instance, task_id, prompt_completo, fila_modelos):
                 ultimo_erro = str(e)
                 continue
                 
-        # Se chegou aqui, todos os modelos falharam
         task_erro = GeracaoTask.query.get(task_id)
         if task_erro and task_erro.status != 'Cancelado':
             task_erro.status = 'Erro'
@@ -588,7 +592,6 @@ def gerar_rascunho():
 @login_required
 def cancelar_geracao(task_id):
     task = GeracaoTask.query.get(task_id)
-    # Permite cancelar apenas se for do próprio usuário e ainda estiver pendente
     if task and task.user_id == current_user.id and task.status == 'Pendente':
         task.status = 'Cancelado'
         db.session.commit()
@@ -722,6 +725,56 @@ def gerar_docx_final():
     except Exception as e: 
         return jsonify({"sucesso": False, "erro": str(e)})
 
+@app.route('/converter_pdf/<int:doc_id>', methods=['POST'])
+@login_required
+def converter_pdf(doc_id):
+    try:
+        doc = Documento.query.get_or_404(doc_id)
+        if doc.aluno.user_id != current_user.id and current_user.role != 'admin':
+            return jsonify({"sucesso": False, "erro": "Acesso negado."}), 403
+
+        if not doc.nome_arquivo.lower().endswith('.docx'):
+            return jsonify({"sucesso": False, "erro": "Apenas arquivos .docx podem ser convertidos."})
+
+        config = SiteSettings.query.first()
+        convert_api_key = config.convert_api_key if config else None
+
+        if not convert_api_key:
+            return jsonify({
+                "sucesso": False, 
+                "erro": "Para que as logos da faculdade não fiquem tortas, usamos a ConvertAPI (gratuita). Vá em 'Configurações' no seu painel e cadastre a sua Secret Key."
+            })
+
+        # Envia para a nuvem da ConvertAPI (usa motor Microsoft Office perfeito)
+        response = requests.post(
+            f'https://v2.convertapi.com/convert/docx/to/pdf?Secret={convert_api_key}',
+            files={'File': (doc.nome_arquivo, doc.dados_arquivo)}
+        )
+        
+        dados_resposta = response.json()
+        
+        if response.status_code == 200:
+            pdf_base64 = dados_resposta['Files'][0]['FileData']
+            pdf_bytes = base64.b64decode(pdf_base64)
+            
+            novo_nome = doc.nome_arquivo.replace('.docx', '.pdf').replace('.DOCX', '.pdf')
+            
+            novo_doc = Documento(
+                aluno_id=doc.aluno_id,
+                nome_arquivo=novo_nome,
+                dados_arquivo=pdf_bytes
+            )
+            db.session.add(novo_doc)
+            db.session.commit()
+            
+            return jsonify({"sucesso": True})
+        else:
+            erro_msg = dados_resposta.get('Message', 'Falha desconhecida.')
+            return jsonify({"sucesso": False, "erro": f"A API recusou: {erro_msg}"})
+            
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": str(e)})
+
 # =========================================================
 # ENGENHARIA DE PROMPTS SEGURA
 # =========================================================
@@ -828,6 +881,7 @@ def configuracoes():
         config.whatsapp_template = request.form.get('whatsapp_template')
         if current_user.role == 'admin':
             config.prompt_password = request.form.get('prompt_password')
+            config.convert_api_key = request.form.get('convert_api_key')
         db.session.commit()
         flash('Configurações salvas com sucesso!', 'success')
         return redirect(url_for('configuracoes'))
