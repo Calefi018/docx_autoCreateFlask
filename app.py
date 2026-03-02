@@ -342,60 +342,65 @@ def extrair_texto_docx(arquivo_bytes):
 
 def extrair_etapa_5(arquivo_bytes):
     doc = Document(io.BytesIO(arquivo_bytes))
-    capturando = False
-    blocos = []
     
-    headers = [
-        "Resumo", 
-        "Contextualização do desafio", 
-        "Análise", 
-        "Propostas de solução", 
-        "Conclusão reflexiva", 
-        "Referências", 
-        "Autoavaliação"
+    # Pega todas as linhas que tem algum texto
+    linhas = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+    
+    idx_inicio = -1
+    
+    # Estratégia 1: Achar a frase de aviso que fica exatamente antes do início real
+    for i, linha in enumerate(linhas):
+        if "Lembre-se também de salvar este documento" in linha:
+            idx_inicio = i + 1
+            
+    # Estratégia 2: Se não achar a frase, pega a ÚLTIMA vez que a palavra "Memorial Analítico" aparece
+    if idx_inicio == -1:
+        for i in range(len(linhas)-1, -1, -1):
+            if "memorial analítico" in linhas[i].lower() and "redação" not in linhas[i].lower():
+                idx_inicio = i
+                break
+                
+    if idx_inicio == -1 or idx_inicio >= len(linhas):
+        return False, "Não foi possível separar as instruções do texto final. O arquivo pode estar fora do padrão."
+        
+    # Pega apenas as linhas do memorial pra baixo (ignora regras e checklists)
+    linhas_finais = linhas[idx_inicio:]
+    
+    headers_oficiais = [
+        "Resumo", "Contextualização do desafio", "Análise", 
+        "Propostas de solução", "Conclusão reflexiva", "Referências", "Autoavaliação"
     ]
     
-    for p in doc.paragraphs:
-        texto = p.text.strip()
-        if not texto:
-            continue
-        
-        texto_limpo = texto.replace('*', '').strip()
-        
-        # Inicia a captura ao identificar "Memorial Analítico", "Etapa 5" ou "Resumo"
-        if not capturando and ("Memorial Analítico" in texto_limpo or "ETAPA 5" in texto_limpo.upper() or texto_limpo.startswith("Resumo")):
-            capturando = True
-            blocos.append("Memorial\nAnalítico")
-            # Se a linha for apenas Etapa 5, pule. Se já for Resumo, deixe o loop de baixo processar
-            if "ETAPA 5" in texto_limpo.upper() and "Memorial" not in texto_limpo and not texto_limpo.startswith("Resumo"):
-                continue
-        
-        if capturando:
-            if texto_limpo == "Memorial Analítico":
-                continue # Já adicionado no gatilho superior
-                
-            encontrou_header = False
-            for h in headers:
-                if texto_limpo.startswith(h):
-                    blocos.append(h)
-                    # Verifica se tem texto na mesma linha (ex: "Resumo: Texto aqui...")
-                    resto = texto_limpo[len(h):].strip()
-                    if resto.startswith('-') or resto.startswith(':'):
-                        resto = resto[1:].strip()
-                    if resto:
-                        blocos.append(resto)
-                    encontrou_header = True
-                    break
-            
-            if not encontrou_header:
-                blocos.append(texto_limpo)
+    blocos = ["Memorial\nAnalítico"]
     
-    # Junta os blocos com duplo espaçamento (\n\n) para ficar visualmente idêntico ao seu exemplo
+    for linha in linhas_finais:
+        # Limpa asteriscos soltos do markdown
+        linha_limpa = linha.replace('**', '').strip()
+        if not linha_limpa: continue
+        
+        # Evita repetir o título principal
+        if linha_limpa.lower() == "memorial analítico":
+            continue
+            
+        is_header = False
+        for h in headers_oficiais:
+            if linha_limpa.startswith(h):
+                blocos.append(h)
+                # Pega o texto que pode ter ficado na mesma linha que o título
+                resto = linha_limpa[len(h):].strip()
+                if resto.startswith('-') or resto.startswith(':'):
+                    resto = resto[1:].strip()
+                if resto:
+                    blocos.append(resto)
+                is_header = True
+                break
+                
+        if not is_header:
+            blocos.append(linha_limpa)
+            
+    # Junta os blocos com duplo espaçamento para ficar perfeito
     resultado = "\n\n".join(blocos)
     
-    if not resultado:
-        return False, "Não foi possível identificar a Etapa 5 (Memorial Analítico) neste documento. O arquivo não está no padrão esperado."
-        
     return True, resultado
 
 def extrair_dicionario(texto_ia):
