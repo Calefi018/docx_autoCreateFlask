@@ -7,12 +7,23 @@
 
     <div class="card" style="border-top: 4px solid var(--primary); margin-bottom: 20px;">
         <h2 style="margin: 0; color: #fff;">{{ aluno.nome }}</h2>
-        <div style="color: var(--text-muted); display: flex; gap: 20px; margin-top: 10px; font-size: 1rem; flex-wrap: wrap;">
+        <div style="color: var(--text-muted); display: flex; gap: 20px; margin-top: 10px; font-size: 1rem; flex-wrap: wrap; align-items: center;">
             <span><i class="ph-bold ph-graduation-cap"></i> {{ aluno.curso }}</span>
             <span><i class="ph-bold ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+            
             {% if aluno.ava_login %}
-            <span><i class="ph-bold ph-user-circle"></i> AVA: {{ aluno.ava_login }}</span>
+            <span style="display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px;">
+                <i class="ph-bold ph-user-circle"></i> {{ aluno.ava_login }}
+                <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_login }}', 'Login AVA')" title="Copiar Login"></i>
+                
+                {% if aluno.ava_senha %}
+                <span style="color: var(--border); margin: 0 4px;">|</span>
+                <i class="ph-bold ph-key"></i> {{ aluno.ava_senha }}
+                <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_senha }}', 'Senha AVA')" title="Copiar Senha"></i>
+                {% endif %}
+            </span>
             {% endif %}
+            
             <span style="color: var(--success); font-weight: bold;">R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</span>
         </div>
     </div>
@@ -84,6 +95,11 @@
     </div>
 
     <script>
+        function copiarUnico(texto, tipo) {
+            navigator.clipboard.writeText(texto);
+            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: tipo + ' copiado!', background: '#1e2130', color: '#10b981' });
+        }
+
         function copiarTema(id) {
             let texto = document.getElementById('tema-texto-' + id).innerText;
             navigator.clipboard.writeText(texto);
@@ -145,8 +161,6 @@
                     return;
                 }
 
-                // Em vez de copiar direto (que o iPhone bloqueia), mostra o texto em uma janela
-                // O usuário aperta "Copiar", o que gera a interação direta aprovada pela Apple.
                 Swal.fire({
                     title: 'Memorial Extraído',
                     html: `
@@ -161,18 +175,14 @@
                     confirmButtonColor: '#10b981'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        // Truque infalível para iPhone 6s (iOS antigo) usando textarea invisível e execCommand
                         let copyText = document.getElementById("texto-memorial-extraido");
-                        
-                        // Seleciona e executa a cópia nativa do sistema
                         copyText.select();
-                        copyText.setSelectionRange(0, 99999); // Para mobile
+                        copyText.setSelectionRange(0, 99999); 
                         
                         try {
                             document.execCommand("copy");
                             Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'success', title: 'Copiado para a área de transferência!', background: '#1e2130', color: '#10b981' });
                         } catch (err) {
-                            // Se falhar, tenta a API moderna
                             navigator.clipboard.writeText(copyText.value).then(() => {
                                 Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'success', title: 'Copiado para a área de transferência!', background: '#1e2130', color: '#10b981' });
                             }).catch(err2 => {
