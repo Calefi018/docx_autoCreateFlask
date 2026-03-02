@@ -583,7 +583,7 @@ def gerar_rascunho():
     
     thread = threading.Thread(
         target=executar_geracao_bg, 
-        args=(app, nova_task.id, prompt_completo, fila_modelos)
+        args=(app._get_current_object(), nova_task.id, prompt_completo, fila_modelos)
     )
     thread.start()
     
@@ -776,6 +776,389 @@ def converter_pdf(doc_id):
         return jsonify({"sucesso": False, "erro": str(e)})
 
 # =========================================================
+# ENGENHARIA DE PROMPTS SEGURA
+# =========================================================
+def validar_senha_prompt(senha):
+    if current_user.role != 'admin': 
+        return False
+    config = SiteSettings.query.first()
+    return not config.prompt_password or senha == config.prompt_password
+
+@app.route('/prompts')
+@login_required
+def gerenciar_prompts():
+    prompts = PromptConfig.query.all()
+    return render_template('prompts.html', prompts=prompts)
+
+@app.route('/prompts/action', methods=['POST'])
+@login_required
+def prompt_action():
+    if not validar_senha_prompt(request.form.get('senha_master')):
+        flash('Senha Master incorreta ou sem permissão.', 'error')
+        return redirect(url_for('gerenciar_prompts'))
+        
+    acao = request.form.get('acao')
+    
+    if acao == 'add':
+        novo_prompt = PromptConfig(
+            nome=request.form.get('nome'), 
+            texto=request.form.get('texto')
+        )
+        db.session.add(novo_prompt)
+        
+    elif acao == 'edit':
+        p = PromptConfig.query.get(int(request.form.get('prompt_id')))
+        if p:
+            p.nome = request.form.get('nome')
+            p.texto = request.form.get('texto')
+            
+    elif acao == 'delete':
+        p = PromptConfig.query.get(int(request.form.get('prompt_id')))
+        if p:
+            db.session.delete(p)
+        
+    db.session.commit()
+    flash('Cérebro da IA atualizado com sucesso!', 'success')
+    return redirect(url_for('gerenciar_prompts'))
+
+# =========================================================
+# DASHBOARD E CONFIGURAÇÕES
+# =========================================================
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).all()
+    
+    a_receber = sum((a.valor or 70.0) for a in todos_alunos if a.status != 'Pago')
+    receita_realizada = sum((a.valor or 70.0) for a in todos_alunos if a.status == 'Pago')
+    
+    hoje = datetime.utcnow()
+    labels_meses = []
+    
+    for i in range(5, -1, -1):
+        m = hoje.month - i
+        y = hoje.year
+        if m <= 0:
+            m += 12
+            y -= 1
+        labels_meses.append((y, m))
+        
+    faturamento_dict = {(y, m): 0.0 for y, m in labels_meses}
+    pedidos_dias = [0] * 7
+    
+    for a in todos_alunos:
+        if a.data_cadastro:
+            pedidos_dias[a.data_cadastro.weekday()] += 1
+            if a.status == 'Pago':
+                chave = (a.data_cadastro.year, a.data_cadastro.month)
+                if chave in faturamento_dict: 
+                    faturamento_dict[chave] += (a.valor or 70.0)
+                    
+    uso_modelos = db.session.query(RegistroUso.modelo_usado, db.func.count(RegistroUso.id)).group_by(RegistroUso.modelo_usado).all()
+    meses_nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+    
+    grafico_meses_labels = [f"{meses_nomes[m-1]}/{str(y)[2:]}" for y, m in labels_meses]
+    grafico_meses_valores = [faturamento_dict[k] for k in labels_meses]
+    
+    return render_template(
+        'dashboard.html', 
+        a_receber=a_receber, 
+        receita_realizada=receita_realizada, 
+        total_trabalhos=len(todos_alunos), 
+        uso_modelos=uso_modelos, 
+        graf_meses_lbl=grafico_meses_labels, 
+        graf_meses_val=grafico_meses_valores, 
+        graf_dias_lbl=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'], 
+        graf_dias_val=pedidos_dias
+    )
+
+@app.route('/configuracoes', methods=['GET', 'POST'])
+@login_required
+def configuracoes():
+    config = SiteSettings.query.first()
+    
+    if request.method == 'POST':
+        config.whatsapp_template = request.form.get('whatsapp_template')
+        if current_user.role == 'admin':
+            config.prompt_password = request.form.get('prompt_password')
+            config.convert_api_key = request.form.get('convert_api_key')
+        db.session.commit()
+        flash('Configurações salvas com sucesso!', 'success')
+        return redirect(url_for('configuracoes'))
+        
+    return render_template('configuracoes.html', config=config)
+
+# =========================================================
+# CRM E GESTÃO DE CLIENTES
+# =========================================================
+@app.route('/clientes', methods=['GET', 'POST'])
+@login_required
+def clientes():
+    if request.method == 'POST':
+        try:
+            valor_str = request.form.get('valor', '70.0').replace(',', '.')
+            valor_float = float(valor_str) if valor_str.strip() else 70.0
+        except ValueError:
+            valor_float = 70.0
+            
+        novo_aluno = Aluno(
+            user_id=current_user.id, 
+            nome=request.form.get('nome'), 
+            curso=request.form.get('curso'), 
+            telefone=request.form.get('telefone'), 
+            ava_login=request.form.get('ava_login'),
+            ava_senha=request.form.get('ava_senha'),
+            valor=valor_float, 
+            status='Produção'
+        )
+        db.session.add(novo_aluno)
+        db.session.commit()
+        flash('Cliente cadastrado com sucesso!', 'success')
+        return redirect(url_for('clientes'))
+    
+    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
+    alunos_pendentes = [a for a in todos_alunos if a.status != 'Pago']
+    alunos_pagos = [a for a in todos_alunos if a.status == 'Pago']
+    
+    config = SiteSettings.query.first()
+    return render_template(
+        'clientes.html', 
+        alunos_pendentes=alunos_pendentes, 
+        alunos_pagos=alunos_pagos, 
+        config=config
+    )
+
+@app.route('/editar_cliente/<int:id>', methods=['POST'])
+@login_required
+def editar_cliente(id):
+    aluno = Aluno.query.get_or_404(id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    aluno.nome = request.form.get('nome')
+    aluno.curso = request.form.get('curso')
+    aluno.telefone = request.form.get('telefone')
+    aluno.ava_login = request.form.get('ava_login')
+    aluno.ava_senha = request.form.get('ava_senha')
+    
+    try: 
+        valor_str = request.form.get('valor', '70.0').replace(',', '.')
+        aluno.valor = float(valor_str) if valor_str.strip() else 70.0
+    except Exception: 
+        pass
+        
+    db.session.commit()
+    flash('Dados atualizados!', 'success')
+    return redirect(url_for('clientes'))
+
+@app.route('/mudar_status/<int:id>', methods=['POST'])
+@login_required
+def mudar_status(id):
+    aluno = Aluno.query.get_or_404(id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    aluno.status = request.form.get('novo_status')
+    db.session.commit()
+    return redirect(url_for('clientes'))
+
+@app.route('/deletar_cliente/<int:id>', methods=['GET'])
+@login_required
+def deletar_cliente(id):
+    aluno = Aluno.query.get_or_404(id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    db.session.delete(aluno)
+    db.session.commit()
+    flash('Cliente apagado.', 'success')
+    return redirect(url_for('clientes'))
+
+@app.route('/cliente/<int:id>', methods=['GET'])
+@login_required
+def cliente_detalhe(id):
+    aluno = Aluno.query.get_or_404(id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    return render_template('cliente_detalhe.html', aluno=aluno)
+
+@app.route('/adicionar_tema/<int:aluno_id>', methods=['POST'])
+@login_required
+def adicionar_tema(aluno_id):
+    aluno = Aluno.query.get_or_404(aluno_id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    titulo = request.form.get('titulo')
+    texto = request.form.get('texto')
+    
+    if texto: 
+        novo_tema = TemaTrabalho(
+            aluno_id=aluno.id, 
+            titulo=titulo if titulo else f"Tema {len(aluno.temas) + 1}", 
+            texto=texto
+        )
+        db.session.add(novo_tema)
+        db.session.commit()
+        flash('Tema salvo!', 'success')
+    else: 
+        flash('O texto não pode estar vazio.', 'error')
+        
+    return redirect(url_for('cliente_detalhe', id=aluno_id))
+
+@app.route('/editar_tema/<int:tema_id>', methods=['POST'])
+@login_required
+def editar_tema(tema_id):
+    tema = TemaTrabalho.query.get_or_404(tema_id)
+    aluno = Aluno.query.get(tema.aluno_id)
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    tema.titulo = request.form.get('titulo')
+    tema.texto = request.form.get('texto')
+    db.session.commit()
+    flash('Tema atualizado com sucesso!', 'success')
+    return redirect(url_for('cliente_detalhe', id=tema.aluno_id))
+
+@app.route('/deletar_tema/<int:tema_id>', methods=['GET'])
+@login_required
+def deletar_tema(tema_id):
+    tema = TemaTrabalho.query.get_or_404(tema_id)
+    aluno = Aluno.query.get(tema.aluno_id)
+    
+    if aluno.user_id != current_user.id and current_user.role != 'admin': 
+        abort(403)
+        
+    db.session.delete(tema)
+    db.session.commit()
+    flash('Tema apagado.', 'success')
+    return redirect(url_for('cliente_detalhe', id=tema.aluno_id))
+
+@app.route('/upload_doc/<int:aluno_id>', methods=['POST'])
+@login_required
+def upload_doc(aluno_id):
+    try:
+        arquivo = request.files.get('arquivo')
+        if arquivo and arquivo.filename.lower().endswith(('.docx', '.pdf')): 
+            novo_doc = Documento(
+                aluno_id=aluno_id, 
+                nome_arquivo=arquivo.filename, 
+                dados_arquivo=arquivo.read()
+            )
+            db.session.add(novo_doc)
+            db.session.commit()
+            flash('Anexado com sucesso!', 'success')
+        else: 
+            flash('Apenas arquivos .docx e .pdf.', 'error')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao fazer upload: {str(e)}', 'error')
+        
+    return redirect(url_for('cliente_detalhe', id=aluno_id))
+
+@app.route('/download_doc/<int:doc_id>')
+def download_doc(doc_id):
+    doc = Documento.query.get_or_404(doc_id)
+    return send_file(
+        io.BytesIO(doc.dados_arquivo), 
+        download_name=doc.nome_arquivo, 
+        as_attachment=True
+    )
+
+@app.route('/rename_doc/<int:doc_id>', methods=['POST'])
+@login_required
+def rename_doc(doc_id):
+    try:
+        doc = Documento.query.get_or_404(doc_id)
+        novo_nome = request.form.get('novo_nome', '').strip()
+        
+        if novo_nome:
+            extensao = os.path.splitext(doc.nome_arquivo)[1] 
+            if not novo_nome.lower().endswith(extensao.lower()): 
+                novo_nome += extensao
+                
+            doc.nome_arquivo = novo_nome
+            db.session.commit()
+            flash('Arquivo renomeado com sucesso!', 'success')
+        else:
+            flash('O nome do arquivo não pode ficar vazio.', 'error')
+            
+        return redirect(url_for('cliente_detalhe', id=doc.aluno_id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao tentar renomear o arquivo: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('clientes'))
+
+@app.route('/delete_doc/<int:doc_id>')
+@login_required
+def delete_doc(doc_id):
+    doc = Documento.query.get_or_404(doc_id)
+    aluno_id = doc.aluno_id
+    db.session.delete(doc)
+    db.session.commit()
+    return redirect(url_for('cliente_detalhe', id=aluno_id))
+
+# =========================================================
+# REVISÃO AVULSA
+# =========================================================
+@app.route('/revisao_avulsa')
+@login_required
+def revisao_avulsa(): 
+    return render_template('revisao_avulsa.html', modelos=MODELOS_DISPONIVEIS)
+
+@app.route('/avaliar_avulso', methods=['POST'])
+@login_required
+def avaliar_avulso():
+    tema = request.form.get('tema')
+    modelo = request.form.get('modelo')
+    arquivo = request.files.get('arquivo_trabalho')
+    
+    if not arquivo or not arquivo.filename.endswith('.docx'): 
+        return jsonify({"erro": "Envie um arquivo .docx válido."}), 400
+        
+    texto_trabalho = extrair_texto_docx(arquivo.read())
+    prompt = f"""Você é um professor avaliador extremamente rigoroso.
+Analise o TEMA: {tema} \nE O TRABALHO DO ALUNO: {texto_trabalho}
+Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima. 
+REGRA: Seja direto, NUNCA use formatações como negrito (**), itálico, bullet points ou títulos. Responda apenas com texto limpo."""
+    
+    try: 
+        resposta_ia = chamar_ia(prompt, modelo)
+        critica_limpa = resposta_ia.replace('*', '').replace('#', '').strip()
+        return jsonify({
+            "critica": critica_limpa, 
+            "texto_extraido": texto_trabalho
+        })
+    except Exception as e: 
+        return jsonify({"erro": str(e)}), 500
+
+@app.route('/corrigir_avulso', methods=['POST'])
+@login_required
+def corrigir_avulso():
+    tema = request.form.get('tema')
+    texto_trabalho = request.form.get('texto_extraido')
+    critica = request.form.get('critica')
+    modelo = request.form.get('modelo')
+    
+    try:
+        respostas = gerar_correcao_ia_tags(tema, texto_trabalho, critica, modelo)
+        
+        caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
+        with open(caminho_padrao, 'rb') as f: 
+            arquivo_memoria = io.BytesIO(f.read())
+            
+        documento_pronto = preencher_template_com_tags(arquivo_memoria, respostas)
+        arquivo_base64 = base64.b64encode(documento_pronto.read()).decode('utf-8')
+        
+        return jsonify({
+            "arquivo_base64": arquivo_base64, 
+            "nome_arquivo": "Trabalho_Revisado_IA.docx"
+        })
+    except Exception as e: 
+        return jsonify({"erro": str(e)}), 500
+
+# =========================================================
 # GABARITO INTELIGENTE (IA DE ELITE)
 # =========================================================
 def extrair_json_seguro(texto):
@@ -839,8 +1222,7 @@ def api_gerar_gabarito():
         gabarito_final.append({
             "questao": q.get('questao', idx + 1),
             "resposta": letra,
-            "justificativa": q.get('justificativa', 'Justificativa não fornecida.'),
-            "confianca": "100%"
+            "justificativa": q.get('justificativa', 'Justificativa não fornecida.')
         })
 
     return jsonify({
@@ -848,65 +1230,6 @@ def api_gerar_gabarito():
         "gabarito": gabarito_final,
         "modelo_utilizado": modelo_elite
     })
-
-# =========================================================
-# REVISÃO AVULSA
-# =========================================================
-@app.route('/revisao_avulsa')
-@login_required
-def revisao_avulsa(): 
-    return render_template('revisao_avulsa.html', modelos=MODELOS_DISPONIVEIS)
-
-@app.route('/avaliar_avulso', methods=['POST'])
-@login_required
-def avaliar_avulso():
-    tema = request.form.get('tema')
-    modelo = request.form.get('modelo')
-    arquivo = request.files.get('arquivo_trabalho')
-    
-    if not arquivo or not arquivo.filename.endswith('.docx'): 
-        return jsonify({"erro": "Envie um arquivo .docx válido."}), 400
-        
-    texto_trabalho = extrair_texto_docx(arquivo.read())
-    prompt = f"""Você é um professor avaliador extremamente rigoroso.
-Analise o TEMA: {tema} \nE O TRABALHO DO ALUNO: {texto_trabalho}
-Faça uma crítica de 3 linhas apontando o que falta para tirar nota máxima. 
-REGRA: Seja direto, NUNCA use formatações como negrito (**), itálico, bullet points ou títulos. Responda apenas com texto limpo."""
-    
-    try: 
-        resposta_ia = chamar_ia(prompt, modelo)
-        critica_limpa = resposta_ia.replace('*', '').replace('#', '').strip()
-        return jsonify({
-            "critica": critica_limpa, 
-            "texto_extraido": texto_trabalho
-        })
-    except Exception as e: 
-        return jsonify({"erro": str(e)}), 500
-
-@app.route('/corrigir_avulso', methods=['POST'])
-@login_required
-def corrigir_avulso():
-    tema = request.form.get('tema')
-    texto_trabalho = request.form.get('texto_extraido')
-    critica = request.form.get('critica')
-    modelo = request.form.get('modelo')
-    
-    try:
-        respostas = gerar_correcao_ia_tags(tema, texto_trabalho, critica, modelo)
-        
-        caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
-        with open(caminho_padrao, 'rb') as f: 
-            arquivo_memoria = io.BytesIO(f.read())
-            
-        documento_pronto = preencher_template_com_tags(arquivo_memoria, respostas)
-        arquivo_base64 = base64.b64encode(documento_pronto.read()).decode('utf-8')
-        
-        return jsonify({
-            "arquivo_base64": arquivo_base64, 
-            "nome_arquivo": "Trabalho_Revisado_IA.docx"
-        })
-    except Exception as e: 
-        return jsonify({"erro": str(e)}), 500
 
 # =========================================================
 # LOGIN E ADMINISTRAÇÃO
