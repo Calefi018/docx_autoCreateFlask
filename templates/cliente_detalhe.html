@@ -126,7 +126,7 @@
         function copiarMemorial(doc_id) {
             Swal.fire({
                 title: 'Lendo Documento...',
-                text: 'Extraindo o Memorial Analítico da Etapa 5',
+                text: 'Localizando a versão final do Memorial...',
                 background: '#1e2130', color: '#e2e8f0',
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
@@ -145,14 +145,41 @@
                     return;
                 }
 
-                navigator.clipboard.writeText(data.texto).then(() => {
-                    Swal.fire({ 
-                        toast: true, position: 'top-end', showConfirmButton: false, 
-                        timer: 3000, icon: 'success', title: 'Memorial Copiado com Sucesso!', 
-                        background: '#1e2130', color: '#10b981' 
-                    });
-                }).catch(err => {
-                    Swal.fire('Falha', 'Não foi possível enviar para a área de transferência do seu navegador.', 'error');
+                // Em vez de copiar direto (que o iPhone bloqueia), mostra o texto em uma janela
+                // O usuário aperta "Copiar", o que gera a interação direta aprovada pela Apple.
+                Swal.fire({
+                    title: 'Memorial Extraído',
+                    html: `
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">O texto limpo foi resgatado com sucesso.</p>
+                        <textarea id="texto-memorial-extraido" readonly style="width: 100%; height: 250px; background: #0f111a; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 15px; font-size: 0.9rem; resize: none;">${data.texto}</textarea>
+                    `,
+                    background: '#1e2130',
+                    color: '#e2e8f0',
+                    showCancelButton: true,
+                    confirmButtonText: '<i class="ph-bold ph-copy"></i> Copiar Texto',
+                    cancelButtonText: 'Fechar',
+                    confirmButtonColor: '#10b981'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Truque infalível para iPhone 6s (iOS antigo) usando textarea invisível e execCommand
+                        let copyText = document.getElementById("texto-memorial-extraido");
+                        
+                        // Seleciona e executa a cópia nativa do sistema
+                        copyText.select();
+                        copyText.setSelectionRange(0, 99999); // Para mobile
+                        
+                        try {
+                            document.execCommand("copy");
+                            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'success', title: 'Copiado para a área de transferência!', background: '#1e2130', color: '#10b981' });
+                        } catch (err) {
+                            // Se falhar, tenta a API moderna
+                            navigator.clipboard.writeText(copyText.value).then(() => {
+                                Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'success', title: 'Copiado para a área de transferência!', background: '#1e2130', color: '#10b981' });
+                            }).catch(err2 => {
+                                Swal.fire('Erro', 'Seu navegador impediu a cópia automática. Você pode selecionar e copiar o texto manualmente da caixa.', 'error');
+                            });
+                        }
+                    }
                 });
             })
             .catch(err => {
