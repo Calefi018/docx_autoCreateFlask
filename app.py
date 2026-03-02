@@ -549,6 +549,7 @@ def gerar_docx_final():
         dados = request.json or {}
         aluno_id = dados.get('aluno_id')
         dicionario_editado = dados.get('dicionario', {})
+        nome_arquivo = dados.get('nome_arquivo', '').strip()
         
         caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
         with open(caminho_padrao, 'rb') as f: 
@@ -557,10 +558,17 @@ def gerar_docx_final():
         documento_pronto = preencher_template_com_tags(arquivo_memoria, dicionario_editado)
         arquivo_bytes = documento_pronto.read()
         
+        # Define o nome do arquivo respeitando a customização do usuário
+        if nome_arquivo:
+            if not nome_arquivo.lower().endswith('.docx'):
+                nome_arquivo += '.docx'
+        else:
+            nome_arquivo = f"Trabalho_{datetime.now().strftime('%d%m%Y')}.docx"
+            
         if aluno_id:
             novo_doc = Documento(
                 aluno_id=aluno_id, 
-                nome_arquivo=f"Trabalho_{datetime.now().strftime('%d%m%Y')}.docx", 
+                nome_arquivo=nome_arquivo, 
                 dados_arquivo=arquivo_bytes
             )
             db.session.add(novo_doc)
@@ -573,6 +581,7 @@ def gerar_docx_final():
             
         return jsonify({
             "sucesso": True, 
+            "nome_arquivo": nome_arquivo,
             "arquivo_base64": base64.b64encode(arquivo_bytes).decode('utf-8')
         })
         
