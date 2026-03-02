@@ -73,7 +73,7 @@
         <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição Contextual</h2>
         <div id="caixas-texto"></div>
         <button class="btn btn-green" style="width: 100%; padding: 15px; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">
-            <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final
+            <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Salvar DOCX Final
         </button>
     </div>
 
@@ -254,6 +254,38 @@
         }
 
         function salvarEDocx() {
+            Swal.fire({
+                title: 'Opções de Salvamento',
+                html: `
+                    <div style="text-align: left;">
+                        <label style="color: var(--text-muted); font-size: 0.9rem;">Nome do arquivo (Opcional, sem .docx):</label>
+                        <input id="sw-doc-name" class="swal2-input" placeholder="Ex: Trabalho_Final_Matematica" style="width: 100%; margin: 5px 0 15px 0;">
+                        
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-muted); font-size: 0.95rem; margin-top: 10px;">
+                            <input type="checkbox" id="sw-doc-download" checked style="width: 20px; height: 20px; margin: 0; cursor: pointer;">
+                            Quero baixar o arquivo no meu computador agora
+                        </label>
+                    </div>
+                `,
+                background: '#1e2130',
+                color: '#e2e8f0',
+                showCancelButton: true,
+                confirmButtonText: '<i class="ph-bold ph-check-circle"></i> Confirmar e Salvar',
+                confirmButtonColor: '#10b981',
+                cancelButtonText: 'Cancelar',
+                preConfirm: () => {
+                    let nome = document.getElementById('sw-doc-name').value.trim();
+                    let querBaixar = document.getElementById('sw-doc-download').checked;
+                    return { nome: nome, download: querBaixar };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    processarSalvamento(result.value.nome, result.value.download);
+                }
+            });
+        }
+
+        function processarSalvamento(nomeArquivo, querBaixar) {
             const btn = document.getElementById('btn-docx');
             btn.disabled = true;
             btn.innerHTML = `<i class="ph-bold ph-spinner ph-spin"></i> Gerando Documento...`;
@@ -269,7 +301,8 @@
                 headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify({ 
                     dicionario: dicionarioEditavel, 
-                    aluno_id: document.getElementById('aluno_id').value 
+                    aluno_id: document.getElementById('aluno_id').value,
+                    nome_arquivo: nomeArquivo 
                 }) 
             })
             .then(r => {
@@ -278,25 +311,30 @@
             })
             .then(d => {
                 btn.disabled = false;
-                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final`;
+                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Salvar DOCX Final`;
                 
                 if(!d.sucesso) {
                     Swal.fire('Erro', d.erro, 'error');
                     return;
                 }
                 
-                // Força o Download automático
-                let a = document.createElement('a'); 
-                a.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_base64;
-                a.download = "Trabalho_IA.docx"; 
-                a.click();
+                if (querBaixar) {
+                    // Força o Download automático
+                    let a = document.createElement('a'); 
+                    a.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_base64;
+                    a.download = d.nome_arquivo || "Trabalho_IA.docx"; 
+                    a.click();
+                    
+                    Swal.fire('Sucesso!', 'Documento gerado, baixado e salvo na pasta do Cliente.', 'success');
+                } else {
+                    Swal.fire('Sucesso!', 'Documento final guardado em segurança na pasta do Cliente.', 'success');
+                }
                 
-                Swal.fire('Sucesso!', 'Documento final gerado e salvo na pasta Downloads e na pasta do Cliente.', 'success');
                 document.getElementById('area-edicao').style.display = 'none';
             })
             .catch(err => {
                 btn.disabled = false;
-                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final`;
+                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Salvar DOCX Final`;
                 Swal.fire('Falha Crítica', err.message, 'error');
             });
         }
