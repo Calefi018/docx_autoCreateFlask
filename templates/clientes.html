@@ -35,14 +35,20 @@
                     </h3>
                     
                     <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 10px; font-size: 0.9rem; flex-wrap: wrap;">
-                        <span><i class="ph ph-graduation-cap"></i> {{ aluno.curso }}</span>
-                        <span><i class="ph ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                        <span><i class="ph-bold ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                        <span><i class="ph-bold ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
                         <span style="color: var(--primary); font-weight: bold;">R$ {{ "%.2f"|format(aluno.valor or 0) }}</span>
                         
                         {% if aluno.ava_login %}
-                        <span style="background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: flex; gap: 8px;">
-                            <b>AVA:</b> {{ aluno.ava_login }} 
-                            <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarTexto('{{ aluno.ava_login }}', '{{ aluno.ava_senha }}')" title="Copiar Login e Senha"></i>
+                        <span style="background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: flex; gap: 8px; align-items: center;">
+                            <i class="ph-bold ph-user-circle" title="Login AVA"></i> {{ aluno.ava_login }} 
+                            <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_login }}', 'Login AVA')" title="Copiar Login"></i>
+                            
+                            {% if aluno.ava_senha %}
+                            <span style="color: var(--border); margin: 0 4px;">|</span>
+                            <i class="ph-bold ph-key" title="Senha AVA"></i> {{ aluno.ava_senha }}
+                            <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_senha }}', 'Senha AVA')" title="Copiar Senha"></i>
+                            {% endif %}
                         </span>
                         {% endif %}
                     </div>
@@ -82,9 +88,9 @@
     <div id="zap-template" style="display:none;">{{ config.whatsapp_template if config else 'Olá {nome}, seu trabalho está pronto! Valor: R$ {valor}' }}</div>
 
     <script>
-        function copiarTexto(login, senha) {
-            navigator.clipboard.writeText(`Login AVA: ${login}\nSenha AVA: ${senha}`);
-            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Copiado!', background: '#1e2130', color: '#10b981' });
+        function copiarUnico(texto, tipo) {
+            navigator.clipboard.writeText(texto);
+            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: tipo + ' copiado!', background: '#1e2130', color: '#10b981' });
         }
 
         function cobrarWhatsapp(telefone, nome, curso, valor) {
