@@ -49,7 +49,9 @@
                 <i class="ph-bold ph-brain" style="animation: pulse-brain 1.5s infinite;"></i>
             </div>
             <h3 style="color: var(--primary); margin-top: 0; font-size: 1.3rem;">A Inteligência Artificial está a escrever...</h3>
-            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 25px;">A elaboração das respostas demora em média 15 a 40 segundos.<br>Por favor, não feche nem atualize a página.</p>
+            <p style="color: var(--warning); font-size: 0.95rem; margin-bottom: 25px; font-weight: bold;">
+                <i class="ph-fill ph-info"></i> Processando em Segundo Plano.<br>Você pode mudar de aba ou usar outro app, basta voltar nesta tela depois.
+            </p>
             
             <div style="width: 100%; height: 12px; background: rgba(0,0,0,0.5); border-radius: 6px; overflow: hidden; position: relative;">
                 <div style="position: absolute; top: 0; left: -50%; height: 100%; width: 50%; background: linear-gradient(90deg, transparent, var(--primary), #a855f7, transparent); border-radius: 6px; animation: slide-bar 1.5s infinite linear;"></div>
@@ -78,8 +80,28 @@
     </div>
 
     <script>
-        // Variável global para armazenar os temas sem quebrar o HTML com aspas ou caracteres especiais
+        // Lógica de resgate de tarefas em segundo plano e estado da página
+        let pollInterval;
+        let dicionarioEditavel = {};
         let temasCarregados = [];
+
+        window.onload = function() {
+            // Verifica se a pessoa saiu da página e voltou enquanto o robô trabalhava
+            let estadoStr = localStorage.getItem('geracao_estado');
+            if(estadoStr) {
+                let estado = JSON.parse(estadoStr);
+                if(estado.task_id) {
+                    if(document.getElementById('aluno_id')) document.getElementById('aluno_id').value = estado.aluno_id;
+                    if(document.getElementById('tema')) document.getElementById('tema').value = estado.tema;
+
+                    document.getElementById('btn-submit').style.display = 'none';
+                    document.getElementById('area-edicao').style.display = 'none';
+                    document.getElementById('loading').style.display = 'block';
+
+                    pollInterval = setInterval(() => verificarStatusTask(estado.task_id), 3000);
+                }
+            }
+        };
 
         document.getElementById('aluno_id').addEventListener('change', function() {
             let aluno_id = this.value;
@@ -94,11 +116,10 @@
             fetch('/api/temas/' + aluno_id)
             .then(r => r.json())
             .then(temas => {
-                temasCarregados = temas; // Guarda os temas na memória do navegador
+                temasCarregados = temas;
                 if(temas.length > 0) {
                     select.innerHTML = '<option value="">Selecione para preencher automaticamente...</option>';
                     temas.forEach(t => { 
-                        // Usamos o ID do tema no value, protegendo contra aspas no texto
                         select.innerHTML += `<option value="${t.id}">${t.titulo || 'Tema sem Título'}</option>`; 
                     });
                     container.style.display = 'block';
@@ -111,7 +132,6 @@
         document.getElementById('select_tema_salvo').addEventListener('change', function() {
             let temaIdSelecionado = this.value;
             if(temaIdSelecionado) {
-                // Procura o texto completo na memória baseado no ID selecionado
                 let temaEncontrado = temasCarregados.find(t => t.id == temaIdSelecionado);
                 if(temaEncontrado) {
                     document.getElementById('tema').value = temaEncontrado.texto;
@@ -119,7 +139,6 @@
             }
         });
 
-        let dicionarioEditavel = {};
         const ordemOficial = [
             "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", 
             "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", 
@@ -136,31 +155,73 @@
             area.style.display = 'none';
             loading.style.display = 'block';
 
+            let formData = new FormData(document.getElementById('formGerar'));
+
             fetch('/gerar_rascunho', { 
                 method: 'POST', 
-                body: new FormData(document.getElementById('formGerar')) 
+                body: formData 
             })
             .then(res => {
                 if(!res.ok) throw new Error("Falha ao comunicar com o servidor.");
                 return res.json();
             })
             .then(data => {
-                loading.style.display = 'none';
-                btn.style.display = 'block';
-                
                 if(!data.sucesso) { 
+                    loading.style.display = 'none';
+                    btn.style.display = 'block';
                     Swal.fire('Erro da Inteligência', data.erro, 'error'); 
                     return; 
                 }
                 
-                dicionarioEditavel = data.dicionario;
-                montarEditor(dicionarioEditavel);
-                area.style.display = 'block';
+                // Grava a ID do serviço no cache do navegador (isso permite sair e voltar)
+                localStorage.setItem('geracao_estado', JSON.stringify({
+                    task_id: data.task_id,
+                    aluno_id: document.getElementById('aluno_id').value,
+                    tema: document.getElementById('tema').value
+                }));
+
+                // Inicia o processo de vigia em segundo plano a cada 3 segundos
+                pollInterval = setInterval(() => verificarStatusTask(data.task_id), 3000);
             })
             .catch(err => {
                 loading.style.display = 'none';
                 btn.style.display = 'block';
                 Swal.fire('Erro Crítico', 'Falha na requisição: ' + err.message, 'error');
+            });
+        }
+
+        function verificarStatusTask(taskId) {
+            fetch('/status_geracao/' + taskId)
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'Pendente') {
+                    // Continua trabalhando, a tela de loading já está lá
+                    return;
+                }
+                
+                // O servidor terminou, seja com erro ou sucesso!
+                clearInterval(pollInterval);
+                localStorage.removeItem('geracao_estado'); // Limpa a memória pra próxima
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('btn-submit').style.display = 'block';
+
+                if(data.status === 'Erro') {
+                    Swal.fire('Erro da Inteligência', data.erro, 'error');
+                } else if(data.status === 'Concluido') {
+                    dicionarioEditavel = data.dicionario;
+                    montarEditor(dicionarioEditavel);
+                    document.getElementById('area-edicao').style.display = 'block';
+                    
+                    Swal.fire({ 
+                        toast: true, position: 'top-end', showConfirmButton: false, 
+                        timer: 4000, icon: 'success', title: 'O Trabalho foi gerado com sucesso!', 
+                        background: '#1e2130', color: '#10b981' 
+                    });
+                }
+            })
+            .catch(err => {
+                console.error("Erro na comunicação em segundo plano:", err);
             });
         }
 
@@ -194,7 +255,6 @@
                 
                 txtElement.value = data.novo_texto;
                 
-                // Fugindo do motor Jinja2 do Flask com separação de string
                 let chaveSegura = "{" + "{" + tag + "}" + "}"; 
                 dicionarioEditavel[chaveSegura] = data.novo_texto;
                 
@@ -214,7 +274,6 @@
             container.innerHTML = ''; 
             
             ordemOficial.forEach(chave => {
-                // Truque cirúrgico: Impede o Flask (Jinja2) de destruir o JS ao avaliar as chaves
                 let chaveSegura = "{" + "{" + chave + "}" + "}"; 
                 
                 let txt = dic[chaveSegura] ? dic[chaveSegura].trim() : "";
@@ -237,7 +296,7 @@
                 let ta = document.createElement('textarea'); 
                 ta.value = txt; 
                 ta.rows = is_vazio ? 2 : 4;
-                ta.dataset.chave = chave; // Crucial para a função de salvar conseguir resgatar o valor depois
+                ta.dataset.chave = chave; 
                 
                 ta.onchange = (e) => { 
                     dicionarioEditavel[chaveSegura] = e.target.value; 
@@ -290,7 +349,6 @@
             btn.disabled = true;
             btn.innerHTML = `<i class="ph-bold ph-spinner ph-spin"></i> Gerando Documento...`;
             
-            // Grava as edições manuais feitas no browser antes de enviar
             document.querySelectorAll('#caixas-texto textarea').forEach(t => {
                 let chaveSegura = "{" + "{" + t.dataset.chave + "}" + "}";
                 dicionarioEditavel[chaveSegura] = t.value;
@@ -319,7 +377,6 @@
                 }
                 
                 if (querBaixar) {
-                    // Força o Download automático
                     let a = document.createElement('a'); 
                     a.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_base64;
                     a.download = d.nome_arquivo || "Trabalho_IA.docx"; 
@@ -331,6 +388,9 @@
                 }
                 
                 document.getElementById('area-edicao').style.display = 'none';
+                
+                // Limpa o formulário caso o usuário queira fazer outro
+                document.getElementById('tema').value = '';
             })
             .catch(err => {
                 btn.disabled = false;
