@@ -6,6 +6,7 @@ import traceback
 import json
 import requests
 import threading
+import concurrent.futures
 from datetime import datetime, date
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file
 from flask_sqlalchemy import SQLAlchemy
@@ -129,7 +130,7 @@ class SiteSettings(db.Model):
         default="Olá {nome}, seu trabalho de {curso} ficou pronto com excelência! 🎉\nO valor acordado foi R$ {valor}.\n\nSegue a minha chave PIX para liberação do arquivo: [SUA CHAVE AQUI]"
     )
     prompt_password = db.Column(db.String(255), nullable=True)
-    convert_api_key = db.Column(db.String(255), nullable=True) # Chave para conversão perfeita de PDF
+    convert_api_key = db.Column(db.String(255), nullable=True)
 
 class GeracaoTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -745,7 +746,6 @@ def converter_pdf(doc_id):
                 "erro": "Para que as logos da faculdade não fiquem tortas, usamos a ConvertAPI (gratuita). Vá em 'Configurações' no seu painel e cadastre a sua Secret Key."
             })
 
-        # Envia para a nuvem da ConvertAPI (usa motor Microsoft Office perfeito)
         response = requests.post(
             f'https://v2.convertapi.com/convert/docx/to/pdf?Secret={convert_api_key}',
             files={'File': (doc.nome_arquivo, doc.dados_arquivo)}
@@ -774,6 +774,105 @@ def converter_pdf(doc_id):
             
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
+
+# =========================================================
+# GABARITO INTELIGENTE (CONSENSO DE 4 IAs)
+# =========================================================
+def extrair_json_seguro(texto):
+    try:
+        match = re.search(r'\[.*\]', texto, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        return json.loads(texto)
+    except Exception:
+        return []
+
+def consultar_ia_gabarito(texto_prova, modelo):
+    prompt = f"""Você é um professor PhD especialista em criar gabaritos perfeitos.
+Resolva a prova abaixo. Retorne EXATAMENTE um Array JSON puro, sem formatação markdown (sem ```json), sem texto antes ou depois.
+O JSON deve ter esta estrutura exata para cada questão encontrada:
+[
+  {{"questao": 1, "resposta": "A", "justificativa": "Motivo curto e direto."}},
+  {{"questao": 2, "resposta": "C", "justificativa": "Outro motivo."}}
+]
+
+PROVA:
+{texto_prova}
+"""
+    try:
+        resposta = chamar_ia(prompt, modelo)
+        return extrair_json_seguro(resposta)
+    except Exception as e:
+        print(f"Erro no modelo {modelo}: {e}")
+        return []
+
+@app.route('/gabarito_inteligente')
+@login_required
+def gabarito_inteligente():
+    return render_template('gabarito_inteligente.html')
+
+@app.route('/api/gerar_gabarito', methods=['POST'])
+@login_required
+def api_gerar_gabarito():
+    texto_prova = request.form.get('prova', '')
+    if not texto_prova:
+        return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
+
+    modelos_elite = [
+        "google/gemini-2.5-pro",
+        "meta-llama/llama-3.3-70b-instruct",
+        "qwen/qwen-2.5-72b-instruct",
+        "anthropic/claude-3.5-sonnet"
+    ]
+
+    respostas_ias = []
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(consultar_ia_gabarito, texto_prova, modelo): modelo for modelo in modelos_elite}
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res and len(res) > 0:
+                respostas_ias.append(res)
+
+    if len(respostas_ias) == 0:
+        return jsonify({"sucesso": False, "erro": "Todas as IAs falharam ao processar o gabarito. Tente novamente."})
+
+    gabarito_final = []
+    num_questoes = max([len(lista) for lista in respostas_ias]) 
+
+    for i in range(num_questoes):
+        votos = {}
+        justificativas = {}
+        
+        for lista_respostas in respostas_ias:
+            if i < len(lista_respostas):
+                q = lista_respostas[i]
+                letra_crua = str(q.get('resposta', '')).upper().strip()
+                match_letra = re.search(r'[A-E]', letra_crua)
+                letra = match_letra.group(0) if match_letra else "?"
+                
+                if letra != "?":
+                    votos[letra] = votos.get(letra, 0) + 1
+                    if letra not in justificativas:
+                        justificativas[letra] = q.get('justificativa', 'Justificativa não fornecida.')
+
+        if votos:
+            letra_vencedora = max(votos, key=votos.get)
+            qnt_votos = votos[letra_vencedora]
+            total_votos = sum(votos.values())
+            
+            gabarito_final.append({
+                "questao": i + 1,
+                "resposta": letra_vencedora,
+                "justificativa": justificativas[letra_vencedora],
+                "confianca": f"{qnt_votos}/{total_votos} IAs"
+            })
+
+    return jsonify({
+        "sucesso": True, 
+        "gabarito": gabarito_final,
+        "ias_que_responderam": len(respostas_ias)
+    })
 
 # =========================================================
 # ENGENHARIA DE PROMPTS SEGURA
