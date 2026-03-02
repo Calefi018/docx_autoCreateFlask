@@ -572,10 +572,10 @@ def gerar_rascunho():
     db.session.add(nova_task)
     db.session.commit()
     
-    # Inicia a Thread que processa sem travar o navegador do cliente
+    # Inicia a Thread que processa sem travar o navegador do cliente (CORRIGIDO)
     thread = threading.Thread(
         target=executar_geracao_bg, 
-        args=(app._get_current_object(), nova_task.id, prompt_completo, fila_modelos)
+        args=(app, nova_task.id, prompt_completo, fila_modelos)
     )
     thread.start()
     
