@@ -4,7 +4,8 @@ import re
 import base64
 import traceback
 import json
-import requests 
+import requests
+import threading
 from datetime import datetime, date
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file
 from flask_sqlalchemy import SQLAlchemy
@@ -129,6 +130,16 @@ class SiteSettings(db.Model):
     )
     prompt_password = db.Column(db.String(255), nullable=True)
 
+# Novo modelo para lidar com as tarefas em segundo plano (Background Tasks)
+class GeracaoTask(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), default='Pendente') # Pendente, Concluido, Erro
+    resultado = db.Column(db.Text, nullable=True) # Guarda o JSON gerado
+    modelo_utilizado = db.Column(db.String(100), nullable=True)
+    erro = db.Column(db.Text, nullable=True)
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -200,7 +211,7 @@ with app.app_context():
         db.session.rollback()
 
 # =========================================================
-# MOTOR NATIVO DE IA
+# MOTOR NATIVO DE IA E TAREFAS EM BACKGROUND
 # =========================================================
 def limpar_texto_ia(texto):
     try: 
@@ -271,6 +282,40 @@ def chamar_ia(prompt, nome_modelo):
             raise Exception(f"Erro no Gemini Nativo: {str(e)}")
             
         return limpar_texto_ia(resposta.text)
+
+# Função executada de forma invisível no servidor
+def executar_geracao_bg(app_instance, task_id, prompt_completo, fila_modelos):
+    with app_instance.app_context():
+        task = GeracaoTask.query.get(task_id)
+        ultimo_erro = ""
+        
+        for modelo in fila_modelos:
+            try:
+                texto_resposta = chamar_ia(prompt_completo, modelo)
+                dicionario = extrair_dicionario(texto_resposta)
+                
+                tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
+                if tags_preenchidas < 10: 
+                    raise Exception(f"A IA {modelo} teve preguiça e gerou poucas tags.")
+                    
+                novo_registro = RegistroUso(modelo_usado=modelo)
+                db.session.add(novo_registro)
+                
+                task.status = 'Concluido'
+                task.resultado = json.dumps(dicionario)
+                task.modelo_utilizado = modelo
+                db.session.commit()
+                return
+                
+            except Exception as e:
+                ultimo_erro = str(e)
+                continue
+                
+        # Se chegou aqui, todos os modelos falharam
+        task.status = 'Erro'
+        task.erro = f"Erro Fatal. Todas as IAs reportaram falha técnica. Último erro: {ultimo_erro}"
+        db.session.commit()
+
 
 # =========================================================
 # PROCESSAMENTO DE WORD E TAGS
@@ -343,17 +388,13 @@ def extrair_texto_docx(arquivo_bytes):
 def extrair_etapa_5(arquivo_bytes):
     doc = Document(io.BytesIO(arquivo_bytes))
     
-    # Pega todas as linhas que tem algum texto
     linhas = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-    
     idx_inicio = -1
     
-    # Estratégia 1: Achar a frase de aviso que fica exatamente antes do início real
     for i, linha in enumerate(linhas):
         if "Lembre-se também de salvar este documento" in linha:
             idx_inicio = i + 1
             
-    # Estratégia 2: Se não achar a frase, pega a ÚLTIMA vez que a palavra "Memorial Analítico" aparece
     if idx_inicio == -1:
         for i in range(len(linhas)-1, -1, -1):
             if "memorial analítico" in linhas[i].lower() and "redação" not in linhas[i].lower():
@@ -363,7 +404,6 @@ def extrair_etapa_5(arquivo_bytes):
     if idx_inicio == -1 or idx_inicio >= len(linhas):
         return False, "Não foi possível separar as instruções do texto final. O arquivo pode estar fora do padrão."
         
-    # Pega apenas as linhas do memorial pra baixo (ignora regras e checklists)
     linhas_finais = linhas[idx_inicio:]
     
     headers_oficiais = [
@@ -374,11 +414,9 @@ def extrair_etapa_5(arquivo_bytes):
     blocos = ["Memorial\nAnalítico"]
     
     for linha in linhas_finais:
-        # Limpa asteriscos soltos do markdown
         linha_limpa = linha.replace('**', '').strip()
         if not linha_limpa: continue
         
-        # Evita repetir o título principal
         if linha_limpa.lower() == "memorial analítico":
             continue
             
@@ -386,7 +424,6 @@ def extrair_etapa_5(arquivo_bytes):
         for h in headers_oficiais:
             if linha_limpa.startswith(h):
                 blocos.append(h)
-                # Pega o texto que pode ter ficado na mesma linha que o título
                 resto = linha_limpa[len(h):].strip()
                 if resto.startswith('-') or resto.startswith(':'):
                     resto = resto[1:].strip()
@@ -398,9 +435,7 @@ def extrair_etapa_5(arquivo_bytes):
         if not is_header:
             blocos.append(linha_limpa)
             
-    # Junta os blocos com duplo espaçamento para ficar perfeito
     resultado = "\n\n".join(blocos)
-    
     return True, resultado
 
 def extrair_dicionario(texto_ia):
@@ -501,7 +536,6 @@ def get_temas_aluno(aluno_id):
 @login_required
 def api_extrair_memorial(doc_id):
     doc = Documento.query.get_or_404(doc_id)
-    # Validação de segurança
     if doc.aluno.user_id != current_user.id and current_user.role != 'admin':
         return jsonify({"sucesso": False, "erro": "Acesso negado."}), 403
     
@@ -514,6 +548,7 @@ def api_extrair_memorial(doc_id):
         })
     except Exception as e:
         return jsonify({"sucesso": False, "erro": f"Erro interno ao ler o documento: {str(e)}"})
+
 
 @app.route('/gerar_rascunho', methods=['POST'])
 @login_required
@@ -531,31 +566,39 @@ def gerar_rascunho():
     prompt_completo = f"TEMA:\n{tema}\n\n{texto_prompt}"
     
     fila_modelos = [modelo_selecionado] + [m for m in MODELOS_DISPONIVEIS if m != modelo_selecionado]
-    ultimo_erro = ""
+    
+    # Cria a tarefa no banco para rodar em background
+    nova_task = GeracaoTask(user_id=current_user.id, status='Pendente')
+    db.session.add(nova_task)
+    db.session.commit()
+    
+    # Inicia a Thread que processa sem travar o navegador do cliente
+    thread = threading.Thread(
+        target=executar_geracao_bg, 
+        args=(app._get_current_object(), nova_task.id, prompt_completo, fila_modelos)
+    )
+    thread.start()
+    
+    return jsonify({"sucesso": True, "task_id": nova_task.id})
 
-    for modelo in fila_modelos:
-        try:
-            texto_resposta = chamar_ia(prompt_completo, modelo)
-            dicionario = extrair_dicionario(texto_resposta)
-            
-            tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
-            if tags_preenchidas < 10: 
-                raise Exception(f"A IA {modelo} teve preguiça e gerou poucas tags.")
-                
-            novo_registro = RegistroUso(modelo_usado=modelo)
-            db.session.add(novo_registro)
-            db.session.commit()
-            
-            return jsonify({"sucesso": True, "dicionario": dicionario, "modelo_utilizado": modelo})
-            
-        except Exception as e:
-            ultimo_erro = str(e)
-            continue
-            
+@app.route('/status_geracao/<int:task_id>', methods=['GET'])
+@login_required
+def status_geracao(task_id):
+    task = GeracaoTask.query.get(task_id)
+    if not task or task.user_id != current_user.id:
+        return jsonify({"sucesso": False, "erro": "Tarefa não encontrada."})
+        
+    if task.status == 'Pendente':
+        return jsonify({"status": "Pendente"})
+        
+    if task.status == 'Erro':
+        return jsonify({"status": "Erro", "erro": task.erro})
+        
+    # Concluído
     return jsonify({
-        "sucesso": False, 
-        "erro": f"Erro Fatal. Todas as IAs reportaram falha técnica. Último erro: {ultimo_erro}", 
-        "fallback": False
+        "status": "Concluido", 
+        "dicionario": json.loads(task.resultado), 
+        "modelo_utilizado": task.modelo_utilizado
     })
 
 @app.route('/regerar_trecho', methods=['POST'])
