@@ -4,12 +4,19 @@
     <p style="color: var(--text-muted); margin-bottom: 30px;">Personalize as automações e a segurança.</p>
 
     <div class="card" style="border-top: 4px solid var(--success);">
-        <h3 style="margin-top: 0; color: var(--success);"><i class="ph-fill ph-whatsapp-logo"></i> Mensagem de Cobrança</h3>
-        <p style="color: var(--text-muted); font-size: 0.95em;">Tags mágicas que pode usar: <b>{nome}</b>, <b>{curso}</b> e <b>{valor}</b>.</p>
         <form method="POST">
+            <h3 style="margin-top: 0; color: var(--success);"><i class="ph-fill ph-whatsapp-logo"></i> Mensagem de Cobrança</h3>
+            <p style="color: var(--text-muted); font-size: 0.95em;">Tags mágicas que pode usar: <b>{nome}</b>, <b>{curso}</b> e <b>{valor}</b>.</p>
             <textarea name="whatsapp_template" rows="5" required style="font-family: monospace;">{{ config.whatsapp_template if config else 'Olá {nome}, seu trabalho está pronto! Valor: R$ {valor}' }}</textarea>
             
             {% if current_user.role == 'admin' %}
+            <h3 style="margin-top: 30px; color: var(--primary);"><i class="ph-fill ph-file-pdf"></i> Motor de PDF (ConvertAPI)</h3>
+            <p style="color: var(--text-muted); font-size: 0.95em;">
+                Como o servidor Linux (Koyeb) não tem Microsoft Word, a conversão padrão quebra as logos da faculdade.<br>
+                Para manter a formatação 100% perfeita, crie uma conta grátis em <a href="https://www.convertapi.com/" target="_blank" style="color: var(--primary);">convertapi.com</a> e cole o <b>Secret</b> abaixo.
+            </p>
+            <input type="text" name="convert_api_key" placeholder="Sua Secret Key da ConvertAPI..." value="{{ config.convert_api_key or '' }}">
+
             <h3 style="margin-top: 30px; color: var(--danger);"><i class="ph-fill ph-lock-key"></i> Senha Master de Prompts</h3>
             <p style="color: var(--text-muted); font-size: 0.95em;">Protege a exclusão e edição dos Cérebros da IA (Invisível para os sub-admins).</p>
             <input type="password" name="prompt_password" placeholder="Digite uma senha forte..." value="{{ config.prompt_password or '' }}">
