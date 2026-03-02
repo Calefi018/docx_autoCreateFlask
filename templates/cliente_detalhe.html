@@ -79,8 +79,14 @@
                         </div>
                         <div style="display: flex; gap: 5px;">
                             {% if '.docx' in doc.nome_arquivo.lower() %}
+                            
+                            <button onclick="converterParaPDF({{ doc.id }})" class="btn" style="background: #e11d48; padding: 6px 10px; font-size: 0.8rem;" title="Criar cópia em PDF">
+                                <i class="ph-bold ph-file-pdf"></i> PDF
+                            </button>
+
                             <button onclick="copiarMemorial({{ doc.id }})" class="btn btn-warning" style="padding: 6px 10px; font-size: 0.8rem; color: #000;" title="Copiar Memorial Extraído"><i class="ph-bold ph-copy"></i> Memorial</button>
                             {% endif %}
+                            
                             <button onclick="renomearDoc({{ doc.id }}, '{{ doc.nome_arquivo|replace('\'', '\\\'') }}')" class="btn" style="background: var(--border); padding: 6px 10px; font-size: 0.8rem;" title="Renomear"><i class="ph-bold ph-pencil-simple"></i></button>
                             <a href="/download_doc/{{ doc.id }}" class="btn btn-blue" style="padding: 6px 10px; font-size: 0.8rem;" title="Baixar"><i class="ph-bold ph-download-simple"></i></a>
                             <a href="/delete_doc/{{ doc.id }}" class="btn btn-danger" style="padding: 6px 10px; font-size: 0.8rem;" onclick="return confirm('Apagar arquivo?')" title="Apagar"><i class="ph-bold ph-trash"></i></a>
@@ -136,6 +142,37 @@
                         form.appendChild(input); document.body.appendChild(form); form.submit();
                     }
                 }
+            });
+        }
+
+        // NOVA FUNÇÃO: Dispara a conversão e recarrega a página ao terminar
+        function converterParaPDF(doc_id) {
+            Swal.fire({
+                title: 'Convertendo para PDF...',
+                text: 'Processando com motor Microsoft para preservar as logos...',
+                background: '#1e2130', color: '#e2e8f0',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            fetch('/converter_pdf/' + doc_id, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if(data.sucesso) {
+                    Swal.fire({
+                        title: 'Sucesso!',
+                        text: 'Cópia em PDF criada perfeitamente.',
+                        icon: 'success',
+                        background: '#1e2130', color: '#10b981'
+                    }).then(() => {
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire('Erro na Conversão', data.erro, 'error');
+                }
+            })
+            .catch(err => {
+                Swal.fire('Falha na Rede', 'Não foi possível se comunicar com o servidor.', 'error');
             });
         }
 
