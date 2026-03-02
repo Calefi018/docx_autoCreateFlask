@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-    <h1 style="margin-top:0;">Gabarito Inteligente (Consenso IA)</h1>
-    <p style="color: var(--text-muted); margin-bottom: 30px;">Cole a prova abaixo. O sistema ativará as 4 melhores IAs do mundo simultaneamente e entregará a resposta correta por votação da maioria.</p>
+    <h1 style="margin-top:0;">Gabarito Inteligente (IA de Elite)</h1>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">Cole a prova abaixo. O sistema ativará o modelo de Inteligência Artificial mais avançado do mundo para analisar o contexto e entregar o gabarito comentado.</p>
 
     <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
         
@@ -10,13 +10,13 @@
             <form id="formGabarito">
                 <textarea name="prova" id="texto-prova" rows="15" placeholder="Cole o texto da prova aqui (com as perguntas e alternativas)..." required style="font-size: 0.85rem; line-height: 1.5;"></textarea>
                 <button type="submit" class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem;" id="btn-gerar">
-                    <i class="ph-bold ph-brain"></i> Acionar Consenso de 4 IAs
+                    <i class="ph-bold ph-brain"></i> Gerar Gabarito Perfeito
                 </button>
             </form>
 
             <div id="loading-gabarito" style="display:none; text-align: center; margin-top: 20px;">
                 <i class="ph-bold ph-spinner ph-spin" style="font-size: 2.5rem; color: var(--warning);"></i>
-                <p style="color: var(--warning); font-weight: bold; margin-top: 10px;">As 4 Inteligências estão cruzando os dados e debatendo as respostas... <br>Aguarde (15 a 30 segundos).</p>
+                <p style="color: var(--warning); font-weight: bold; margin-top: 10px;">A IA de Elite está lendo a prova e a formular as respostas... <br>Aguarde uns instantes.</p>
             </div>
         </div>
 
@@ -37,7 +37,8 @@
                 <button class="btn btn-blue" style="width: 100%; margin-top: 20px; padding: 15px;" onclick="copiarTexto('conteudo-detalhado-raw')">
                     <i class="ph-bold ph-copy"></i> Copiar Gabarito Comentado
                 </button>
-                <div id="conteudo-detalhado-raw" style="display:none;"></div> </div>
+                <div id="conteudo-detalhado-raw" style="display:none;"></div>
+            </div>
 
             <div id="view-resumido" style="display: none;">
                 <div style="background: rgba(15, 17, 26, 0.6); border: 1px solid var(--border); border-radius: 8px; padding: 20px; font-family: monospace; font-size: 1.2rem; line-height: 2;">
@@ -46,7 +47,8 @@
                 <button class="btn btn-warning" style="width: 100%; margin-top: 20px; padding: 15px;" onclick="copiarTexto('conteudo-resumido-raw')">
                     <i class="ph-bold ph-copy"></i> Copiar Gabarito Simples
                 </button>
-                <div id="conteudo-resumido-raw" style="display:none;"></div> </div>
+                <div id="conteudo-resumido-raw" style="display:none;"></div>
+            </div>
         </div>
 
     </div>
@@ -100,7 +102,7 @@
                     return;
                 }
 
-                document.getElementById('info-consenso').innerHTML = `<i class="ph-fill ph-robot"></i> Consenso cruzado com sucesso por ${data.ias_que_responderam} AIs.`;
+                document.getElementById('info-consenso').innerHTML = `<i class="ph-fill ph-robot"></i> Resolvido por: ${data.modelo_utilizado}`;
 
                 let htmlDetalhado = '';
                 let rawDetalhado = 'GABARITO OFICIAL:\n\n';
@@ -108,24 +110,19 @@
                 let rawResumido = '';
 
                 data.gabarito.forEach(item => {
-                    // Monta o visual detalhado para o HTML
                     htmlDetalhado += `
                         <div style="background: rgba(15, 17, 26, 0.5); border-left: 4px solid var(--primary); padding: 15px; border-radius: 4px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                                 <h4 style="margin: 0; color: #fff;">Questão ${item.questao} - Resposta: <span style="color: var(--success); font-size: 1.2rem;">${item.resposta}</span></h4>
-                                <span style="font-size: 0.7rem; background: var(--border); padding: 4px 8px; border-radius: 4px;" title="Nível de consenso das IAs"><i class="ph-fill ph-users"></i> ${item.confianca}</span>
                             </div>
                             <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted); line-height: 1.4;"><b>Justificativa:</b> ${item.justificativa}</p>
                         </div>
                     `;
 
-                    // Monta o texto cru detalhado para o botão de copiar ser legível no WhatsApp/Word
                     rawDetalhado += `Questão ${item.questao} - Resposta Correta: ${item.resposta}\nJustificativa da IA: ${item.justificativa}\n\n`;
 
-                    // Monta o texto resumido visual
                     htmlResumido += `<b>${item.questao})</b> <span style="color: var(--success);">${item.resposta}</span><br>`;
                     
-                    // Monta o texto resumido para copiar
                     rawResumido += `${item.questao}) ${item.resposta}\n`;
                 });
 
@@ -141,7 +138,7 @@
             .catch(err => {
                 btn.style.display = 'block';
                 loading.style.display = 'none';
-                Swal.fire('Falha Crítica', 'Erro ao conectar ao servidor. O texto pode ser longo demais para a conexão.', 'error');
+                Swal.fire('Falha Crítica', 'Erro ao conectar ao servidor. A prova pode ser longa demais para a sua rede.', 'error');
             });
         };
     </script>
