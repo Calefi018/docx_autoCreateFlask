@@ -146,7 +146,7 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # =========================================================
-# PROMPT BASE DE FÁBRICA (SEGURANÇA SE BD ESTIVER VAZIO)
+# PROMPT BASE DE FÁBRICA
 # =========================================================
 PROMPT_REGRAS_BASE = """VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E DE ALTA EXCELÊNCIA ACADÊMICA."""
 
@@ -290,8 +290,9 @@ def chamar_ia(prompt, nome_modelo):
             
         return limpar_texto_ia(resposta.text)
 
-def executar_geracao_bg(app_instance, task_id, prompt_completo, fila_modelos):
-    with app_instance.app_context():
+# Executa em segundo plano blindado com o app global
+def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
+    with app.app_context():
         ultimo_erro = ""
         for modelo in fila_modelos:
             try:
@@ -407,7 +408,7 @@ def extrair_etapa_5(arquivo_bytes):
             
     if idx_inicio == -1:
         for i in range(len(linhas)-1, -1, -1):
-            if "memorial analítico" in linhas[i].lower() and "redação" not in linhas[i].lower():
+            if "memorial analítico" in lines[i].lower() and "redação" not in lines[i].lower():
                 idx_inicio = i
                 break
                 
@@ -559,7 +560,6 @@ def api_extrair_memorial(doc_id):
     except Exception as e:
         return jsonify({"sucesso": False, "erro": f"Erro interno ao ler o documento: {str(e)}"})
 
-
 @app.route('/gerar_rascunho', methods=['POST'])
 @login_required
 def gerar_rascunho():
@@ -581,9 +581,10 @@ def gerar_rascunho():
     db.session.add(nova_task)
     db.session.commit()
     
+    # Thread iniciada com a nova abordagem de escopo global seguro
     thread = threading.Thread(
         target=executar_geracao_bg, 
-        args=(app._get_current_object(), nova_task.id, prompt_completo, fila_modelos)
+        args=(nova_task.id, prompt_completo, fila_modelos)
     )
     thread.start()
     
@@ -776,50 +777,78 @@ def converter_pdf(doc_id):
         return jsonify({"sucesso": False, "erro": str(e)})
 
 # =========================================================
-# ENGENHARIA DE PROMPTS SEGURA
+# GABARITO INTELIGENTE (IA DE ELITE)
 # =========================================================
-def validar_senha_prompt(senha):
-    if current_user.role != 'admin': 
-        return False
-    config = SiteSettings.query.first()
-    return not config.prompt_password or senha == config.prompt_password
+def extrair_json_seguro(texto):
+    try:
+        match = re.search(r'\[.*\]', texto, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        return json.loads(texto)
+    except Exception:
+        return []
 
-@app.route('/prompts')
-@login_required
-def gerenciar_prompts():
-    prompts = PromptConfig.query.all()
-    return render_template('prompts.html', prompts=prompts)
+def consultar_ia_gabarito(texto_prova, modelo):
+    prompt = f"""Você é um professor PhD especialista em criar gabaritos perfeitos.
+Resolva a prova abaixo. Retorne EXATAMENTE um Array JSON puro, sem formatação markdown (sem ```json), sem texto antes ou depois.
+O JSON deve ter esta estrutura exata para cada questão encontrada:
+[
+  {{"questao": 1, "resposta": "A", "justificativa": "Motivo curto e direto."}},
+  {{"questao": 2, "resposta": "C", "justificativa": "Outro motivo."}}
+]
 
-@app.route('/prompts/action', methods=['POST'])
+PROVA:
+{texto_prova}
+"""
+    try:
+        resposta = chamar_ia(prompt, modelo)
+        return extrair_json_seguro(resposta)
+    except Exception as e:
+        print(f"Erro no modelo {modelo}: {e}")
+        return []
+
+@app.route('/gabarito_inteligente')
 @login_required
-def prompt_action():
-    if not validar_senha_prompt(request.form.get('senha_master')):
-        flash('Senha Master incorreta ou sem permissão.', 'error')
-        return redirect(url_for('gerenciar_prompts'))
-        
-    acao = request.form.get('acao')
-    
-    if acao == 'add':
-        novo_prompt = PromptConfig(
-            nome=request.form.get('nome'), 
-            texto=request.form.get('texto')
-        )
-        db.session.add(novo_prompt)
-        
-    elif acao == 'edit':
-        p = PromptConfig.query.get(int(request.form.get('prompt_id')))
-        if p:
-            p.nome = request.form.get('nome')
-            p.texto = request.form.get('texto')
-            
-    elif acao == 'delete':
-        p = PromptConfig.query.get(int(request.form.get('prompt_id')))
-        if p:
-            db.session.delete(p)
-        
+def gabarito_inteligente():
+    return render_template('gabarito_inteligente.html')
+
+@app.route('/api/gerar_gabarito', methods=['POST'])
+@login_required
+def api_gerar_gabarito():
+    texto_prova = request.form.get('prova', '')
+    if not texto_prova:
+        return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
+
+    # Utilizamos o modelo mais avançado do mundo para esta tarefa
+    modelo_elite = "anthropic/claude-3.5-sonnet"
+
+    resultado_ia = consultar_ia_gabarito(texto_prova, modelo_elite)
+
+    if not resultado_ia or len(resultado_ia) == 0:
+        return jsonify({"sucesso": False, "erro": "A IA falhou ao processar o gabarito ou a prova é muito extensa. Tente novamente."})
+
+    novo_registro = RegistroUso(modelo_usado=modelo_elite)
+    db.session.add(novo_registro)
     db.session.commit()
-    flash('Cérebro da IA atualizado com sucesso!', 'success')
-    return redirect(url_for('gerenciar_prompts'))
+
+    gabarito_final = []
+    for idx, q in enumerate(resultado_ia):
+        letra_crua = str(q.get('resposta', '')).upper().strip()
+        match_letra = re.search(r'[A-E]', letra_crua)
+        letra = match_letra.group(0) if match_letra else "?"
+        
+        gabarito_final.append({
+            "questao": q.get('questao', idx + 1),
+            "resposta": letra,
+            "justificativa": q.get('justificativa', 'Justificativa não fornecida.'),
+            "confianca": "100%"
+        })
+
+    return jsonify({
+        "sucesso": True, 
+        "gabarito": gabarito_final,
+        "modelo_utilizado": modelo_elite
+    })
 
 # =========================================================
 # DASHBOARD E CONFIGURAÇÕES
@@ -1100,7 +1129,7 @@ def delete_doc(doc_id):
     return redirect(url_for('cliente_detalhe', id=aluno_id))
 
 # =========================================================
-# REVISÃO AVULSA
+# REVISÃO AVULSA E LOGIN
 # =========================================================
 @app.route('/revisao_avulsa')
 @login_required
@@ -1158,82 +1187,6 @@ def corrigir_avulso():
     except Exception as e: 
         return jsonify({"erro": str(e)}), 500
 
-# =========================================================
-# GABARITO INTELIGENTE (IA DE ELITE)
-# =========================================================
-def extrair_json_seguro(texto):
-    try:
-        match = re.search(r'\[.*\]', texto, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        return json.loads(texto)
-    except Exception:
-        return []
-
-def consultar_ia_gabarito(texto_prova, modelo):
-    prompt = f"""Você é um professor PhD especialista em criar gabaritos perfeitos.
-Resolva a prova abaixo. Retorne EXATAMENTE um Array JSON puro, sem formatação markdown (sem ```json), sem texto antes ou depois.
-O JSON deve ter esta estrutura exata para cada questão encontrada:
-[
-  {{"questao": 1, "resposta": "A", "justificativa": "Motivo curto e direto."}},
-  {{"questao": 2, "resposta": "C", "justificativa": "Outro motivo."}}
-]
-
-PROVA:
-{texto_prova}
-"""
-    try:
-        resposta = chamar_ia(prompt, modelo)
-        return extrair_json_seguro(resposta)
-    except Exception as e:
-        print(f"Erro no modelo {modelo}: {e}")
-        return []
-
-@app.route('/gabarito_inteligente')
-@login_required
-def gabarito_inteligente():
-    return render_template('gabarito_inteligente.html')
-
-@app.route('/api/gerar_gabarito', methods=['POST'])
-@login_required
-def api_gerar_gabarito():
-    texto_prova = request.form.get('prova', '')
-    if not texto_prova:
-        return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
-
-    # Utilizamos o modelo mais avançado do mundo para esta tarefa
-    modelo_elite = "anthropic/claude-3.5-sonnet"
-
-    resultado_ia = consultar_ia_gabarito(texto_prova, modelo_elite)
-
-    if not resultado_ia or len(resultado_ia) == 0:
-        return jsonify({"sucesso": False, "erro": "A IA falhou ao processar o gabarito ou a prova é muito extensa. Tente novamente."})
-
-    novo_registro = RegistroUso(modelo_usado=modelo_elite)
-    db.session.add(novo_registro)
-    db.session.commit()
-
-    gabarito_final = []
-    for idx, q in enumerate(resultado_ia):
-        letra_crua = str(q.get('resposta', '')).upper().strip()
-        match_letra = re.search(r'[A-E]', letra_crua)
-        letra = match_letra.group(0) if match_letra else "?"
-        
-        gabarito_final.append({
-            "questao": q.get('questao', idx + 1),
-            "resposta": letra,
-            "justificativa": q.get('justificativa', 'Justificativa não fornecida.')
-        })
-
-    return jsonify({
-        "sucesso": True, 
-        "gabarito": gabarito_final,
-        "modelo_utilizado": modelo_elite
-    })
-
-# =========================================================
-# LOGIN E ADMINISTRAÇÃO
-# =========================================================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated: 
