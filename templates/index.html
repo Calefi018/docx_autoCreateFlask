@@ -270,7 +270,7 @@
                 return r.json();
             })
             .then(data => {
-                btn.innerText = "Regerar"; 
+                btn.innerText = "Regerar Tudo"; 
                 btn.disabled = false;
                 
                 if(!data.sucesso) {
@@ -288,19 +288,19 @@
                 lbl.style.color = "var(--secondary)";
             })
             .catch(err => {
-                btn.innerText = "Regerar"; 
+                btn.innerText = "Regerar Tudo"; 
                 btn.disabled = false;
                 Swal.fire('Falha', 'Não foi possível regerar: ' + err.message, 'error');
             });
         }
 
+        // --- FUNÇÃO MONTAR EDITOR ATUALIZADA (COM MICRO-AGENTES) ---
         function montarEditor(dic) {
             const container = document.getElementById('caixas-texto'); 
             container.innerHTML = ''; 
             
             ordemOficial.forEach(chave => {
                 let chaveSegura = "{" + "{" + chave + "}" + "}"; 
-                
                 let txt = dic[chaveSegura] ? dic[chaveSegura].trim() : "";
                 let is_vazio = (txt === "");
                 
@@ -308,34 +308,92 @@
                 wrap.style.cssText = `margin-bottom:20px; padding:15px; border-radius:8px; border: 1px solid ${is_vazio ? '#ef4444' : 'var(--border)'}; background: rgba(30,33,48,0.3);`;
                 
                 let head = document.createElement('div'); 
-                head.style.cssText = "display:flex; justify-content:space-between; margin-bottom:10px;";
+                head.style.cssText = "display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;";
                 
                 let lbl = document.createElement('label'); 
                 lbl.innerHTML = `<b>${chave.replace(/_/g,' ')}</b>`; 
                 lbl.style.color = is_vazio ? "#ef4444" : "var(--secondary)";
                 
                 let btn = document.createElement('button'); 
-                btn.className = 'btn'; 
-                btn.innerText = "Regerar";
+                btn.className = 'btn'; btn.innerText = "Regerar Tudo";
                 
                 let ta = document.createElement('textarea'); 
-                ta.value = txt; 
-                ta.rows = is_vazio ? 2 : 4;
-                ta.dataset.chave = chave; 
-                
-                ta.onchange = (e) => { 
-                    dicionarioEditavel[chaveSegura] = e.target.value; 
-                };
-                
+                ta.value = txt; ta.rows = is_vazio ? 2 : 4; ta.dataset.chave = chave; 
+                ta.style.width = "100%"; ta.style.marginBottom = "10px";
+                ta.onchange = (e) => { dicionarioEditavel[chaveSegura] = e.target.value; };
                 btn.onclick = () => regerarTrechoEspecifico(chave, ta, btn, wrap, lbl, chave.replace(/_/g,' '));
                 
-                head.appendChild(lbl); 
-                head.appendChild(btn); 
-                wrap.appendChild(head); 
-                wrap.appendChild(ta); 
+                head.appendChild(lbl); head.appendChild(btn); 
+                wrap.appendChild(head); wrap.appendChild(ta); 
+
+                // NOVO: Micro-Agente de Edição Assistida (Mini-Chat)
+                let chatDiv = document.createElement('div');
+                chatDiv.style.cssText = "display:flex; gap:10px; margin-top:10px; align-items: stretch;";
+                
+                let chatInput = document.createElement('input');
+                chatInput.placeholder = "IA de Ajuste Fino: Ex: 'Deixe mais formal' ou 'Resuma este trecho'...";
+                chatInput.style.margin = "0"; chatInput.style.flex = "1";
+                chatInput.style.padding = "10px";
+                chatInput.style.borderRadius = "5px";
+                chatInput.style.border = "1px solid var(--border)";
+                chatInput.style.background = "#1e2130";
+                chatInput.style.color = "#e2e8f0";
+                
+                let chatBtn = document.createElement('button');
+                chatBtn.className = "btn btn-blue";
+                chatBtn.style.padding = "10px 15px";
+                chatBtn.style.margin = "0";
+                chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Ajustar Trecho";
+                
+                chatBtn.onclick = () => {
+                    let comando = chatInput.value; 
+                    if(!comando) return;
+                    chatBtn.disabled = true; chatBtn.innerText = "Aguarde...";
+                    
+                    fetch('/assistente_pontual', {
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ 
+                            trecho: ta.value, 
+                            comando: comando, 
+                            modelo: document.getElementById('select_modelo').value 
+                        })
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        chatBtn.disabled = false; 
+                        chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Ajustar Trecho";
+                        if(d.sucesso) { 
+                            ta.value = d.novo_texto; 
+                            dicionarioEditavel[chaveSegura] = d.novo_texto; 
+                            chatInput.value = ""; 
+                        } else {
+                            Swal.fire('Erro', d.erro, 'error');
+                        }
+                    })
+                    .catch(e => { 
+                        chatBtn.disabled=false; 
+                        chatBtn.innerHTML="<i class='ph-bold ph-magic-wand'></i> Ajustar Trecho"; 
+                        Swal.fire('Erro de Rede', 'Não foi possível comunicar com a IA.', 'error');
+                    });
+                };
+                
+                chatDiv.appendChild(chatInput); chatDiv.appendChild(chatBtn);
+                wrap.appendChild(chatDiv);
+                
                 container.appendChild(wrap);
             });
         }
+
+        // --- NOVO: SISTEMA DE SALVAMENTO AUTOMÁTICO SILENCIOSO ---
+        setInterval(() => {
+            if(Object.keys(dicionarioEditavel).length > 0) {
+                localStorage.setItem('hubmaster_autosave', JSON.stringify({
+                    aluno: document.getElementById('aluno_id').value,
+                    dic: dicionarioEditavel
+                }));
+            }
+        }, 10000); // Salva no navegador a cada 10 segundos
 
         function salvarEDocx() {
             Swal.fire({
@@ -412,6 +470,8 @@
                     Swal.fire('Sucesso!', 'Documento final guardado em segurança na pasta do Cliente.', 'success');
                 }
                 
+                // Limpa o auto-save já que concluiu com sucesso
+                localStorage.removeItem('hubmaster_autosave');
                 document.getElementById('area-edicao').style.display = 'none';
                 document.getElementById('tema').value = '';
             })
