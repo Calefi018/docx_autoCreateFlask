@@ -4,7 +4,7 @@
 
     <h1 style="margin-top:0;">Dashboard Financeiro</h1>
     <p style="color: var(--text-muted); margin-bottom: 30px;">
-        Visão geral dos seus lucros e da produtividade do seu sistema.
+        Visão geral dos seus lucros e da produtividade do seu sistema com a monitorização de custos da IA.
     </p>
 
     <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
@@ -18,6 +18,12 @@
             <i class="ph-fill ph-chart-line-up" style="font-size: 2.5rem; color: var(--success); margin-bottom: 10px;"></i>
             <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Receita Paga</h3>
             <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_realizada) }}</h2>
+        </div>
+
+        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid #a855f7; margin-bottom: 0;">
+            <i class="ph-fill ph-coin" style="font-size: 2.5rem; color: #a855f7; margin-bottom: 10px;"></i>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Custo API (Estimado)</h3>
+            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.4f"|format(custo_total) }}</h2>
         </div>
         
         <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--primary); margin-bottom: 0;">
@@ -50,24 +56,26 @@
 
     <div class="card">
         <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-fill ph-cpu"></i> Inteligências Utilizadas
+            <i class="ph-fill ph-cpu"></i> Inteligências Utilizadas & Custos
         </h3>
-        <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">Monitorização de rotas ativas da API.</p>
+        <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">Monitorização do gasto em tokens de cada modelo na API.</p>
         
         <table style="width: 100%; text-align: left; border-collapse: collapse;">
             <tr style="border-bottom: 1px solid var(--border);">
                 <th style="padding: 15px 10px; color: var(--text-muted);">Modelo de IA</th>
-                <th style="padding: 15px 10px; text-align: right; color: var(--text-muted);">Trabalhos Processados</th>
+                <th style="padding: 15px 10px; text-align: center; color: var(--text-muted);">Gerações Efetuadas</th>
+                <th style="padding: 15px 10px; text-align: right; color: var(--text-muted);">Gasto Acumulado (R$)</th>
             </tr>
             
             {% for uso in uso_modelos %}
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                 <td style="padding: 15px 10px; color: #fff; font-weight: 500;">{{ uso[0] }}</td>
-                <td style="padding: 15px 10px; text-align: right; color: var(--primary); font-weight: bold;">{{ uso[1] }}x</td>
+                <td style="padding: 15px 10px; text-align: center; color: var(--primary); font-weight: bold;">{{ uso[1] }}x</td>
+                <td style="padding: 15px 10px; text-align: right; color: #a855f7; font-weight: bold;">R$ {{ "%.4f"|format(uso[2] or 0.0) }}</td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="2" style="padding: 20px; text-align: center; color: var(--text-muted);">Nenhum trabalho gerado ainda.</td>
+                <td colspan="3" style="padding: 20px; text-align: center; color: var(--text-muted);">Nenhuma Inteligência Artificial utilizada ainda.</td>
             </tr>
             {% endfor %}
         </table>
