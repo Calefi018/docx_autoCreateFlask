@@ -56,11 +56,22 @@ if db_url.startswith("postgres://"):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    "pool_pre_ping": True, 
-    "pool_recycle": 60, 
-    "pool_timeout": 30
-}
+
+# Otimização de Pool de Conexão para evitar lentidão no Postgres (Koyeb/Neon)
+if db_url.startswith("postgresql"):
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        "pool_pre_ping": True, 
+        "pool_recycle": 300, 
+        "pool_timeout": 30,
+        "pool_size": 20,
+        "max_overflow": 30
+    }
+else:
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        "pool_pre_ping": True, 
+        "pool_recycle": 60, 
+        "pool_timeout": 30
+    }
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -290,7 +301,6 @@ def chamar_ia(prompt, nome_modelo):
             
         return limpar_texto_ia(resposta.text)
 
-# Executa em segundo plano blindado com o app global
 def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
     with app.app_context():
         ultimo_erro = ""
@@ -408,7 +418,7 @@ def extrair_etapa_5(arquivo_bytes):
             
     if idx_inicio == -1:
         for i in range(len(linhas)-1, -1, -1):
-            if "memorial analítico" in lines[i].lower() and "redação" not in lines[i].lower():
+            if "memorial analítico" in linhas[i].lower() and "redação" not in linhas[i].lower():
                 idx_inicio = i
                 break
                 
@@ -581,7 +591,6 @@ def gerar_rascunho():
     db.session.add(nova_task)
     db.session.commit()
     
-    # Thread iniciada com a nova abordagem de escopo global seguro
     thread = threading.Thread(
         target=executar_geracao_bg, 
         args=(nova_task.id, prompt_completo, fila_modelos)
@@ -819,9 +828,7 @@ def api_gerar_gabarito():
     if not texto_prova:
         return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
 
-    # Utilizamos o modelo mais avançado do mundo para esta tarefa
     modelo_elite = "anthropic/claude-3.5-sonnet"
-
     resultado_ia = consultar_ia_gabarito(texto_prova, modelo_elite)
 
     if not resultado_ia or len(resultado_ia) == 0:
@@ -849,6 +856,62 @@ def api_gerar_gabarito():
         "gabarito": gabarito_final,
         "modelo_utilizado": modelo_elite
     })
+
+# =========================================================
+# PROMPTS DE IA - ROTAS CORRIGIDAS (RESOLVE O ERRO 404)
+# =========================================================
+@app.route('/prompts')
+@login_required
+def prompts():
+    if current_user.role not in ['admin', 'sub-admin']: 
+        abort(403)
+    
+    lista_prompts = PromptConfig.query.all()
+    return render_template('prompts.html', prompts=lista_prompts)
+
+@app.route('/prompts/action', methods=['POST'])
+@login_required
+def prompts_action():
+    if current_user.role not in ['admin', 'sub-admin']:
+        abort(403)
+
+    senha_master = request.form.get('senha_master')
+    config = SiteSettings.query.first()
+    senha_correta = config.prompt_password if config and config.prompt_password else ""
+
+    if senha_correta and senha_master != senha_correta:
+        flash('Senha Master incorreta!', 'error')
+        return redirect(url_for('prompts'))
+
+    acao = request.form.get('acao')
+    prompt_id = request.form.get('prompt_id')
+
+    if acao == 'add':
+        novo_prompt = PromptConfig(
+            nome=request.form.get('nome'),
+            texto=request.form.get('texto')
+        )
+        db.session.add(novo_prompt)
+        flash('Novo Cérebro criado com sucesso!', 'success')
+
+    elif acao == 'edit' and prompt_id:
+        p = PromptConfig.query.get(prompt_id)
+        if p:
+            p.nome = request.form.get('nome')
+            p.texto = request.form.get('texto')
+            flash('Cérebro atualizado com sucesso!', 'success')
+
+    elif acao == 'delete' and prompt_id:
+        p = PromptConfig.query.get(prompt_id)
+        if p:
+            if p.is_default:
+                flash('Você não pode apagar o padrão base do sistema!', 'error')
+            else:
+                db.session.delete(p)
+                flash('Cérebro apagado permanentemente!', 'success')
+
+    db.session.commit()
+    return redirect(url_for('prompts'))
 
 # =========================================================
 # DASHBOARD E CONFIGURAÇÕES
