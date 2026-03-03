@@ -6,7 +6,8 @@ from google import genai
 def limpar_texto_ia(texto):
     try: 
         texto = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), texto)
-    except: pass
+    except Exception: 
+        pass
     return texto
 
 def calcular_custo_api(modelo, prompt_tokens, completion_tokens):
@@ -28,51 +29,80 @@ def chamar_ia(prompt, nome_modelo, chave_google=None, chave_openrouter=None):
     custo_reais = 0.0
     
     if is_openrouter:
-        if not chave_openrouter: raise Exception("Chave OpenRouter não configurada.")
+        if not chave_openrouter: 
+            raise Exception("A Chave da API do OpenRouter não foi configurada.")
+            
         modelo_limpo = nome_modelo.replace("openrouter/", "")
         headers = {
             "Authorization": f"Bearer {chave_openrouter}",
             "HTTP-Referer": "https://hubmaster-system.com",
             "Content-Type": "application/json"
         }
-        payload = {"model": modelo_limpo, "messages": [{"role": "user", "content": prompt}], "temperature": 0.7}
         
-        res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=120)
-        if res.status_code != 200: raise Exception(f"Erro OpenRouter ({res.status_code}): {res.text}")
+        payload = {
+            "model": modelo_limpo, 
+            "messages": [{"role": "user", "content": prompt}], 
+            "temperature": 0.7
+        }
+        
+        res = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions", 
+            headers=headers, 
+            json=payload, 
+            timeout=120
+        )
+        
+        if res.status_code != 200: 
+            raise Exception(f"Erro OpenRouter ({res.status_code}): {res.text}")
             
         dados = res.json()
         texto = dados['choices'][0]['message']['content']
         
         usage = dados.get('usage', {})
         custo_reais = calcular_custo_api(modelo_limpo, usage.get('prompt_tokens', 0), usage.get('completion_tokens', 0))
+        
         return limpar_texto_ia(texto), custo_reais
         
     else:
-        if not chave_google: raise Exception("Chave Google não configurada.")
+        if not chave_google: 
+            raise Exception("A Chave da API nativa do Google não foi configurada.")
+            
         client = genai.Client(api_key=chave_google)
         res = client.models.generate_content(model=nome_modelo, contents=prompt)
+        
         try:
             pt = res.usage_metadata.prompt_token_count
             ct = res.usage_metadata.candidates_token_count
             custo_reais = calcular_custo_api(nome_modelo, pt, ct)
-        except: pass
+        except Exception: 
+            pass
+            
         return limpar_texto_ia(res.text), custo_reais
 
 def extrair_dicionario(texto_ia):
-    chaves = ["ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS", "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", "PROPOSTAS_MEMORIAL", "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"]
+    chaves = [
+        "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", 
+        "CONCEITOS_TEORICOS", "ANALISE_CONCEITO_1", "ENTENDIMENTO_TEORICO", "SOLUCOES_TEORICAS", 
+        "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", "PROPOSTAS_MEMORIAL", 
+        "CONCLUSAO_MEMORIAL", "REFERENCIAS_ADICIONAIS", "AUTOAVALIACAO_MEMORIAL"
+    ]
     dic = {}
     for chave in chaves:
         match = re.search(rf"\[START_{chave}\](.*?)(?=\[END_{chave}\]|\[START_|$)", texto_ia, re.DOTALL | re.IGNORECASE)
         if match:
             trecho = match.group(1).strip()
-            while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4: trecho = trecho[2:-2].strip()
+            while trecho.startswith('**') and trecho.endswith('**') and len(trecho) > 4: 
+                trecho = trecho[2:-2].strip()
             dic[f"{{{{{chave}}}}}"] = trecho
-        else: dic[f"{{{{{chave}}}}}"] = "" 
+        else: 
+            dic[f"{{{{{chave}}}}}"] = "" 
     return dic
 
 def extrair_json_seguro(texto):
     try:
         match = re.search(r'\[.*\]', texto, re.DOTALL)
-        if match: return json.loads(match.group(0))
+        if match: 
+            return json.loads(match.group(0))
         return json.loads(texto)
-    except: return []
+    except Exception: 
+        return []
