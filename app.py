@@ -145,7 +145,7 @@ class SiteSettings(db.Model):
     )
     prompt_password = db.Column(db.String(255), nullable=True)
     convert_api_key = db.Column(db.String(255), nullable=True)
-    modelos_ativos = db.Column(db.Text, nullable=True) # NOVO: Campo para guardar as IAs ativadas
+    modelos_ativos = db.Column(db.Text, nullable=True)
 
 class GeracaoTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -183,8 +183,6 @@ with app.app_context():
     except Exception: db.session.rollback()
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN data_pagamento TIMESTAMP")); db.session.commit()
     except Exception: db.session.rollback()
-    
-    # NOVA MIGRAÇÃO: Campo para a gestão de IAs ativadas
     try: db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN modelos_ativos TEXT")); db.session.commit()
     except Exception: db.session.rollback()
 
@@ -220,7 +218,7 @@ with app.app_context():
 # =========================================================
 # GESTÃO DINÂMICA DE MODELOS DE IA
 # =========================================================
-# Uma superlista com todas as IAs conhecidas que você poderá ativar/desativar
+# IAs padrão do sistema (Você poderá adicionar infinitas outras pelo painel)
 TODOS_MODELOS_CONHECIDOS = [
     "anthropic/claude-3.5-sonnet",
     "anthropic/claude-3-opus",
@@ -577,14 +575,27 @@ def configuracoes():
             
             # GESTÃO DAS IAS SELECIONADAS NA INTERFACE
             modelos_selecionados = request.form.getlist('modelos_ativos')
-            if modelos_selecionados:
-                config.modelos_ativos = ",".join(modelos_selecionados)
+            
+            # NOVO: Adiciona a IA personalizada se você digitar uma nova!
+            novo_modelo = request.form.get('novo_modelo')
+            if novo_modelo and novo_modelo.strip():
+                novo_modelo_limpo = novo_modelo.strip()
+                if novo_modelo_limpo not in modelos_selecionados:
+                    modelos_selecionados.append(novo_modelo_limpo)
+                    
+            config.modelos_ativos = ",".join(modelos_selecionados)
                 
         db.session.commit()
         flash('Configurações salvas!', 'success')
         return redirect(url_for('configuracoes'))
         
-    return render_template('configuracoes.html', config=config, todos_modelos=TODOS_MODELOS_CONHECIDOS, modelos_ativos=get_modelos_ativos())
+    ativos_atuais = get_modelos_ativos()
+    todos_para_exibir = list(TODOS_MODELOS_CONHECIDOS)
+    for m in ativos_atuais:
+        if m not in todos_para_exibir:
+            todos_para_exibir.append(m)
+            
+    return render_template('configuracoes.html', config=config, todos_modelos=todos_para_exibir, modelos_ativos=ativos_atuais)
 
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
