@@ -7,29 +7,36 @@
         Visão geral dos seus lucros e da produtividade do seu sistema com a monitorização de custos da IA.
     </p>
 
-    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--danger); margin-bottom: 0;">
-            <i class="ph-fill ph-wallet" style="font-size: 2.5rem; color: var(--danger); margin-bottom: 10px;"></i>
-            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">A Receber</h3>
-            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(a_receber) }}</h2>
-        </div>
+    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 30px;">
         
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--success); margin-bottom: 0;">
-            <i class="ph-fill ph-chart-line-up" style="font-size: 2.5rem; color: var(--success); margin-bottom: 10px;"></i>
-            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Receita Paga</h3>
-            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_realizada) }}</h2>
+        <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid #f59e0b; margin-bottom: 0;">
+            <i class="ph-fill ph-coins" style="font-size: 2.2rem; color: #f59e0b; margin-bottom: 10px;"></i>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">Lucro Hoje</h3>
+            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_hoje) }}</h2>
         </div>
 
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid #a855f7; margin-bottom: 0;">
-            <i class="ph-fill ph-coin" style="font-size: 2.5rem; color: #a855f7; margin-bottom: 10px;"></i>
-            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Custo API (Estimado)</h3>
-            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.4f"|format(custo_total) }}</h2>
+        <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid var(--success); margin-bottom: 0;">
+            <i class="ph-fill ph-chart-line-up" style="font-size: 2.2rem; color: var(--success); margin-bottom: 10px;"></i>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">Receita Total</h3>
+            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_realizada) }}</h2>
+        </div>
+
+        <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid var(--danger); margin-bottom: 0;">
+            <i class="ph-fill ph-wallet" style="font-size: 2.2rem; color: var(--danger); margin-bottom: 10px;"></i>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">A Receber</h3>
+            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.2f"|format(a_receber) }}</h2>
         </div>
         
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--primary); margin-bottom: 0;">
-            <i class="ph-fill ph-files" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 10px;"></i>
-            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Total de Trabalhos</h3>
-            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">{{ total_trabalhos }}</h2>
+        <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid #a855f7; margin-bottom: 0;">
+            <i class="ph-fill ph-cpu" style="font-size: 2.2rem; color: #a855f7; margin-bottom: 10px;"></i>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">Custo API</h3>
+            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.4f"|format(custo_total) }}</h2>
+        </div>
+        
+        <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid var(--primary); margin-bottom: 0;">
+            <i class="ph-fill ph-files" style="font-size: 2.2rem; color: var(--primary); margin-bottom: 10px;"></i>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">Trabalhos</h3>
+            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">{{ total_trabalhos }}</h2>
         </div>
     </div>
 
@@ -56,7 +63,7 @@
 
     <div class="card">
         <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-fill ph-cpu"></i> Inteligências Utilizadas & Custos
+            <i class="ph-fill ph-robot"></i> Inteligências Utilizadas & Custos
         </h3>
         <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">Monitorização do gasto em tokens de cada modelo na API.</p>
         
