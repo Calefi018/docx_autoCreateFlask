@@ -27,8 +27,20 @@
             --border: #334155;
         }
 
+        /* RESET UNIVERSAL: Impede que paddings e bordas aumentem a largura dos elementos (Evita scroll lateral) */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        /* TRAVA A TELA NA LARGURA MÁXIMA DO DISPOSITIVO */
+        html, body {
+            max-width: 100vw;
+            overflow-x: hidden; /* Corta qualquer rolagem lateral na raiz do site */
+        }
+
         body { 
             margin: 0; 
+            padding: 0;
             font-family: 'Inter', sans-serif; 
             background: var(--bg-color); 
             color: var(--text-color); 
@@ -36,7 +48,7 @@
             min-height: 100vh; 
         }
 
-        /* CLASSE PARA BLOQUEAR SCROLL DO FUNDO NO CELULAR */
+        /* CLASSE PARA BLOQUEAR SCROLL DO FUNDO NO CELULAR (MENU) */
         body.no-scroll {
             overflow: hidden;
         }
@@ -50,10 +62,9 @@
             flex-direction: column; 
             transition: transform 0.3s ease; 
             z-index: 1000; 
-            box-sizing: border-box; /* Garante que o padding não aumente o tamanho */
             height: 100vh; 
-            height: 100dvh; /* Medida avançada para telemóveis */
-            overflow-y: auto; /* Permite rolar APENAS o menu se tiver muitos links */
+            height: 100dvh; 
+            overflow-y: auto; 
             position: sticky;
             top: 0;
         }
@@ -102,6 +113,7 @@
             flex: 1; 
             padding: 40px; 
             overflow-y: auto; 
+            width: 100%; /* Garante que o conteúdo respeita o flex */
         }
 
         h1, h2, h3 { 
@@ -118,6 +130,7 @@
             margin-bottom: 20px; 
             box-shadow: 0 4px 20px rgba(0,0,0,0.2); 
             transition: transform 0.2s; 
+            width: 100%; /* Garante que os cards não vazem */
         }
 
         input, select, textarea { 
@@ -130,7 +143,6 @@
             color: var(--text-color); 
             font-family: inherit; 
             font-size: 0.95rem; 
-            box-sizing: border-box; 
             transition: all 0.2s; 
         }
 
@@ -239,8 +251,6 @@
             } 
             .content { 
                 padding: 20px; 
-                width: 100%; 
-                box-sizing: border-box; 
             } 
             .menu-toggle { 
                 display: inline-flex; 
