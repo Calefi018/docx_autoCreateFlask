@@ -294,7 +294,6 @@
             });
         }
 
-        // --- FUNÇÃO MONTAR EDITOR ATUALIZADA (COM MICRO-AGENTES) ---
         function montarEditor(dic) {
             const container = document.getElementById('caixas-texto'); 
             container.innerHTML = ''; 
@@ -326,7 +325,7 @@
                 head.appendChild(lbl); head.appendChild(btn); 
                 wrap.appendChild(head); wrap.appendChild(ta); 
 
-                // NOVO: Micro-Agente de Edição Assistida (Mini-Chat)
+                // Micro-Agente de Edição Assistida (Mini-Chat)
                 let chatDiv = document.createElement('div');
                 chatDiv.style.cssText = "display:flex; gap:10px; margin-top:10px; align-items: stretch;";
                 
@@ -385,7 +384,7 @@
             });
         }
 
-        // --- NOVO: SISTEMA DE SALVAMENTO AUTOMÁTICO SILENCIOSO ---
+        // SISTEMA DE SALVAMENTO AUTOMÁTICO SILENCIOSO
         setInterval(() => {
             if(Object.keys(dicionarioEditavel).length > 0) {
                 localStorage.setItem('hubmaster_autosave', JSON.stringify({
@@ -393,7 +392,7 @@
                     dic: dicionarioEditavel
                 }));
             }
-        }, 10000); // Salva no navegador a cada 10 segundos
+        }, 10000); 
 
         function salvarEDocx() {
             Swal.fire({
@@ -470,7 +469,6 @@
                     Swal.fire('Sucesso!', 'Documento final guardado em segurança na pasta do Cliente.', 'success');
                 }
                 
-                // Limpa o auto-save já que concluiu com sucesso
                 localStorage.removeItem('hubmaster_autosave');
                 document.getElementById('area-edicao').style.display = 'none';
                 document.getElementById('tema').value = '';
