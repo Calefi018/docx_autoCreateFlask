@@ -2,12 +2,37 @@
 {% block content %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <h1 style="margin-top:0;">Dashboard Financeiro</h1>
-    <p style="color: var(--text-muted); margin-bottom: 30px;">
-        Visão geral dos seus lucros e da produtividade do seu sistema com a monitorização de custos da IA.
-    </p>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 style="margin-top:0;">Dashboard Financeiro</h1>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">
+                Visão geral dos seus lucros e da produtividade do seu sistema.
+            </p>
+        </div>
+        
+        <form method="GET" action="/dashboard" style="background: rgba(30,33,48,0.5); padding: 15px; border-radius: 8px; border: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div>
+                <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 5px;">Data Inicial</label>
+                <input type="date" name="data_inicio" value="{{ data_inicio }}" style="margin: 0; padding: 8px; width: 140px;">
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 5px;">Data Final</label>
+                <input type="date" name="data_fim" value="{{ data_fim }}" style="margin: 0; padding: 8px; width: 140px;">
+            </div>
+            <div style="align-self: flex-end;">
+                <button type="submit" class="btn btn-blue" style="padding: 9px 15px; margin: 0;">
+                    <i class="ph-bold ph-funnel"></i> Filtrar
+                </button>
+                {% if filtrado %}
+                <a href="/dashboard" class="btn btn-danger" style="padding: 9px 15px; margin: 0; margin-left: 5px;">
+                    <i class="ph-bold ph-x"></i> Limpar
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
 
-    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 30px;">
+    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 30px; margin-top: 15px;">
         
         <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid #f59e0b; margin-bottom: 0;">
             <i class="ph-fill ph-coins" style="font-size: 2.2rem; color: #f59e0b; margin-bottom: 10px;"></i>
@@ -17,26 +42,30 @@
 
         <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid var(--success); margin-bottom: 0;">
             <i class="ph-fill ph-chart-line-up" style="font-size: 2.2rem; color: var(--success); margin-bottom: 10px;"></i>
-            <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">Receita Total</h3>
-            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_realizada) }}</h2>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">
+                {% if filtrado %}Receita no Período{% else %}Receita Total{% endif %}
+            </h3>
+            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_periodo) }}</h2>
         </div>
 
         <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid var(--danger); margin-bottom: 0;">
             <i class="ph-fill ph-wallet" style="font-size: 2.2rem; color: var(--danger); margin-bottom: 10px;"></i>
-            <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">A Receber</h3>
-            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.2f"|format(a_receber) }}</h2>
+            <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">
+                {% if filtrado %}A Receber (Período){% else %}A Receber{% endif %}
+            </h3>
+            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.2f"|format(a_receber_periodo) }}</h2>
         </div>
         
         <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid #a855f7; margin-bottom: 0;">
             <i class="ph-fill ph-cpu" style="font-size: 2.2rem; color: #a855f7; margin-bottom: 10px;"></i>
             <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">Custo API</h3>
-            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.4f"|format(custo_total) }}</h2>
+            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">R$ {{ "%.4f"|format(custo_periodo) }}</h2>
         </div>
         
         <div class="card" style="flex: 1; min-width: 160px; padding: 25px 15px; text-align: center; border-bottom: 4px solid var(--primary); margin-bottom: 0;">
             <i class="ph-fill ph-files" style="font-size: 2.2rem; color: var(--primary); margin-bottom: 10px;"></i>
             <h3 style="color: var(--text-muted); margin:0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">Trabalhos</h3>
-            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">{{ total_trabalhos }}</h2>
+            <h2 style="color: #fff; font-size: 2.2rem; margin: 10px 0;">{{ trabalhos_periodo }}</h2>
         </div>
     </div>
 
@@ -63,29 +92,31 @@
 
     <div class="card">
         <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-fill ph-robot"></i> Inteligências Utilizadas & Custos
+            <i class="ph-fill ph-robot"></i> Inteligências Utilizadas & Custos {% if filtrado %}(No Período){% endif %}
         </h3>
         <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">Monitorização do gasto em tokens de cada modelo na API.</p>
         
-        <table style="width: 100%; text-align: left; border-collapse: collapse;">
-            <tr style="border-bottom: 1px solid var(--border);">
-                <th style="padding: 15px 10px; color: var(--text-muted);">Modelo de IA</th>
-                <th style="padding: 15px 10px; text-align: center; color: var(--text-muted);">Gerações Efetuadas</th>
-                <th style="padding: 15px 10px; text-align: right; color: var(--text-muted);">Gasto Acumulado (R$)</th>
-            </tr>
-            
-            {% for uso in uso_modelos %}
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <td style="padding: 15px 10px; color: #fff; font-weight: 500;">{{ uso[0] }}</td>
-                <td style="padding: 15px 10px; text-align: center; color: var(--primary); font-weight: bold;">{{ uso[1] }}x</td>
-                <td style="padding: 15px 10px; text-align: right; color: #a855f7; font-weight: bold;">R$ {{ "%.4f"|format(uso[2] or 0.0) }}</td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="3" style="padding: 20px; text-align: center; color: var(--text-muted);">Nenhuma Inteligência Artificial utilizada ainda.</td>
-            </tr>
-            {% endfor %}
-        </table>
+        <div class="table-responsive">
+            <table style="width: 100%; text-align: left; border-collapse: collapse; min-width: 500px;">
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="padding: 15px 10px; color: var(--text-muted);">Modelo de IA</th>
+                    <th style="padding: 15px 10px; text-align: center; color: var(--text-muted);">Gerações Efetuadas</th>
+                    <th style="padding: 15px 10px; text-align: right; color: var(--text-muted);">Gasto Acumulado (R$)</th>
+                </tr>
+                
+                {% for uso in uso_modelos %}
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 15px 10px; color: #fff; font-weight: 500;">{{ uso[0] }}</td>
+                    <td style="padding: 15px 10px; text-align: center; color: var(--primary); font-weight: bold;">{{ uso[1] }}x</td>
+                    <td style="padding: 15px 10px; text-align: right; color: #a855f7; font-weight: bold;">R$ {{ "%.4f"|format(uso[2] or 0.0) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" style="padding: 20px; text-align: center; color: var(--text-muted);">Nenhuma Inteligência Artificial utilizada neste período.</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
     </div>
 
     <script>
