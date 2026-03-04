@@ -15,7 +15,7 @@
                 Isso afetará o que aparece na lista para todos os usuários do sistema.
             </p>
             
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-bottom: 30px; background: rgba(30,33,48,0.4); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; background: rgba(30,33,48,0.4); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
                 {% for modelo in todos_modelos %}
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; background: #1e2130; padding: 12px 15px; border-radius: 6px; border: 1px solid var(--border); transition: all 0.2s ease;">
                     <input type="checkbox" name="modelos_ativos" value="{{ modelo }}" 
@@ -24,6 +24,14 @@
                     <span style="color: #e2e8f0; font-family: monospace; font-size: 0.95rem;">{{ modelo }}</span>
                 </label>
                 {% endfor %}
+            </div>
+
+            <div style="margin-bottom: 30px; background: rgba(30,33,48,0.4); padding: 20px; border-radius: 8px; border: 1px dashed var(--primary);">
+                <label style="color: var(--primary);"><b><i class="ph-bold ph-plus-circle"></i> Adicionar Nova IA (OpenRouter ou Google)</b></label>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 10px;">
+                    Lançaram um modelo novo? Cole o ID dele aqui (Ex: <code>google/gemini-2.5-pro</code> ou <code>anthropic/claude-3-opus</code>) e clique em Salvar para adicioná-lo e ativá-lo!
+                </p>
+                <input type="text" name="novo_modelo" placeholder="Cole o ID exato da IA aqui..." style="width: 100%; border: 1px solid var(--primary); background: #1e2130; color: #fff;">
             </div>
             {% endif %}
 
