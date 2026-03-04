@@ -346,7 +346,7 @@ def gerar_rascunho():
     return jsonify({"sucesso": True, "task_id": nova_task.id})
 
 # =========================================================
-# NOVA ROTA: HUMANIZAÇÃO COMPLETA DO TRABALHO (ANTI-IA)
+# ROTA ATUALIZADA: HUMANIZAÇÃO COMPLETA (BLINDADA CONTRA ALUCINAÇÃO)
 # =========================================================
 @app.route('/humanizar_trabalho', methods=['POST'])
 @login_required
@@ -365,29 +365,27 @@ def humanizar_trabalho():
             
         texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
         
-        # Reconstrói as tags para a IA ler o que já foi gerado
         texto_contexto = ""
         for k, v in contexto_atual.items():
             if v and str(v).strip():
                 tag_limpa = k.replace("{{", "").replace("}}", "")
                 texto_contexto += f"[START_{tag_limpa}]\n{v}\n[END_{tag_limpa}]\n\n"
 
-        prompt_humanizador = f"""Você é um especialista em reescrita acadêmica e bypass de detectores de IA (como Turnitin e GPTZero).
-Sua tarefa é REESCREVER COMPLETAMENTE o trabalho abaixo, tag por tag.
+        # PROMPT CORRIGIDO E REFORÇADO (Obrigando a IA a não inventar fatos)
+        prompt_humanizador = f"""Você é um especialista em revisão acadêmica e bypass de detectores de IA (como Turnitin e GPTZero).
+Sua tarefa é APENAS ALTERAR O ESTILO DE ESCRITA do trabalho abaixo, mantendo 100% dos fatos originais.
 
-TEMA ORIGINAL DO ALUNO:
-{tema}
-
-REGRAS ACADÊMICAS ORIGINAIS (MANTENHA ESTE RIGOR E PADRÃO):
-{texto_prompt}
+REGRAS DE FIDELIDADE (REGRA MAIS IMPORTANTE DE TODAS):
+- É EXPRESSAMENTE PROIBIDO mudar o tema, os personagens, as conclusões ou as informações do texto. 
+- O seu trabalho não é criar um texto novo, mas sim pegar no texto exato fornecido abaixo e escrevê-lo com palavras mais humanas.
 
 REGRAS DE HUMANIZAÇÃO E BLINDAGEM (OBRIGATÓRIAS):
 1. Explosividade (Burstiness): Varie drasticamente o tamanho das frases. Intercale frases longas e complexas com frases extremamente curtas e diretas.
-2. Perplexidade: Troque termos robóticos e perfeitos por sinônimos menos óbvios, mas academicamente corretos.
+2. Perplexidade: Troque termos robóticos por sinônimos menos óbvios, mas academicamente corretos.
 3. Proibição de Clichês de IA: NUNCA use palavras típicas de IA (ex: crucial, mergulhar, trama, notável, testamento, em resumo, em conclusão, paisagem, aprofundar, vital).
-4. Imperfeição Humana: Adicione transições de pensamento naturais, como se um aluno universitário estivesse desenvolvendo a argumentação na hora.
+4. Imperfeição Humana: Adicione transições de pensamento naturais, mantendo todo o sentido e a lógica do texto original.
 
-TRABALHO ATUAL PARA REESCREVER:
+TRABALHO ATUAL PARA REVISAR O ESTILO:
 {texto_contexto}
 
 IMPORTANTE: Retorne TODAS as tags originais no formato [START_TAG]novo conteudo[END_TAG]. Não mude os nomes das tags.
@@ -398,7 +396,6 @@ IMPORTANTE: Retorne TODAS as tags originais no formato [START_TAG]novo conteudo[
         db.session.add(nova_task)
         db.session.commit()
         
-        # Roda em background porque reescrever tudo demora o mesmo tempo que gerar do zero
         threading.Thread(target=executar_geracao_bg, args=(nova_task.id, prompt_humanizador, fila_modelos)).start()
         
         return jsonify({"sucesso": True, "task_id": nova_task.id})
