@@ -345,6 +345,66 @@ def gerar_rascunho():
     threading.Thread(target=executar_geracao_bg, args=(nova_task.id, prompt_completo, fila_modelos)).start()
     return jsonify({"sucesso": True, "task_id": nova_task.id})
 
+# =========================================================
+# NOVA ROTA: HUMANIZAÇÃO COMPLETA DO TRABALHO (ANTI-IA)
+# =========================================================
+@app.route('/humanizar_trabalho', methods=['POST'])
+@login_required
+def humanizar_trabalho():
+    try:
+        dados = request.json
+        tema = dados.get('tema', '')
+        modelo_selecionado = dados.get('modelo', get_modelos_ativos()[0])
+        prompt_id = dados.get('prompt_id')
+        contexto_atual = dados.get('dicionario', {}) 
+
+        if prompt_id and str(prompt_id).isdigit():
+            config = PromptConfig.query.get(int(prompt_id))
+        else:
+            config = PromptConfig.query.filter_by(is_default=True).first()
+            
+        texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
+        
+        # Reconstrói as tags para a IA ler o que já foi gerado
+        texto_contexto = ""
+        for k, v in contexto_atual.items():
+            if v and str(v).strip():
+                tag_limpa = k.replace("{{", "").replace("}}", "")
+                texto_contexto += f"[START_{tag_limpa}]\n{v}\n[END_{tag_limpa}]\n\n"
+
+        prompt_humanizador = f"""Você é um especialista em reescrita acadêmica e bypass de detectores de IA (como Turnitin e GPTZero).
+Sua tarefa é REESCREVER COMPLETAMENTE o trabalho abaixo, tag por tag.
+
+TEMA ORIGINAL DO ALUNO:
+{tema}
+
+REGRAS ACADÊMICAS ORIGINAIS (MANTENHA ESTE RIGOR E PADRÃO):
+{texto_prompt}
+
+REGRAS DE HUMANIZAÇÃO E BLINDAGEM (OBRIGATÓRIAS):
+1. Explosividade (Burstiness): Varie drasticamente o tamanho das frases. Intercale frases longas e complexas com frases extremamente curtas e diretas.
+2. Perplexidade: Troque termos robóticos e perfeitos por sinônimos menos óbvios, mas academicamente corretos.
+3. Proibição de Clichês de IA: NUNCA use palavras típicas de IA (ex: crucial, mergulhar, trama, notável, testamento, em resumo, em conclusão, paisagem, aprofundar, vital).
+4. Imperfeição Humana: Adicione transições de pensamento naturais, como se um aluno universitário estivesse desenvolvendo a argumentação na hora.
+
+TRABALHO ATUAL PARA REESCREVER:
+{texto_contexto}
+
+IMPORTANTE: Retorne TODAS as tags originais no formato [START_TAG]novo conteudo[END_TAG]. Não mude os nomes das tags.
+"""
+        
+        fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
+        nova_task = GeracaoTask(user_id=current_user.id, status='Pendente')
+        db.session.add(nova_task)
+        db.session.commit()
+        
+        # Roda em background porque reescrever tudo demora o mesmo tempo que gerar do zero
+        threading.Thread(target=executar_geracao_bg, args=(nova_task.id, prompt_humanizador, fila_modelos)).start()
+        
+        return jsonify({"sucesso": True, "task_id": nova_task.id})
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": str(e)})
+
 @app.route('/cancelar_geracao/<int:task_id>', methods=['POST'])
 @login_required
 def cancelar_geracao(task_id):
@@ -500,14 +560,12 @@ def converter_pdf(doc_id):
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # Coleta de Filtros via GET (Se existirem)
     data_inicio_str = request.args.get('data_inicio')
     data_fim_str = request.args.get('data_fim')
 
     agora_utc = datetime.utcnow()
     hoje_brasil = agora_utc - timedelta(hours=3)
     
-    # Validação segura das datas
     data_inicio = None
     data_fim = None
     if data_inicio_str:
@@ -519,14 +577,12 @@ def dashboard():
 
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).all()
     
-    # Variáveis de cálculo do Dashboard
     receita_hoje = 0.0
     receita_periodo = 0.0
     a_receber_periodo = 0.0
     trabalhos_periodo = 0
 
     for a in todos_alunos:
-        # O Lucro Hoje (Fixo e Motivacional) - Nunca muda com o filtro, mostra sempre o dia atual
         if a.status == 'Pago':
             d_base = a.data_pagamento if a.data_pagamento else a.data_cadastro
             if d_base:
@@ -534,7 +590,6 @@ def dashboard():
                 if d_base_br == hoje_brasil.date():
                     receita_hoje += (a.valor or 70.0)
 
-        # Datas de referência para o filtro escolhido
         data_ref_pagamento = (a.data_pagamento - timedelta(hours=3)).date() if a.data_pagamento else ((a.data_cadastro - timedelta(hours=3)).date() if a.data_cadastro else hoje_brasil.date())
         data_ref_cadastro = (a.data_cadastro - timedelta(hours=3)).date() if a.data_cadastro else hoje_brasil.date()
 
@@ -557,7 +612,6 @@ def dashboard():
         if in_period_cadastro:
             trabalhos_periodo += 1
             
-    # Filtro Custo API
     todos_usos = RegistroUso.query.all()
     custo_periodo = 0.0
     uso_modelos_dict = {}
@@ -577,7 +631,6 @@ def dashboard():
 
     uso_modelos_lista = [(k, v['count'], v['custo']) for k, v in uso_modelos_dict.items()]
     
-    # Gráficos (Mantemos uma visão geral para não ficarem vazios caso filtre apenas 1 dia)
     labels_meses = []
     for i in range(5, -1, -1):
         m = hoje_brasil.month - i
@@ -642,9 +695,7 @@ def configuracoes():
             config.prompt_password = request.form.get('prompt_password')
             config.convert_api_key = request.form.get('convert_api_key')
             
-            # GESTÃO DAS IAS SELECIONADAS NA INTERFACE
             modelos_selecionados = request.form.getlist('modelos_ativos')
-            
             novo_modelo = request.form.get('novo_modelo')
             if novo_modelo and novo_modelo.strip():
                 novo_modelo_limpo = novo_modelo.strip()
