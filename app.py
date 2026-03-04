@@ -218,7 +218,6 @@ with app.app_context():
 # =========================================================
 # GESTÃO DINÂMICA DE MODELOS DE IA
 # =========================================================
-# IAs padrão do sistema (Você poderá adicionar infinitas outras pelo painel)
 TODOS_MODELOS_CONHECIDOS = [
     "anthropic/claude-3.5-sonnet",
     "anthropic/claude-3-opus",
@@ -238,7 +237,6 @@ def get_modelos_ativos():
     config = SiteSettings.query.first()
     if config and config.modelos_ativos:
         return [m.strip() for m in config.modelos_ativos.split(',') if m.strip()]
-    # Se for a primeira vez, devolve estes como padrão
     return ["anthropic/claude-3.5-sonnet", "gemini-2.5-pro", "gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct", "qwen/qwen-2.5-72b-instruct"]
 
 def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
@@ -303,7 +301,6 @@ def index():
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
     alunos_ativos = [a for a in todos_alunos if a.status != 'Pago']
     prompts = PromptConfig.query.all()
-    # Passa a lista dinâmica lida do Banco de Dados
     return render_template('index.html', modelos=get_modelos_ativos(), alunos=alunos_ativos, prompts=prompts)
 
 @app.route('/api/temas/<int:aluno_id>')
@@ -503,22 +500,84 @@ def converter_pdf(doc_id):
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).all()
-    a_receber = sum((a.valor or 70.0) for a in todos_alunos if a.status != 'Pago')
-    receita_realizada = sum((a.valor or 70.0) for a in todos_alunos if a.status == 'Pago')
-    
+    # Coleta de Filtros via GET (Se existirem)
+    data_inicio_str = request.args.get('data_inicio')
+    data_fim_str = request.args.get('data_fim')
+
     agora_utc = datetime.utcnow()
     hoje_brasil = agora_utc - timedelta(hours=3)
     
-    receita_hoje = 0.0
-    for a in todos_alunos:
-        if a.status == 'Pago':
-            data_base = a.data_pagamento if a.data_pagamento else a.data_cadastro
-            if data_base:
-                data_base_brasil = data_base - timedelta(hours=3)
-                if data_base_brasil.date() == hoje_brasil.date():
-                    receita_hoje += (a.valor or 70.0)
+    # Validação segura das datas
+    data_inicio = None
+    data_fim = None
+    if data_inicio_str:
+        try: data_inicio = datetime.strptime(data_inicio_str, '%Y-%m-%d').date()
+        except: pass
+    if data_fim_str:
+        try: data_fim = datetime.strptime(data_fim_str, '%Y-%m-%d').date()
+        except: pass
+
+    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).all()
     
+    # Variáveis de cálculo do Dashboard
+    receita_hoje = 0.0
+    receita_periodo = 0.0
+    a_receber_periodo = 0.0
+    trabalhos_periodo = 0
+
+    for a in todos_alunos:
+        # O Lucro Hoje (Fixo e Motivacional) - Nunca muda com o filtro, mostra sempre o dia atual
+        if a.status == 'Pago':
+            d_base = a.data_pagamento if a.data_pagamento else a.data_cadastro
+            if d_base:
+                d_base_br = (d_base - timedelta(hours=3)).date()
+                if d_base_br == hoje_brasil.date():
+                    receita_hoje += (a.valor or 70.0)
+
+        # Datas de referência para o filtro escolhido
+        data_ref_pagamento = (a.data_pagamento - timedelta(hours=3)).date() if a.data_pagamento else ((a.data_cadastro - timedelta(hours=3)).date() if a.data_cadastro else hoje_brasil.date())
+        data_ref_cadastro = (a.data_cadastro - timedelta(hours=3)).date() if a.data_cadastro else hoje_brasil.date()
+
+        in_period_pagamento = True
+        in_period_cadastro = True
+
+        if data_inicio:
+            if data_ref_pagamento < data_inicio: in_period_pagamento = False
+            if data_ref_cadastro < data_inicio: in_period_cadastro = False
+        if data_fim:
+            if data_ref_pagamento > data_fim: in_period_pagamento = False
+            if data_ref_cadastro > data_fim: in_period_cadastro = False
+
+        if a.status == 'Pago' and in_period_pagamento:
+            receita_periodo += (a.valor or 70.0)
+
+        if a.status != 'Pago' and in_period_cadastro:
+            a_receber_periodo += (a.valor or 70.0)
+
+        if in_period_cadastro:
+            trabalhos_periodo += 1
+            
+    # Filtro Custo API
+    todos_usos = RegistroUso.query.all()
+    custo_periodo = 0.0
+    uso_modelos_dict = {}
+
+    for u in todos_usos:
+        d_uso_br = (u.data - timedelta(hours=3)).date()
+        in_period_uso = True
+        if data_inicio and d_uso_br < data_inicio: in_period_uso = False
+        if data_fim and d_uso_br > data_fim: in_period_uso = False
+
+        if in_period_uso:
+            custo_periodo += (u.custo or 0.0)
+            if u.modelo_usado not in uso_modelos_dict:
+                uso_modelos_dict[u.modelo_usado] = {'count': 0, 'custo': 0.0}
+            uso_modelos_dict[u.modelo_usado]['count'] += 1
+            uso_modelos_dict[u.modelo_usado]['custo'] += (u.custo or 0.0)
+
+    uso_modelos_lista = [(k, v['count'], v['custo']) for k, v in uso_modelos_dict.items()]
+    
+    # Gráficos (Mantemos uma visão geral para não ficarem vazios caso filtre apenas 1 dia)
     labels_meses = []
     for i in range(5, -1, -1):
         m = hoje_brasil.month - i
@@ -539,14 +598,24 @@ def dashboard():
                     chave = (data_base_brasil.year, data_base_brasil.month)
                     if chave in faturamento_dict: faturamento_dict[chave] += (a.valor or 70.0)
                     
-    uso_modelos = db.session.query(RegistroUso.modelo_usado, db.func.count(RegistroUso.id), db.func.sum(RegistroUso.custo)).group_by(RegistroUso.modelo_usado).all()
-    custo_total = sum((u[2] or 0.0) for u in uso_modelos)
-    
     meses_nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
     grafico_meses_labels = [f"{meses_nomes[m-1]}/{str(y)[2:]}" for y, m in labels_meses]
     grafico_meses_valores = [faturamento_dict[k] for k in labels_meses]
     
-    return render_template('dashboard.html', a_receber=a_receber, receita_realizada=receita_realizada, receita_hoje=receita_hoje, custo_total=custo_total, total_trabalhos=len(todos_alunos), uso_modelos=uso_modelos, graf_meses_lbl=grafico_meses_labels, graf_meses_val=grafico_meses_valores, graf_dias_lbl=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'], graf_dias_val=pedidos_dias)
+    return render_template('dashboard.html', 
+                           receita_hoje=receita_hoje, 
+                           receita_periodo=receita_periodo, 
+                           a_receber_periodo=a_receber_periodo, 
+                           custo_periodo=custo_periodo, 
+                           trabalhos_periodo=trabalhos_periodo, 
+                           uso_modelos=uso_modelos_lista, 
+                           graf_meses_lbl=grafico_meses_labels, 
+                           graf_meses_val=grafico_meses_valores, 
+                           graf_dias_lbl=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'], 
+                           graf_dias_val=pedidos_dias,
+                           data_inicio=data_inicio_str or '',
+                           data_fim=data_fim_str or '',
+                           filtrado=(bool(data_inicio_str) or bool(data_fim_str)))
 
 @app.route('/mudar_status/<int:id>', methods=['POST'])
 @login_required
@@ -576,7 +645,6 @@ def configuracoes():
             # GESTÃO DAS IAS SELECIONADAS NA INTERFACE
             modelos_selecionados = request.form.getlist('modelos_ativos')
             
-            # NOVO: Adiciona a IA personalizada se você digitar uma nova!
             novo_modelo = request.form.get('novo_modelo')
             if novo_modelo and novo_modelo.strip():
                 novo_modelo_limpo = novo_modelo.strip()
