@@ -134,7 +134,7 @@ class RegistroUso(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     data = db.Column(db.DateTime, default=datetime.utcnow)
     modelo_usado = db.Column(db.String(100))
-    custo = db.Column(db.Float, default=0.0) # NOVO MONITOR DE CUSTO EM REAIS
+    custo = db.Column(db.Float, default=0.0)
 
 class SiteSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -200,7 +200,7 @@ with app.app_context():
 # GERAÇÃO EM BACKGROUND (Usa o módulo ia_core)
 # =========================================================
 MODELOS_DISPONIVEIS = [
-    "anthropic/claude-3.5-sonnet",            # O novo modelo de elite como principal
+    "anthropic/claude-3.5-sonnet",
     "gemini-2.5-flash",                       
     "google/gemini-2.5-flash",                
     "meta-llama/llama-3.3-70b-instruct",      
@@ -336,7 +336,6 @@ def status_geracao(task_id):
     if task.status == 'Cancelado': return jsonify({"status": "Cancelado"})
     return jsonify({"status": "Concluido", "dicionario": json.loads(task.resultado), "modelo_utilizado": task.modelo_utilizado})
 
-# NOVO: MICRO-AGENTE DE EDIÇÃO ASSISTIDA
 @app.route('/assistente_pontual', methods=['POST'])
 @login_required
 def assistente_pontual():
@@ -547,6 +546,10 @@ def dashboard():
     receita_realizada = sum((a.valor or 70.0) for a in todos_alunos if a.status == 'Pago')
     
     hoje = datetime.utcnow()
+    
+    # --- NOVO: CÁLCULO DO LUCRO DO DIA ---
+    receita_hoje = sum((a.valor or 70.0) for a in todos_alunos if a.status == 'Pago' and a.data_cadastro and a.data_cadastro.date() == hoje.date())
+    
     labels_meses = []
     for i in range(5, -1, -1):
         m = hoje.month - i
@@ -563,7 +566,6 @@ def dashboard():
                 chave = (a.data_cadastro.year, a.data_cadastro.month)
                 if chave in faturamento_dict: faturamento_dict[chave] += (a.valor or 70.0)
                     
-    # MODIFICADO PARA INCLUIR O CUSTO TOTAL DE API
     uso_modelos = db.session.query(RegistroUso.modelo_usado, db.func.count(RegistroUso.id), db.func.sum(RegistroUso.custo)).group_by(RegistroUso.modelo_usado).all()
     custo_total = sum((u[2] or 0.0) for u in uso_modelos)
     
@@ -571,7 +573,8 @@ def dashboard():
     grafico_meses_labels = [f"{meses_nomes[m-1]}/{str(y)[2:]}" for y, m in labels_meses]
     grafico_meses_valores = [faturamento_dict[k] for k in labels_meses]
     
-    return render_template('dashboard.html', a_receber=a_receber, receita_realizada=receita_realizada, custo_total=custo_total, total_trabalhos=len(todos_alunos), uso_modelos=uso_modelos, graf_meses_lbl=grafico_meses_labels, graf_meses_val=grafico_meses_valores, graf_dias_lbl=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'], graf_dias_val=pedidos_dias)
+    # Enviando a receita_hoje para o template
+    return render_template('dashboard.html', a_receber=a_receber, receita_realizada=receita_realizada, receita_hoje=receita_hoje, custo_total=custo_total, total_trabalhos=len(todos_alunos), uso_modelos=uso_modelos, graf_meses_lbl=grafico_meses_labels, graf_meses_val=grafico_meses_valores, graf_dias_lbl=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'], graf_dias_val=pedidos_dias)
 
 @app.route('/configuracoes', methods=['GET', 'POST'])
 @login_required
