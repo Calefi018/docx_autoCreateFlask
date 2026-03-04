@@ -104,7 +104,7 @@ class Aluno(db.Model):
     ava_login = db.Column(db.String(255), nullable=True) 
     ava_senha = db.Column(db.String(255), nullable=True) 
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
-    data_pagamento = db.Column(db.DateTime, nullable=True) # DATA DE PAGAMENTO PARA O LUCRO DO DIA
+    data_pagamento = db.Column(db.DateTime, nullable=True) 
     status = db.Column(db.String(20), default='Produção') 
     valor = db.Column(db.Float, default=70.0) 
     
@@ -180,17 +180,21 @@ with app.app_context():
     except Exception: db.session.rollback()
     try: db.session.execute(db.text("ALTER TABLE registro_uso ADD COLUMN custo FLOAT DEFAULT 0.0")); db.session.commit()
     except Exception: db.session.rollback()
-    
-    # CRIA O CAMPO DE DATA DE PAGAMENTO SE NÃO EXISTIR
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN data_pagamento TIMESTAMP")); db.session.commit()
     except Exception: db.session.rollback()
 
-    # ATUALIZAÇÃO AUTOMÁTICA: Pega todos os clientes pagos que não contabilizaram hoje e conserta!
+    # A "VACINA" PARA O PROBLEMA DO LUCRO HOJE:
+    # Vai pegar os trabalhos antigos que o sistema carimbou com a data de hoje sem querer e voltar pra data certa.
     try:
-        if db_url.startswith("sqlite"):
-            db.session.execute(db.text("UPDATE aluno SET data_pagamento = CURRENT_TIMESTAMP WHERE status = 'Pago' AND data_pagamento IS NULL"))
-        else:
-            db.session.execute(db.text("UPDATE aluno SET data_pagamento = NOW() WHERE status = 'Pago' AND data_pagamento IS NULL"))
+        alunos_pagos = Aluno.query.filter_by(status='Pago').all()
+        agora = datetime.utcnow()
+        for al in alunos_pagos:
+            if al.data_pagamento and al.data_cadastro:
+                # Se a data de pagamento foi hoje, mas o cadastro foi de dias anteriores, reseta para data original
+                if al.data_pagamento.date() == agora.date() and al.data_cadastro.date() < agora.date():
+                    al.data_pagamento = al.data_cadastro
+            elif not al.data_pagamento:
+                al.data_pagamento = al.data_cadastro
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -216,8 +220,8 @@ with app.app_context():
 # =========================================================
 MODELOS_DISPONIVEIS = [
     "anthropic/claude-3.5-sonnet",
-    "gemini-2.5-pro",                         # NOVO: Gemini Pro Nativo
-    "google/gemini-2.5-pro",                  # NOVO: Gemini Pro via OpenRouter
+    "gemini-2.5-pro",                         # Gemini Pro Nativo
+    "google/gemini-2.5-pro",                  # Gemini Pro via OpenRouter
     "gemini-2.5-flash",                       
     "google/gemini-2.5-flash",                
     "meta-llama/llama-3.3-70b-instruct",      
@@ -492,7 +496,7 @@ def dashboard():
     agora_utc = datetime.utcnow()
     hoje_brasil = agora_utc - timedelta(hours=3)
     
-    # --- NOVO CÁLCULO PRECISO DO LUCRO DO DIA ---
+    # CÁLCULO PRECISO DO LUCRO DO DIA 
     receita_hoje = 0.0
     for a in todos_alunos:
         if a.status == 'Pago':
