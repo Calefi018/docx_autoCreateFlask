@@ -45,10 +45,10 @@
         </button>
         
         <div id="loading" style="display:none; margin-top: 30px; text-align: center; padding: 30px; border: 1px solid var(--border); border-radius: 12px; background: rgba(30,33,48,0.8); box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
-            <div style="font-size: 3.5rem; color: var(--primary); margin-bottom: 15px;">
+            <div style="font-size: 3.5rem; color: var(--primary); margin-bottom: 15px;" id="loading-icon">
                 <i class="ph-bold ph-brain" style="animation: pulse-brain 1.5s infinite;"></i>
             </div>
-            <h3 style="color: var(--primary); margin-top: 0; font-size: 1.3rem;">A Inteligência Artificial está a escrever...</h3>
+            <h3 style="color: var(--primary); margin-top: 0; font-size: 1.3rem;" id="loading-title">A Inteligência Artificial está a escrever...</h3>
             <p style="color: var(--warning); font-size: 0.95rem; margin-bottom: 25px; font-weight: bold;">
                 <i class="ph-fill ph-info"></i> Processando em Segundo Plano.<br>Você pode mudar de aba ou usar outro app, basta voltar nesta tela depois.
             </p>
@@ -58,7 +58,7 @@
             </div>
             
             <button type="button" class="btn btn-danger" style="padding: 10px 20px; font-size: 0.9rem;" onclick="cancelarGeracao()">
-                <i class="ph-bold ph-x-circle"></i> Cancelar Geração de Trabalho
+                <i class="ph-bold ph-x-circle"></i> Cancelar Tarefa
             </button>
             
             <style>
@@ -77,8 +77,14 @@
 
     <div id="area-edicao" class="card" style="display:none; margin-top: 30px;">
         <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição Contextual</h2>
+        
         <div id="caixas-texto"></div>
-        <button class="btn btn-green" style="width: 100%; padding: 15px; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">
+        
+        <button class="btn btn-warning" style="width: 100%; padding: 15px; margin-top:30px; margin-bottom: 10px; color: #000; font-weight: bold;" onclick="humanizarTrabalho()" id="btn-humanizar">
+            <i class="ph-bold ph-shield-check" style="font-size: 1.2rem;"></i> Aplicar Blindagem Anti-IA (Humanizar Tudo)
+        </button>
+
+        <button class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem;" onclick="salvarEDocx()" id="btn-docx">
             <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Salvar DOCX Final
         </button>
     </div>
@@ -153,6 +159,9 @@
             const area = document.getElementById('area-edicao');
             const loading = document.getElementById('loading');
 
+            document.getElementById('loading-icon').innerHTML = '<i class="ph-bold ph-brain" style="animation: pulse-brain 1.5s infinite;"></i>';
+            document.getElementById('loading-title').innerText = "A Inteligência Artificial está a escrever...";
+            
             btn.style.display = 'none';
             area.style.display = 'none';
             loading.style.display = 'block';
@@ -190,6 +199,62 @@
             });
         }
         
+        // --- NOVA FUNÇÃO DE BLINDAGEM ANTI-IA ---
+        function humanizarTrabalho() {
+            // Guarda as edições que o usuário fez manualmente nas caixas
+            document.querySelectorAll('#caixas-texto textarea').forEach(t => {
+                let chaveSegura = "{" + "{" + t.dataset.chave + "}" + "}";
+                dicionarioEditavel[chaveSegura] = t.value;
+            });
+
+            const area = document.getElementById('area-edicao');
+            const loading = document.getElementById('loading');
+            
+            document.getElementById('loading-icon').innerHTML = '<i class="ph-bold ph-shield-check" style="animation: pulse-brain 1.5s infinite; color: var(--warning);"></i>';
+            document.getElementById('loading-title').innerText = "A Aplicar Blindagem Anti-IA (Isto pode demorar)...";
+            document.getElementById('loading-title').style.color = "var(--warning)";
+
+            area.style.display = 'none';
+            loading.style.display = 'block';
+
+            let payload = {
+                tema: document.getElementById('tema').value,
+                modelo: document.getElementById('select_modelo').value,
+                prompt_id: document.querySelector('[name="prompt_id"]').value,
+                dicionario: dicionarioEditavel
+            };
+
+            fetch('/humanizar_trabalho', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(!data.sucesso) { 
+                    loading.style.display = 'none';
+                    area.style.display = 'block';
+                    document.getElementById('loading-title').style.color = "var(--primary)";
+                    Swal.fire('Erro', data.erro, 'error'); 
+                    return; 
+                }
+                
+                localStorage.setItem('geracao_estado', JSON.stringify({
+                    task_id: data.task_id,
+                    aluno_id: document.getElementById('aluno_id').value,
+                    tema: document.getElementById('tema').value
+                }));
+
+                pollInterval = setInterval(() => verificarStatusTask(data.task_id), 3000);
+            })
+            .catch(err => {
+                loading.style.display = 'none';
+                area.style.display = 'block';
+                document.getElementById('loading-title').style.color = "var(--primary)";
+                Swal.fire('Erro Crítico', 'Falha na requisição: ' + err.message, 'error');
+            });
+        }
+
         function cancelarGeracao() {
             let estadoStr = localStorage.getItem('geracao_estado');
             if(estadoStr) {
@@ -203,8 +268,9 @@
                     
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('btn-submit').style.display = 'block';
+                    document.getElementById('loading-title').style.color = "var(--primary)";
                     
-                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'info', title: 'Geração de trabalho cancelada.', background: '#1e2130', color: '#e2e8f0' });
+                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'info', title: 'Tarefa cancelada.', background: '#1e2130', color: '#e2e8f0' });
                 })
                 .catch(err => {
                     Swal.fire('Aviso', 'A tarefa já pode ter concluído ou houve falha na rede.', 'info');
@@ -228,6 +294,7 @@
 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('btn-submit').style.display = 'block';
+                document.getElementById('loading-title').style.color = "var(--primary)";
 
                 if(data.status === 'Erro') {
                     Swal.fire('Erro da Inteligência', data.erro, 'error');
@@ -240,7 +307,7 @@
                     
                     Swal.fire({ 
                         toast: true, position: 'top-end', showConfirmButton: false, 
-                        timer: 4000, icon: 'success', title: 'O Trabalho foi gerado com sucesso!', 
+                        timer: 4000, icon: 'success', title: 'Processo concluído com sucesso!', 
                         background: '#1e2130', color: '#10b981' 
                     });
                 }
