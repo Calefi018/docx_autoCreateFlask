@@ -20,7 +20,7 @@ def calcular_custo_api(modelo, prompt_tokens, completion_tokens):
     elif "llama-3.3-70b" in mod_lower or "qwen" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 0.4) + (completion_tokens / 1000000 * 0.4)
     elif "gemini-2.5-pro" in mod_lower or "gemini-pro" in mod_lower:
-        # NOVO: Custo específico do modelo Gemini 2.5 Pro adicionado
+        # NOVO: Custo específico do modelo Gemini 2.5 Pro adicionado (via OpenRouter ou Nativo)
         custo_usd = (prompt_tokens / 1000000 * 1.25) + (completion_tokens / 1000000 * 5.0)
     elif "gemini-2.5-flash" in mod_lower or "gemini-flash" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 0.075) + (completion_tokens / 1000000 * 0.3)
