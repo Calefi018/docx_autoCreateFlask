@@ -180,8 +180,20 @@ with app.app_context():
     except Exception: db.session.rollback()
     try: db.session.execute(db.text("ALTER TABLE registro_uso ADD COLUMN custo FLOAT DEFAULT 0.0")); db.session.commit()
     except Exception: db.session.rollback()
+    
+    # CRIA O CAMPO DE DATA DE PAGAMENTO SE NÃO EXISTIR
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN data_pagamento TIMESTAMP")); db.session.commit()
     except Exception: db.session.rollback()
+
+    # ATUALIZAÇÃO AUTOMÁTICA: Pega todos os clientes pagos que não contabilizaram hoje e conserta!
+    try:
+        if db_url.startswith("sqlite"):
+            db.session.execute(db.text("UPDATE aluno SET data_pagamento = CURRENT_TIMESTAMP WHERE status = 'Pago' AND data_pagamento IS NULL"))
+        else:
+            db.session.execute(db.text("UPDATE aluno SET data_pagamento = NOW() WHERE status = 'Pago' AND data_pagamento IS NULL"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
     try:
         if not User.query.filter_by(username='admin').first():
@@ -204,8 +216,8 @@ with app.app_context():
 # =========================================================
 MODELOS_DISPONIVEIS = [
     "anthropic/claude-3.5-sonnet",
-    "gemini-2.5-pro",                         # Gemini Pro Nativo
-    "google/gemini-2.5-pro",                  # Gemini Pro via OpenRouter
+    "gemini-2.5-pro",                         # NOVO: Gemini Pro Nativo
+    "google/gemini-2.5-pro",                  # NOVO: Gemini Pro via OpenRouter
     "gemini-2.5-flash",                       
     "google/gemini-2.5-flash",                
     "meta-llama/llama-3.3-70b-instruct",      
