@@ -145,6 +145,7 @@ class SiteSettings(db.Model):
     )
     prompt_password = db.Column(db.String(255), nullable=True)
     convert_api_key = db.Column(db.String(255), nullable=True)
+    modelos_ativos = db.Column(db.Text, nullable=True) # NOVO: Campo para guardar as IAs ativadas
 
 class GeracaoTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -182,15 +183,16 @@ with app.app_context():
     except Exception: db.session.rollback()
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN data_pagamento TIMESTAMP")); db.session.commit()
     except Exception: db.session.rollback()
+    
+    # NOVA MIGRAÇÃO: Campo para a gestão de IAs ativadas
+    try: db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN modelos_ativos TEXT")); db.session.commit()
+    except Exception: db.session.rollback()
 
-    # A "VACINA" PARA O PROBLEMA DO LUCRO HOJE:
-    # Vai pegar os trabalhos antigos que o sistema carimbou com a data de hoje sem querer e voltar pra data certa.
     try:
         alunos_pagos = Aluno.query.filter_by(status='Pago').all()
         agora = datetime.utcnow()
         for al in alunos_pagos:
             if al.data_pagamento and al.data_cadastro:
-                # Se a data de pagamento foi hoje, mas o cadastro foi de dias anteriores, reseta para data original
                 if al.data_pagamento.date() == agora.date() and al.data_cadastro.date() < agora.date():
                     al.data_pagamento = al.data_cadastro
             elif not al.data_pagamento:
@@ -216,17 +218,30 @@ with app.app_context():
         db.session.rollback()
 
 # =========================================================
-# GERAÇÃO EM BACKGROUND (Usa o módulo ia_core)
+# GESTÃO DINÂMICA DE MODELOS DE IA
 # =========================================================
-MODELOS_DISPONIVEIS = [
+# Uma superlista com todas as IAs conhecidas que você poderá ativar/desativar
+TODOS_MODELOS_CONHECIDOS = [
     "anthropic/claude-3.5-sonnet",
-    "gemini-2.5-pro",                         # Gemini Pro Nativo
-    "google/gemini-2.5-pro",                  # Gemini Pro via OpenRouter
-    "gemini-2.5-flash",                       
-    "google/gemini-2.5-flash",                
-    "meta-llama/llama-3.3-70b-instruct",      
-    "qwen/qwen-2.5-72b-instruct"              
+    "anthropic/claude-3-opus",
+    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "gemini-2.5-pro",
+    "google/gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "google/gemini-2.5-flash",
+    "meta-llama/llama-3.3-70b-instruct",
+    "qwen/qwen-2.5-72b-instruct",
+    "mistralai/mistral-large",
+    "x-ai/grok-2-vision"
 ]
+
+def get_modelos_ativos():
+    config = SiteSettings.query.first()
+    if config and config.modelos_ativos:
+        return [m.strip() for m in config.modelos_ativos.split(',') if m.strip()]
+    # Se for a primeira vez, devolve estes como padrão
+    return ["anthropic/claude-3.5-sonnet", "gemini-2.5-pro", "gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct", "qwen/qwen-2.5-72b-instruct"]
 
 def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
     with app.app_context():
@@ -290,7 +305,8 @@ def index():
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
     alunos_ativos = [a for a in todos_alunos if a.status != 'Pago']
     prompts = PromptConfig.query.all()
-    return render_template('index.html', modelos=MODELOS_DISPONIVEIS, alunos=alunos_ativos, prompts=prompts)
+    # Passa a lista dinâmica lida do Banco de Dados
+    return render_template('index.html', modelos=get_modelos_ativos(), alunos=alunos_ativos, prompts=prompts)
 
 @app.route('/api/temas/<int:aluno_id>')
 @login_required
@@ -326,7 +342,7 @@ def gerar_rascunho():
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
     prompt_completo = f"TEMA:\n{tema}\n\n{texto_prompt}"
     
-    fila_modelos = [modelo_selecionado] + [m for m in MODELOS_DISPONIVEIS if m != modelo_selecionado]
+    fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
     nova_task = GeracaoTask(user_id=current_user.id, status='Pendente')
     db.session.add(nova_task)
     db.session.commit()
@@ -360,7 +376,7 @@ def assistente_pontual():
     dados = request.json
     trecho = dados.get('trecho')
     comando = dados.get('comando')
-    modelo = dados.get('modelo', MODELOS_DISPONIVEIS[0])
+    modelo = dados.get('modelo', get_modelos_ativos()[0])
     
     prompt = f"Você é um assistente de edição académica de elite.\nTEXTO ORIGINAL:\n{trecho}\n\nPEDIDO DO USUÁRIO:\n{comando}\n\nReescreva o texto original aplicando EXATAMENTE o que foi pedido. Responda APENAS com o novo texto limpo, sem marcações markdown (**)."
     
@@ -379,7 +395,7 @@ def regerar_trecho():
         dados = request.json
         tema = dados.get('tema', '')
         tag = dados.get('tag', '')
-        modelo_selecionado = dados.get('modelo', MODELOS_DISPONIVEIS[0])
+        modelo_selecionado = dados.get('modelo', get_modelos_ativos()[0])
         prompt_id = dados.get('prompt_id')
         contexto_atual = dados.get('dicionario', {}) 
 
@@ -401,7 +417,7 @@ REGRAS GERAIS E ESTRUTURA:\n{texto_prompt}
 TAREFA ESPECÍFICA DE CORREÇÃO:
 Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o contexto. NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta toda em negrito (**). Retorne APENAS o texto limpo."""
         
-        fila_modelos = [modelo_selecionado] + [m for m in MODELOS_DISPONIVEIS if m != modelo_selecionado]
+        fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
         ultimo_erro = ""
 
         for modelo in fila_modelos:
@@ -496,7 +512,6 @@ def dashboard():
     agora_utc = datetime.utcnow()
     hoje_brasil = agora_utc - timedelta(hours=3)
     
-    # CÁLCULO PRECISO DO LUCRO DO DIA 
     receita_hoje = 0.0
     for a in todos_alunos:
         if a.status == 'Pago':
@@ -559,10 +574,17 @@ def configuracoes():
         if current_user.role == 'admin':
             config.prompt_password = request.form.get('prompt_password')
             config.convert_api_key = request.form.get('convert_api_key')
+            
+            # GESTÃO DAS IAS SELECIONADAS NA INTERFACE
+            modelos_selecionados = request.form.getlist('modelos_ativos')
+            if modelos_selecionados:
+                config.modelos_ativos = ",".join(modelos_selecionados)
+                
         db.session.commit()
         flash('Configurações salvas!', 'success')
         return redirect(url_for('configuracoes'))
-    return render_template('configuracoes.html', config=config)
+        
+    return render_template('configuracoes.html', config=config, todos_modelos=TODOS_MODELOS_CONHECIDOS, modelos_ativos=get_modelos_ativos())
 
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
@@ -667,7 +689,7 @@ def delete_doc(doc_id):
 
 @app.route('/revisao_avulsa')
 @login_required
-def revisao_avulsa(): return render_template('revisao_avulsa.html', modelos=MODELOS_DISPONIVEIS)
+def revisao_avulsa(): return render_template('revisao_avulsa.html', modelos=get_modelos_ativos())
 
 @app.route('/avaliar_avulso', methods=['POST'])
 @login_required
