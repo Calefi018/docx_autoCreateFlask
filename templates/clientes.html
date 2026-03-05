@@ -15,10 +15,10 @@
         </form>
     </div>
 
-    <h3 style="color: var(--warning); margin-top: 40px;"><i class="ph-fill ph-hourglass-high"></i> Fila de Produção e Pendentes</h3>
+    <h3 style="color: var(--warning); margin-top: 40px;"><i class="ph-fill ph-gear"></i> 1 - Em Produção</h3>
     
-    {% for aluno in alunos_pendentes %}
-        <div class="card" style="border-left: 4px solid {% if aluno.status == 'Produção' %}var(--warning){% else %}var(--danger){% endif %}; padding: 20px; margin-bottom: 15px;">
+    {% for aluno in alunos_pendentes if aluno.status == 'Produção' or not aluno.status %}
+        <div class="card" style="border-left: 4px solid var(--warning); padding: 20px; margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
                 
                 <div>
@@ -26,9 +26,9 @@
                         {{ aluno.nome }}
                         
                         <form action="/mudar_status/{{ aluno.id }}" method="POST" style="margin:0;">
-                            <select name="novo_status" onchange="this.form.submit()" style="margin:0; padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; font-weight: bold; background: {% if aluno.status == 'Produção' %}#f59e0b{% else %}#ef4444{% endif %}; color: #fff; border: none; outline: none; cursor: pointer;">
-                                <option value="Produção" {% if aluno.status == 'Produção' %}selected{% endif %}>Em Produção</option>
-                                <option value="Pendente" {% if aluno.status == 'Pendente' %}selected{% endif %}>Pronto (Falta Pagar)</option>
+                            <select name="novo_status" onchange="this.form.submit()" style="margin:0; padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; font-weight: bold; background: #f59e0b; color: #fff; border: none; outline: none; cursor: pointer;">
+                                <option value="Produção" selected>Em Produção</option>
+                                <option value="Pendente">Pronto (Falta Pagar)</option>
                                 <option value="Pago">Pago (Finalizar)</option>
                             </select>
                         </form>
@@ -60,30 +60,87 @@
                     </button>
                     
                     <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
-                    <button type="button" onclick="cobrarWhatsapp('{{ aluno.telefone }}', '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.valor or 70.0 }}')" class="btn" style="background: #25D366; color: white;"><i class="ph-bold ph-whatsapp-logo"></i></button>
                     <button type="button" onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }}, '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn" style="background: var(--border);"><i class="ph-bold ph-pencil-simple"></i></button>
                     <a href="/deletar_cliente/{{ aluno.id }}" class="btn btn-danger" onclick="return confirm('Apagar tudo deste cliente?')"><i class="ph-bold ph-trash"></i></a>
                 </div>
             </div>
         </div>
+    {% else %}
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 25px;"><i class="ph ph-info"></i> Nenhum trabalho em produção no momento.</p>
     {% endfor %}
 
-    <h3 style="color: var(--success); margin-top: 40px;"><i class="ph-fill ph-check-circle"></i> Trabalhos Finalizados (Pagos)</h3>
+
+    <h3 style="color: var(--danger); margin-top: 40px;"><i class="ph-fill ph-hourglass-high"></i> 2 - (Pronto) Aguardando Pagamento</h3>
+    
+    {% for aluno in alunos_pendentes if aluno.status == 'Pendente' %}
+        <div class="card" style="border-left: 4px solid var(--danger); padding: 20px; margin-bottom: 15px; background: rgba(239, 68, 68, 0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                
+                <div>
+                    <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 10px;">
+                        {{ aluno.nome }}
+                        
+                        <form action="/mudar_status/{{ aluno.id }}" method="POST" style="margin:0;">
+                            <select name="novo_status" onchange="this.form.submit()" style="margin:0; padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; font-weight: bold; background: #ef4444; color: #fff; border: none; outline: none; cursor: pointer;">
+                                <option value="Produção">Em Produção</option>
+                                <option value="Pendente" selected>Pronto (Falta Pagar)</option>
+                                <option value="Pago">Pago (Finalizar)</option>
+                            </select>
+                        </form>
+                    </h3>
+                    
+                    <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 10px; font-size: 0.9rem; flex-wrap: wrap;">
+                        <span><i class="ph-bold ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                        <span><i class="ph-bold ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                        <span style="color: var(--danger); font-weight: bold;">R$ {{ "%.2f"|format(aluno.valor or 0) }}</span>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" onclick="cobrarWhatsapp('{{ aluno.telefone }}', '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.valor or 70.0 }}')" class="btn" style="background: #25D366; color: white;" title="Enviar cobrança via WhatsApp">
+                        <i class="ph-bold ph-whatsapp-logo"></i> Cobrar Cliente
+                    </button>
+                    
+                    <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
+                    <button type="button" onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }}, '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn" style="background: var(--border);"><i class="ph-bold ph-pencil-simple"></i></button>
+                    <a href="/deletar_cliente/{{ aluno.id }}" class="btn btn-danger" onclick="return confirm('Apagar tudo deste cliente?')"><i class="ph-bold ph-trash"></i></a>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 25px;"><i class="ph ph-check"></i> Tudo limpo! Nenhum cliente a dever no momento.</p>
+    {% endfor %}
+
+
+    <h3 style="color: var(--success); margin-top: 40px;"><i class="ph-fill ph-check-circle"></i> 3 - Pagos (Finalizados)</h3>
+    
     {% for aluno in alunos_pagos %}
         <div class="card" style="border-left: 4px solid var(--success); opacity: 0.7; padding: 20px; margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                 <div>
                     <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
-                    <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">{{ aluno.curso }} | <span style="color: var(--success); font-weight: bold;"><i class="ph-bold ph-check"></i> Pago</span></div>
+                    <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">
+                        {{ aluno.curso }} | <span style="color: var(--success); font-weight: bold;"><i class="ph-bold ph-check"></i> Pago</span>
+                    </div>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <form action="/mudar_status/{{ aluno.id }}" method="POST" style="margin:0;"><input type="hidden" name="novo_status" value="Pendente"><button type="submit" class="btn" style="background: var(--border);" title="Desfazer pagamento"><i class="ph-bold ph-arrow-u-up-left"></i></button></form>
+                    <form action="/mudar_status/{{ aluno.id }}" method="POST" style="margin:0;">
+                        <input type="hidden" name="novo_status" value="Pendente">
+                        <button type="submit" class="btn" style="background: var(--border);" title="Desfazer pagamento e voltar para pendentes">
+                            <i class="ph-bold ph-arrow-u-up-left"></i>
+                        </button>
+                    </form>
                     <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
-                    <button type="button" onclick="novoPedido('{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn btn-warning"><i class="ph-bold ph-plus-circle"></i> Novo Pedido</button>
+                    <button type="button" onclick="novoPedido('{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn btn-warning" title="Criar um novo trabalho para este mesmo aluno">
+                        <i class="ph-bold ph-plus-circle"></i> Novo Pedido
+                    </button>
                 </div>
             </div>
         </div>
+    {% else %}
+        <p style="color: var(--text-muted); font-size: 0.95rem;"><i class="ph ph-info"></i> Nenhum trabalho finalizado ainda.</p>
     {% endfor %}
+
 
     <div id="zap-template" style="display:none;">{{ config.whatsapp_template if config else 'Olá {nome}, seu trabalho está pronto! Valor: R$ {valor}' }}</div>
 
