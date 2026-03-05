@@ -199,9 +199,7 @@
             });
         }
         
-        // --- NOVA FUNÇÃO DE BLINDAGEM ANTI-IA ---
         function humanizarTrabalho() {
-            // Guarda as edições que o usuário fez manualmente nas caixas
             document.querySelectorAll('#caixas-texto textarea').forEach(t => {
                 let chaveSegura = "{" + "{" + t.dataset.chave + "}" + "}";
                 dicionarioEditavel[chaveSegura] = t.value;
@@ -392,7 +390,6 @@
                 head.appendChild(lbl); head.appendChild(btn); 
                 wrap.appendChild(head); wrap.appendChild(ta); 
 
-                // Micro-Agente de Edição Assistida (Mini-Chat)
                 let chatDiv = document.createElement('div');
                 chatDiv.style.cssText = "display:flex; gap:10px; margin-top:10px; align-items: stretch;";
                 
@@ -451,7 +448,6 @@
             });
         }
 
-        // SISTEMA DE SALVAMENTO AUTOMÁTICO SILENCIOSO
         setInterval(() => {
             if(Object.keys(dicionarioEditavel).length > 0) {
                 localStorage.setItem('hubmaster_autosave', JSON.stringify({
