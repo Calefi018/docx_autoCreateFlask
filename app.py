@@ -186,14 +186,11 @@ with app.app_context():
     try: db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN modelos_ativos TEXT")); db.session.commit()
     except Exception: db.session.rollback()
 
+    # BUG RESOLVIDO: O servidor parou de reescrever as datas de pagamento ao reiniciar
     try:
         alunos_pagos = Aluno.query.filter_by(status='Pago').all()
-        agora = datetime.utcnow()
         for al in alunos_pagos:
-            if al.data_pagamento and al.data_cadastro:
-                if al.data_pagamento.date() == agora.date() and al.data_cadastro.date() < agora.date():
-                    al.data_pagamento = al.data_cadastro
-            elif not al.data_pagamento:
+            if not al.data_pagamento:
                 al.data_pagamento = al.data_cadastro
         db.session.commit()
     except Exception:
@@ -663,6 +660,7 @@ def dashboard():
                            data_fim=data_fim_str or '',
                            filtrado=(bool(data_inicio_str) or bool(data_fim_str)))
 
+# BUG RESOLVIDO: O servidor limpa as datas fantasma ao desfazer pagamentos
 @app.route('/mudar_status/<int:id>', methods=['POST'])
 @login_required
 def mudar_status(id):
@@ -674,6 +672,8 @@ def mudar_status(id):
     
     if novo_status == 'Pago':
         aluno.data_pagamento = datetime.utcnow()
+    else:
+        aluno.data_pagamento = None
         
     db.session.commit()
     return redirect(url_for('clientes'))
@@ -713,8 +713,11 @@ def configuracoes():
 @login_required
 def clientes():
     if request.method == 'POST':
-        try: valor_float = float(request.form.get('valor', '70.0').replace(',', '.'))
-        except ValueError: valor_float = 70.0
+        try: 
+            val_str = request.form.get('valor', '70.0').replace(',', '.')
+            valor_float = float(val_str)
+        except ValueError: 
+            valor_float = 70.0
         db.session.add(Aluno(user_id=current_user.id, nome=request.form.get('nome'), curso=request.form.get('curso'), telefone=request.form.get('telefone'), ava_login=request.form.get('ava_login'), ava_senha=request.form.get('ava_senha'), valor=valor_float, status='Produção'))
         db.session.commit(); flash('Cliente cadastrado!', 'success')
         return redirect(url_for('clientes'))
@@ -728,7 +731,9 @@ def editar_cliente(id):
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     aluno.nome, aluno.curso, aluno.telefone, aluno.ava_login, aluno.ava_senha = request.form.get('nome'), request.form.get('curso'), request.form.get('telefone'), request.form.get('ava_login'), request.form.get('ava_senha')
-    try: aluno.valor = float(request.form.get('valor', '70.0').replace(',', '.'))
+    try: 
+        val_str = request.form.get('valor', '70.0').replace(',', '.')
+        aluno.valor = float(val_str)
     except: pass
     db.session.commit(); flash('Dados atualizados!', 'success')
     return redirect(url_for('clientes'))
@@ -827,9 +832,6 @@ def avaliar_avulso():
         return jsonify({"critica": resposta_ia.replace('*', '').strip(), "texto_extraido": texto_trabalho})
     except Exception as e: return jsonify({"erro": str(e)}), 500
 
-# =========================================================
-# ROTA DE REVISÃO E CORREÇÃO (COM AS TAGS OBRIGATÓRIAS)
-# =========================================================
 @app.route('/corrigir_avulso', methods=['POST'])
 @login_required
 def corrigir_avulso():
