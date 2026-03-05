@@ -345,9 +345,6 @@ def gerar_rascunho():
     threading.Thread(target=executar_geracao_bg, args=(nova_task.id, prompt_completo, fila_modelos)).start()
     return jsonify({"sucesso": True, "task_id": nova_task.id})
 
-# =========================================================
-# ROTA ATUALIZADA: HUMANIZAÇÃO COMPLETA (BLINDADA CONTRA ALUCINAÇÃO)
-# =========================================================
 @app.route('/humanizar_trabalho', methods=['POST'])
 @login_required
 def humanizar_trabalho():
@@ -371,24 +368,23 @@ def humanizar_trabalho():
                 tag_limpa = k.replace("{{", "").replace("}}", "")
                 texto_contexto += f"[START_{tag_limpa}]\n{v}\n[END_{tag_limpa}]\n\n"
 
-        # PROMPT CORRIGIDO E REFORÇADO (Obrigando a IA a não inventar fatos)
-        prompt_humanizador = f"""Você é um especialista em revisão acadêmica e bypass de detectores de IA (como Turnitin e GPTZero).
-Sua tarefa é APENAS ALTERAR O ESTILO DE ESCRITA do trabalho abaixo, mantendo 100% dos fatos originais.
+        prompt_humanizador = f"""ATENÇÃO: O SEU ÚNICO PAPEL AGORA É SER UM REVISOR DE ESTILO E PARAFRASEADOR. 
+É ESTRITAMENTE PROIBIDO INVENTAR ASSUNTOS, PERSONAGENS OU CONCEITOS NOVOS.
 
-REGRAS DE FIDELIDADE (REGRA MAIS IMPORTANTE DE TODAS):
-- É EXPRESSAMENTE PROIBIDO mudar o tema, os personagens, as conclusões ou as informações do texto. 
-- O seu trabalho não é criar um texto novo, mas sim pegar no texto exato fornecido abaixo e escrevê-lo com palavras mais humanas.
+O texto abaixo já está pronto e correto. O seu trabalho é APENAS reescrever AS MESMAS INFORMAÇÕES, OS MESMOS FATOS, E OS MESMOS PERSONAGENS, mas com um estilo de escrita diferente para não ser detectado por softwares de plágio de IA (Turnitin/GPTZero).
 
-REGRAS DE HUMANIZAÇÃO E BLINDAGEM (OBRIGATÓRIAS):
-1. Explosividade (Burstiness): Varie drasticamente o tamanho das frases. Intercale frases longas e complexas com frases extremamente curtas e diretas.
-2. Perplexidade: Troque termos robóticos por sinônimos menos óbvios, mas academicamente corretos.
-3. Proibição de Clichês de IA: NUNCA use palavras típicas de IA (ex: crucial, mergulhar, trama, notável, testamento, em resumo, em conclusão, paisagem, aprofundar, vital).
-4. Imperfeição Humana: Adicione transições de pensamento naturais, mantendo todo o sentido e a lógica do texto original.
+REGRAS DE FIDELIDADE (PRIORIDADE MÁXIMA):
+1. Se o texto fala da Maria, fale da Maria. Se fala de RH, fale de RH. NÃO MUDE O ASSUNTO PARA UBERIZAÇÃO, TECNOLOGIA OU QUALQUER OUTRA COISA.
 
-TRABALHO ATUAL PARA REVISAR O ESTILO:
+REGRAS DE BLINDAGEM (ESTILO DE ESCRITA):
+1. Explosividade (Burstiness): Alterne entre frases longas e explicativas e frases extremamente curtas e diretas.
+2. Perplexidade: Troque termos robóticos por sinônimos menos óbvios, mas academicamente válidos.
+3. Proibido Clichês de IA: NUNCA use palavras como: crucial, mergulhar, notável, testamento, em resumo, em conclusão, paisagem, aprofundar, vital.
+
+TEXTO ORIGINAL QUE VOCÊ DEVE PARAFRASEAR (Mantenha 100% do sentido original):
 {texto_contexto}
 
-IMPORTANTE: Retorne TODAS as tags originais no formato [START_TAG]novo conteudo[END_TAG]. Não mude os nomes das tags.
+IMPORTANTE: Retorne o resultado usando EXATAMENTE as mesmas tags [START_nome_da_tag] e [END_nome_da_tag].
 """
         
         fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
@@ -831,10 +827,50 @@ def avaliar_avulso():
         return jsonify({"critica": resposta_ia.replace('*', '').strip(), "texto_extraido": texto_trabalho})
     except Exception as e: return jsonify({"erro": str(e)}), 500
 
+# =========================================================
+# ROTA DE REVISÃO E CORREÇÃO (COM AS TAGS OBRIGATÓRIAS)
+# =========================================================
 @app.route('/corrigir_avulso', methods=['POST'])
 @login_required
 def corrigir_avulso():
-    prompt = f"TEMA: {request.form.get('tema')}\nTRABALHO ATUAL: {request.form.get('texto_extraido')}\nCRÍTICA: {request.form.get('critica')}\nTAREFA: Reescreva aplicando as melhorias. NUNCA formate em negrito. \nREGRAS: {PROMPT_REGRAS_BASE}"
+    config = PromptConfig.query.filter_by(is_default=True).first()
+    texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
+
+    prompt = f"""ATENÇÃO: Você é um professor e revisor de elite.
+TEMA: {request.form.get('tema')}
+
+TRABALHO ATUAL (Com falhas):
+{request.form.get('texto_extraido')}
+
+CRÍTICA DO AVALIADOR:
+{request.form.get('critica')}
+
+TAREFA: Reescreva o trabalho inteiro corrigindo todas as falhas apontadas na crítica acima.
+REGRAS ACADÊMICAS: {texto_prompt}
+
+MUITO IMPORTANTE - FORMATO DE SAÍDA:
+Você OBRIGATORIAMENTE deve estruturar a sua resposta com as seguintes tags para que o sistema consiga montar o documento (não mude o nome das tags e preencha TODAS):
+
+[START_ASPECTO_1] conteúdo [END_ASPECTO_1]
+[START_POR_QUE_1] conteúdo [END_POR_QUE_1]
+[START_ASPECTO_2] conteúdo [END_ASPECTO_2]
+[START_POR_QUE_2] conteúdo [END_POR_QUE_2]
+[START_ASPECTO_3] conteúdo [END_ASPECTO_3]
+[START_POR_QUE_3] conteúdo [END_POR_QUE_3]
+[START_CONCEITOS_TEORICOS] conteúdo [END_CONCEITOS_TEORICOS]
+[START_ANALISE_CONCEITO_1] conteúdo [END_ANALISE_CONCEITO_1]
+[START_ENTENDIMENTO_TEORICO] conteúdo [END_ENTENDIMENTO_TEORICO]
+[START_SOLUCOES_TEORICAS] conteúdo [END_SOLUCOES_TEORICAS]
+[START_RESUMO_MEMORIAL] conteúdo [END_RESUMO_MEMORIAL]
+[START_CONTEXTO_MEMORIAL] conteúdo [END_CONTEXTO_MEMORIAL]
+[START_ANALISE_MEMORIAL] conteúdo [END_ANALISE_MEMORIAL]
+[START_PROPOSTAS_MEMORIAL] conteúdo [END_PROPOSTAS_MEMORIAL]
+[START_CONCLUSAO_MEMORIAL] conteúdo [END_CONCLUSAO_MEMORIAL]
+[START_REFERENCIAS_ADICIONAIS] conteúdo [END_REFERENCIAS_ADICIONAIS]
+[START_AUTOAVALIACAO_MEMORIAL] conteúdo [END_AUTOAVALIACAO_MEMORIAL]
+
+NUNCA formate a resposta toda em negrito. Retorne apenas o conteúdo corretamente preenchido dentro das tags."""
+    
     try:
         texto_resposta, custo = ia_core.chamar_ia(prompt, request.form.get('modelo'), CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         respostas = ia_core.extrair_dicionario(texto_resposta)
