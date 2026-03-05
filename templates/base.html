@@ -27,15 +27,14 @@
             --border: #334155;
         }
 
-        /* RESET UNIVERSAL: Impede que paddings e bordas aumentem a largura dos elementos (Evita scroll lateral) */
+        /* RESET UNIVERSAL: Impede que paddings aumentem a largura da tela (Evita rolagem lateral no telemóvel) */
         *, *::before, *::after {
             box-sizing: border-box;
         }
 
-        /* TRAVA A TELA NA LARGURA MÁXIMA DO DISPOSITIVO */
         html, body {
             max-width: 100vw;
-            overflow-x: hidden; /* Corta qualquer rolagem lateral na raiz do site */
+            overflow-x: hidden;
         }
 
         body { 
@@ -48,11 +47,14 @@
             min-height: 100vh; 
         }
 
-        /* CLASSE PARA BLOQUEAR SCROLL DO FUNDO NO CELULAR (MENU) */
+        /* CLASSE PARA BLOQUEAR SCROLL DO FUNDO QUANDO O MENU MOBILE ABRIR */
         body.no-scroll {
             overflow: hidden;
         }
 
+        /* ========================================== */
+        /* SIDEBAR (MENU LATERAL FIXO NO COMPUTADOR)  */
+        /* ========================================== */
         .sidebar { 
             width: 260px; 
             background: var(--sidebar-bg); 
@@ -62,11 +64,22 @@
             flex-direction: column; 
             transition: transform 0.3s ease; 
             z-index: 1000; 
-            height: 100vh; 
-            height: 100dvh; 
-            overflow-y: auto; 
+            
+            /* A MÁGICA QUE PREGA O MENU NA TELA: */
             position: sticky;
             top: 0;
+            height: 100vh; /* Altura exata da tela */
+            height: 100dvh; /* Medida avançada para Safari/Mobile */
+            overflow-y: auto; /* Se houver muitos links, só o menu rola, não a tela */
+        }
+
+        /* Embelezar a barra de rolagem dentro do menu (se for preciso rolar os links) */
+        .sidebar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background-color: var(--border);
+            border-radius: 10px;
         }
 
         .sidebar h2 { 
@@ -112,8 +125,7 @@
         .content { 
             flex: 1; 
             padding: 40px; 
-            overflow-y: auto; 
-            width: 100%; /* Garante que o conteúdo respeita o flex */
+            width: 100%;
         }
 
         h1, h2, h3 { 
@@ -130,7 +142,7 @@
             margin-bottom: 20px; 
             box-shadow: 0 4px 20px rgba(0,0,0,0.2); 
             transition: transform 0.2s; 
-            width: 100%; /* Garante que os cards não vazem */
+            width: 100%;
         }
 
         input, select, textarea { 
@@ -217,7 +229,7 @@
             cursor: pointer;
         }
 
-        /* --- FORÇAR QUEBRA DE TEXTOS LONGOS --- */
+        /* QUEBRA DE TEXTOS LONGOS (Impede o texto de "vazar" do site) */
         .card, p, h1, h2, h3, span, div, td, th {
             word-wrap: break-word;
             overflow-wrap: break-word;
@@ -232,11 +244,13 @@
             -webkit-overflow-scrolling: touch;
             margin-bottom: 15px;
         }
+
         table {
             width: 100%;
             max-width: 100%;
         }
 
+        /* COMPORTAMENTO EM TELAS PEQUENAS (TELEMÓVEL/TABLET) */
         @media (max-width: 768px) { 
             body { 
                 flex-direction: column; 
