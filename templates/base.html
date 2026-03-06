@@ -27,36 +27,36 @@
             --border: #334155;
         }
 
-        /* RESET UNIVERSAL: Impede que paddings aumentem a largura da tela (Evita rolagem lateral no telemóvel) */
+        /* RESET UNIVERSAL */
         *, *::before, *::after {
             box-sizing: border-box;
         }
 
+        /* ESTRUTURA FIXA TIPO APP (Impede scroll da página inteira, só o conteúdo rola) */
         html, body {
-            max-width: 100vw;
-            overflow-x: hidden;
-        }
-
-        body { 
-            margin: 0; 
+            margin: 0;
             padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden; /* Corta qualquer rolagem fora do planejado */
             font-family: 'Inter', sans-serif; 
             background: var(--bg-color); 
-            color: var(--text-color); 
-            display: flex; 
-            min-height: 100vh; 
+            color: var(--text-color);
         }
 
-        /* CLASSE PARA BLOQUEAR SCROLL DO FUNDO QUANDO O MENU MOBILE ABRIR */
+        body {
+            display: flex;
+        }
+
+        /* CLASSE PARA BLOQUEAR SCROLL DO FUNDO NO CELULAR */
         body.no-scroll {
             overflow: hidden;
         }
 
-        /* ========================================== */
-        /* SIDEBAR (MENU LATERAL FIXO NO COMPUTADOR)  */
-        /* ========================================== */
+        /* SIDEBAR DEFINITIVA (Painel esquerdo com rolagem própria) */
         .sidebar { 
             width: 260px; 
+            min-width: 260px;
             background: var(--sidebar-bg); 
             padding: 25px 20px; 
             border-right: 1px solid var(--border); 
@@ -64,16 +64,11 @@
             flex-direction: column; 
             transition: transform 0.3s ease; 
             z-index: 1000; 
-            
-            /* A MÁGICA QUE PREGA O MENU NA TELA: */
-            position: sticky;
-            top: 0;
-            height: 100vh; /* Altura exata da tela */
-            height: 100dvh; /* Medida avançada para Safari/Mobile */
-            overflow-y: auto; /* Se houver muitos links, só o menu rola, não a tela */
+            height: 100vh; 
+            overflow-y: auto; /* Rolagem independente para o menu */
         }
 
-        /* Embelezar a barra de rolagem dentro do menu (se for preciso rolar os links) */
+        /* Embelezar a barra de rolagem do menu */
         .sidebar::-webkit-scrollbar {
             width: 5px;
         }
@@ -95,9 +90,7 @@
             gap: 8px; 
         }
 
-        .sidebar h2 i { 
-            color: var(--primary); 
-        }
+        .sidebar h2 i { color: var(--primary); }
 
         .sidebar a { 
             color: var(--text-muted); 
@@ -113,26 +106,24 @@
             font-size: 0.95rem; 
         }
 
-        .sidebar a i { 
-            font-size: 1.2rem; 
-        }
+        .sidebar a i { font-size: 1.2rem; }
 
         .sidebar a:hover, .sidebar a.active { 
             background: rgba(99, 102, 241, 0.1); 
             color: var(--primary); 
         }
 
+        /* CONTEÚDO (Lado direito com rolagem própria) */
         .content { 
             flex: 1; 
             padding: 40px; 
-            width: 100%;
+            height: 100vh;
+            overflow-y: auto; /* Rolagem independente para a área de trabalho */
+            overflow-x: hidden;
+            scroll-behavior: smooth;
         }
 
-        h1, h2, h3 { 
-            color: #fff; 
-            font-weight: 600; 
-            letter-spacing: -0.5px; 
-        }
+        h1, h2, h3 { color: #fff; font-weight: 600; letter-spacing: -0.5px; }
 
         .card { 
             background: var(--card-bg); 
@@ -181,11 +172,7 @@
             gap: 8px; 
         }
 
-        .btn:hover { 
-            background: var(--primary-hover); 
-            transform: translateY(-1px); 
-        }
-
+        .btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
         .btn-green { background: var(--success); } 
         .btn-warning { background: var(--warning); color: #000; } 
         .btn-danger { background: var(--danger); }
@@ -229,7 +216,7 @@
             cursor: pointer;
         }
 
-        /* QUEBRA DE TEXTOS LONGOS (Impede o texto de "vazar" do site) */
+        /* QUEBRA DE TEXTOS LONGOS */
         .card, p, h1, h2, h3, span, div, td, th {
             word-wrap: break-word;
             overflow-wrap: break-word;
@@ -237,20 +224,18 @@
             hyphens: auto;
         }
 
-        /* DEIXAR TABELAS RESPONSIVAS NO CELULAR */
         .table-responsive {
             width: 100%;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
             margin-bottom: 15px;
         }
-
         table {
             width: 100%;
             max-width: 100%;
         }
 
-        /* COMPORTAMENTO EM TELAS PEQUENAS (TELEMÓVEL/TABLET) */
+        /* COMPORTAMENTO EM TELAS PEQUENAS (TELEMÓVEL E TABLET) */
         @media (max-width: 768px) { 
             body { 
                 flex-direction: column; 
@@ -328,21 +313,12 @@
                 <script>
                     document.addEventListener("DOMContentLoaded", function() {
                         const Toast = Swal.mixin({ 
-                            toast: true, 
-                            position: 'top-end', 
-                            showConfirmButton: false, 
-                            timer: 3500, 
-                            timerProgressBar: true, 
-                            background: '#1e2130', 
-                            color: '#e2e8f0', 
-                            iconColor: '#10b981' 
+                            toast: true, position: 'top-end', showConfirmButton: false, 
+                            timer: 3500, timerProgressBar: true, background: '#1e2130', 
+                            color: '#e2e8f0', iconColor: '#10b981' 
                         });
-                        
                         {% for category, message in messages %} 
-                            Toast.fire({ 
-                                icon: '{{ "success" if category == "success" else "error" }}', 
-                                title: '{{ message }}' 
-                            }); 
+                            Toast.fire({ icon: '{{ "success" if category == "success" else "error" }}', title: '{{ message }}' }); 
                         {% endfor %}
                     });
                 </script>
