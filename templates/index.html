@@ -390,12 +390,14 @@
                 head.appendChild(lbl); head.appendChild(btn); 
                 wrap.appendChild(head); wrap.appendChild(ta); 
 
+                // ==== DIV DE BOTÕES DE AJUSTE RÁPIDO ====
                 let chatDiv = document.createElement('div');
-                chatDiv.style.cssText = "display:flex; gap:10px; margin-top:10px; align-items: stretch;";
+                chatDiv.style.cssText = "display:flex; gap:10px; margin-top:10px; align-items: stretch; flex-wrap: wrap;";
                 
                 let chatInput = document.createElement('input');
-                chatInput.placeholder = "IA de Ajuste Fino: Ex: 'Deixe mais formal' ou 'Resuma este trecho'...";
+                chatInput.placeholder = "IA de Ajuste: Ex: 'Deixe mais formal' ou 'Resuma'...";
                 chatInput.style.margin = "0"; chatInput.style.flex = "1";
+                chatInput.style.minWidth = "200px";
                 chatInput.style.padding = "10px";
                 chatInput.style.borderRadius = "5px";
                 chatInput.style.border = "1px solid var(--border)";
@@ -408,6 +410,16 @@
                 chatBtn.style.margin = "0";
                 chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Ajustar Trecho";
                 
+                // NOVO BOTÃO: EXTERMINAR CLICHÊS
+                let limparBtn = document.createElement('button');
+                limparBtn.className = "btn";
+                limparBtn.style.backgroundColor = "#8b5cf6"; // Roxo bem bonito
+                limparBtn.style.color = "white";
+                limparBtn.style.padding = "10px 15px";
+                limparBtn.style.margin = "0";
+                limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Exterminar Clichês";
+                
+                // Ação do Botão Ajustar (Normal)
                 chatBtn.onclick = () => {
                     let comando = chatInput.value; 
                     if(!comando) return;
@@ -441,7 +453,39 @@
                     });
                 };
                 
-                chatDiv.appendChild(chatInput); chatDiv.appendChild(chatBtn);
+                // Ação do NOVO Botão Limpar Clichês
+                limparBtn.onclick = () => {
+                    if(!ta.value.trim()) return;
+                    limparBtn.disabled = true; 
+                    limparBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Limpando...";
+                    
+                    fetch('/exterminar_cliches', {
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ trecho: ta.value })
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        limparBtn.disabled = false; 
+                        limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Exterminar Clichês";
+                        if(d.sucesso) { 
+                            ta.value = d.novo_texto; 
+                            dicionarioEditavel[chaveSegura] = d.novo_texto; 
+                            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Clichês removidos com sucesso!', background: '#1e2130', color: '#10b981' });
+                        } else {
+                            Swal.fire('Erro', d.erro, 'error');
+                        }
+                    })
+                    .catch(e => { 
+                        limparBtn.disabled = false; 
+                        limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Exterminar Clichês"; 
+                        Swal.fire('Erro de Rede', 'Falha ao processar a limpeza.', 'error');
+                    });
+                };
+                
+                chatDiv.appendChild(chatInput); 
+                chatDiv.appendChild(chatBtn);
+                chatDiv.appendChild(limparBtn); // Adiciona o botão roxo na interface
                 wrap.appendChild(chatDiv);
                 
                 container.appendChild(wrap);
