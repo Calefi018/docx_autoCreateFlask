@@ -8,6 +8,37 @@ def limpar_texto_ia(texto):
         texto = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), texto)
     except Exception: 
         pass
+        
+    # =========================================================
+    # PROPOSTA 1: O "ESFREGÃO ANTI-CLICHÊ" AUTOMÁTICO
+    # =========================================================
+    # 1. Remover asteriscos simples (itálico indesejado) preservando os duplos (negrito)
+    texto = re.sub(r'(?<!\*)\*(?!\*)', '', texto)
+    
+    # 2. Dicionário de traduções ChatGPTês -> Humano Acadêmico Moderno
+    substituicoes = {
+        r'\bmomentum\b': 'impulso',
+        r'\blocus\b': 'ambiente',
+        r'\boutrossim\b': 'além disso',
+        r'\bdessarte\b': 'assim',
+        r'\bdestarte\b': 'assim',
+        r'\bum mergulho profundo\b': 'uma análise detalhada',
+        r'\bmergulho profundo\b': 'análise detalhada',
+        r'\btapeçaria de\b': 'conjunto de',
+        r'\btapeçaria\b': 'estrutura',
+        r'\bfarol\b': 'guia',
+        r'\bcrucial\b': 'essencial',
+        r'\bvital\b': 'essencial',
+        r'\badentrar\b': 'explorar',
+        r'\btestamento\b': 'prova',
+        r'\bpaisagem\b': 'cenário',
+        r'\bnotável\b': 'importante'
+    }
+    
+    for padrao, substituto in substituicoes.items():
+        # Substitui ignorando maiúsculas e minúsculas
+        texto = re.sub(padrao, substituto, texto, flags=re.IGNORECASE)
+        
     return texto
 
 def calcular_custo_api(modelo, prompt_tokens, completion_tokens):
@@ -20,7 +51,6 @@ def calcular_custo_api(modelo, prompt_tokens, completion_tokens):
     elif "llama-3.3-70b" in mod_lower or "qwen" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 0.4) + (completion_tokens / 1000000 * 0.4)
     elif "gemini-2.5-pro" in mod_lower or "gemini-pro" in mod_lower:
-        # NOVO: Custo específico do modelo Gemini 2.5 Pro adicionado (via OpenRouter ou Nativo)
         custo_usd = (prompt_tokens / 1000000 * 1.25) + (completion_tokens / 1000000 * 5.0)
     elif "gemini-2.5-flash" in mod_lower or "gemini-flash" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 0.075) + (completion_tokens / 1000000 * 0.3)
@@ -48,11 +78,12 @@ def chamar_ia(prompt, nome_modelo, chave_google=None, chave_openrouter=None):
             "temperature": 0.7
         }
         
+        # Timeout aumentado para 180s para aguentar modelos pesados
         res = requests.post(
             "https://openrouter.ai/api/v1/chat/completions", 
             headers=headers, 
             json=payload, 
-            timeout=120
+            timeout=180
         )
         
         if res.status_code != 200: 
