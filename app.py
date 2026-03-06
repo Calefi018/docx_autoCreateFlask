@@ -160,7 +160,14 @@ class GeracaoTask(db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-PROMPT_REGRAS_BASE = """VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E DE ALTA EXCELÊNCIA ACADÊMICA."""
+# =========================================================
+# PROPOSTA 2: O CÉREBRO BASE AGORA TEM A LISTA NEGRA
+# =========================================================
+PROMPT_REGRAS_BASE = """VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E DE ALTA EXCELÊNCIA ACADÊMICA.
+
+REGRAS DE VOCABULÁRIO (ESTRITAMENTE PROIBIDO):
+É proibido usar as seguintes palavras ou expressões: momentum, locus, outrossim, dessarte, destarte, mergulho profundo, testamento, tapeçaria, farol, crucial, vital, paisagem, adentrar, notável.
+Não use formatação em itálico (asterisco simples) para termos em inglês como soft skills ou hard skills."""
 
 # =========================================================
 # INICIALIZAÇÃO BLINDADA E MIGRAÇÕES
@@ -186,7 +193,6 @@ with app.app_context():
     try: db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN modelos_ativos TEXT")); db.session.commit()
     except Exception: db.session.rollback()
 
-    # BUG RESOLVIDO: O servidor parou de reescrever as datas de pagamento ao reiniciar
     try:
         alunos_pagos = Aluno.query.filter_by(status='Pago').all()
         for al in alunos_pagos:
@@ -433,6 +439,40 @@ def assistente_pontual():
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
 
+# =========================================================
+# PROPOSTA 3: NOVA ROTA - EXTERMINAR CLICHÊS DO TEXTO
+# =========================================================
+@app.route('/exterminar_cliches', methods=['POST'])
+@login_required
+def exterminar_cliches():
+    dados = request.json
+    trecho = dados.get('trecho')
+    
+    # Vamos usar o Gemini 2.5 Flash ou o modelo mais rápido ativo para correção rápida
+    modelos_disponiveis = get_modelos_ativos()
+    modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
+    
+    prompt = f"""Você é um editor humano de textos acadêmicos implacável.
+Sua única missão é limpar este parágrafo, tirando o "tom de Inteligência Artificial".
+
+TEXTO ORIGINAL:
+{trecho}
+
+REGRAS DE LIMPEZA ESTRITAS:
+1. Remova imediatamente palavras clichês de IA (ex: locus, momentum, tapeçaria, mergulho profundo, crucial, outrossim, dessarte, adentrar, vital, testamento, notável, farol).
+2. Substitua essas palavras por português moderno e natural.
+3. Remova formatações estranhas (como asteriscos simples * em volta de palavras).
+4. Mantenha 100% do tamanho, da estrutura, e do sentido da ideia original.
+5. Retorne APENAS o texto já corrigido e limpo, sem falar "Aqui está o texto"."""
+    
+    try:
+        novo_texto, custo = ia_core.chamar_ia(prompt, modelo_rapido, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
+        db.session.add(RegistroUso(modelo_usado=modelo_rapido, custo=custo))
+        db.session.commit()
+        return jsonify({"sucesso": True, "novo_texto": novo_texto})
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": str(e)})
+
 @app.route('/regerar_trecho', methods=['POST'])
 @login_required
 def regerar_trecho():
@@ -660,7 +700,6 @@ def dashboard():
                            data_fim=data_fim_str or '',
                            filtrado=(bool(data_inicio_str) or bool(data_fim_str)))
 
-# BUG RESOLVIDO: O servidor limpa as datas fantasma ao desfazer pagamentos
 @app.route('/mudar_status/<int:id>', methods=['POST'])
 @login_required
 def mudar_status(id):
