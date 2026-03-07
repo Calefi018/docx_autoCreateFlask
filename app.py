@@ -7,6 +7,7 @@ import requests
 import threading
 import logging
 import traceback
+import hashlib
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file
 from flask_sqlalchemy import SQLAlchemy
@@ -160,9 +161,6 @@ class GeracaoTask(db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# =========================================================
-# PROPOSTA 2: O CÉREBRO BASE AGORA TEM A LISTA NEGRA
-# =========================================================
 PROMPT_REGRAS_BASE = """VOCÊ AGORA ASSUME A PERSONA DE UM PROFESSOR UNIVERSITÁRIO AVALIADOR EXTREMAMENTE RIGOROSO E DE ALTA EXCELÊNCIA ACADÊMICA.
 
 REGRAS DE VOCABULÁRIO (ESTRITAMENTE PROIBIDO):
@@ -439,16 +437,12 @@ def assistente_pontual():
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
 
-# =========================================================
-# PROPOSTA 3: NOVA ROTA - EXTERMINAR CLICHÊS DO TEXTO
-# =========================================================
 @app.route('/exterminar_cliches', methods=['POST'])
 @login_required
 def exterminar_cliches():
     dados = request.json
     trecho = dados.get('trecho')
     
-    # Vamos usar o Gemini 2.5 Flash ou o modelo mais rápido ativo para correção rápida
     modelos_disponiveis = get_modelos_ativos()
     modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
     
@@ -583,6 +577,37 @@ def converter_pdf(doc_id):
             return jsonify({"sucesso": False, "erro": f"A API recusou: {dados_resposta.get('Message', 'Falha desconhecida.')}"})
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
+
+# =========================================================
+# BANCO DE TEMAS GLOBAIS (BIBLIOTECA DE BACKUP)
+# =========================================================
+@app.route('/banco_temas')
+@login_required
+def banco_temas():
+    # Puxa todos os temas salvos pelos seus clientes do mais novo para o mais velho
+    temas_brutos = db.session.query(TemaTrabalho).join(Aluno).filter(Aluno.user_id == current_user.id).order_by(TemaTrabalho.data_cadastro.desc()).all()
+    
+    temas_unicos = []
+    hashes_vistos = set()
+    
+    for t in temas_brutos:
+        texto_limpo = t.texto.strip()
+        if not texto_limpo: continue
+        
+        # Cria um "hash" (código único) com os primeiros 200 caracteres do texto
+        # Isso garante que se 50 alunos tiverem o exato mesmo texto, ele só aparece 1 vez na lista!
+        texto_hash = hashlib.md5(texto_limpo[:200].lower().encode('utf-8')).hexdigest()
+        
+        if texto_hash not in hashes_vistos:
+            hashes_vistos.add(texto_hash)
+            
+            # Formata um título bonito para exibir (ex: "Desafio de Empreendedorismo Criativo")
+            titulo_exibicao = t.titulo if t.titulo and not t.titulo.startswith("Tema ") else f"Desafio de {t.aluno.curso if t.aluno.curso else 'Disciplina'}"
+            t.titulo_exibicao = titulo_exibicao
+            
+            temas_unicos.append(t)
+            
+    return render_template('banco_temas.html', temas=temas_unicos)
 
 # =========================================================
 # DASHBOARD E ROTAS ADMIN / CRM
