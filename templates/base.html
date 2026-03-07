@@ -38,7 +38,7 @@
             padding: 0;
             width: 100vw;
             height: 100vh;
-            overflow: hidden; /* Corta qualquer rolagem fora do planejado */
+            overflow: hidden; 
             font-family: 'Inter', sans-serif; 
             background: var(--bg-color); 
             color: var(--text-color);
@@ -65,10 +65,9 @@
             transition: transform 0.3s ease; 
             z-index: 1000; 
             height: 100vh; 
-            overflow-y: auto; /* Rolagem independente para o menu */
+            overflow-y: auto; 
         }
 
-        /* Embelezar a barra de rolagem do menu */
         .sidebar::-webkit-scrollbar {
             width: 5px;
         }
@@ -118,7 +117,7 @@
             flex: 1; 
             padding: 40px; 
             height: 100vh;
-            overflow-y: auto; /* Rolagem independente para a área de trabalho */
+            overflow-y: auto; 
             overflow-x: hidden;
             scroll-behavior: smooth;
         }
@@ -190,7 +189,6 @@
             font-size: 1rem; 
         }
 
-        /* FUNDO ESCURO DO MENU MOBILE (FECHA AO CLICAR) */
         .sidebar-overlay {
             display: none;
             position: fixed;
@@ -203,7 +201,6 @@
             display: block;
         }
 
-        /* BOTÃO DE FECHAR (X) DENTRO DO MENU MOBILE */
         .close-sidebar-btn {
             display: none;
             position: absolute;
@@ -235,7 +232,6 @@
             max-width: 100%;
         }
 
-        /* COMPORTAMENTO EM TELAS PEQUENAS (TELEMÓVEL E TABLET) */
         @media (max-width: 768px) { 
             body { 
                 flex-direction: column; 
@@ -278,6 +274,7 @@
         {% if current_user.is_authenticated %}
             <a href="/"><i class="ph ph-magic-wand"></i> Novo Trabalho</a>
             <a href="/clientes"><i class="ph ph-users"></i> Clientes (CRM)</a>
+            <a href="/banco_temas" style="color: #38bdf8;"><i class="ph-fill ph-books"></i> Banco de Temas</a>
             <a href="/revisao_avulsa"><i class="ph ph-magnifying-glass"></i> Revisão Externa</a>
             <a href="/gabarito_inteligente" style="color: var(--warning);"><i class="ph-fill ph-check-square-offset"></i> Gabarito Inteligente</a>
             
