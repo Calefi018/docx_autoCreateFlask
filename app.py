@@ -599,16 +599,29 @@ def banco_temas():
         if texto_hash not in hashes_vistos:
             hashes_vistos.add(texto_hash)
             
-            # CORREÇÃO: Títulos blindados para aparecerem perfeitos (Títulos em Azul)
+            # NOVO MOTOR DE LEITURA: Procurar o título DENTRO do texto!
+            linhas = [linha.strip() for linha in texto_limpo.split('\n') if linha.strip()]
+            titulo_extraido = ""
+            
+            # Procura nas 5 primeiras linhas válidas se tem a palavra "DESAFIO"
+            for linha in linhas[:5]:
+                if "DESAFIO" in linha.upper():
+                    titulo_extraido = linha.upper().replace('*', '').strip()
+                    break
+            
+            # Se não achou com "DESAFIO", pega a primeira linha (se for curta como um título)
+            if not titulo_extraido and linhas and len(linhas[0]) < 100:
+                titulo_extraido = linhas[0].upper().replace('*', '').strip()
+            
             titulo_atual = str(t.titulo).strip().lower() if t.titulo else ""
             
-            # Se o título salvo for genérico (como "tema 1", "tema 2" ou vazio)
-            if not titulo_atual or titulo_atual.startswith("tema"):
-                # Puxa o nome do curso do aluno, remove os espaços e deixa tudo maiúsculo
+            if titulo_extraido:
+                # Se o bot conseguiu ler de dentro do texto, é o título definitivo!
+                t.titulo_exibicao = titulo_extraido
+            elif not titulo_atual or titulo_atual.startswith("tema"):
                 nome_curso = str(t.aluno.curso).strip().upper() if t.aluno.curso and t.aluno.curso.strip() else "DISCIPLINA NÃO INFORMADA"
                 t.titulo_exibicao = f"DESAFIO PROFISSIONAL DE {nome_curso}"
             else:
-                # Se você digitou um título manual bacana na hora de salvar, ele respeita e põe em maiúsculo
                 t.titulo_exibicao = str(t.titulo).upper()
             
             temas_unicos.append(t)
