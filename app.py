@@ -594,16 +594,22 @@ def banco_temas():
         texto_limpo = t.texto.strip()
         if not texto_limpo: continue
         
-        # Cria um "hash" (código único) com os primeiros 200 caracteres do texto
-        # Isso garante que se 50 alunos tiverem o exato mesmo texto, ele só aparece 1 vez na lista!
         texto_hash = hashlib.md5(texto_limpo[:200].lower().encode('utf-8')).hexdigest()
         
         if texto_hash not in hashes_vistos:
             hashes_vistos.add(texto_hash)
             
-            # Formata um título bonito para exibir (ex: "Desafio de Empreendedorismo Criativo")
-            titulo_exibicao = t.titulo if t.titulo and not t.titulo.startswith("Tema ") else f"Desafio de {t.aluno.curso if t.aluno.curso else 'Disciplina'}"
-            t.titulo_exibicao = titulo_exibicao
+            # CORREÇÃO: Títulos blindados para aparecerem perfeitos (Títulos em Azul)
+            titulo_atual = str(t.titulo).strip().lower() if t.titulo else ""
+            
+            # Se o título salvo for genérico (como "tema 1", "tema 2" ou vazio)
+            if not titulo_atual or titulo_atual.startswith("tema"):
+                # Puxa o nome do curso do aluno, remove os espaços e deixa tudo maiúsculo
+                nome_curso = str(t.aluno.curso).strip().upper() if t.aluno.curso and t.aluno.curso.strip() else "DISCIPLINA NÃO INFORMADA"
+                t.titulo_exibicao = f"DESAFIO PROFISSIONAL DE {nome_curso}"
+            else:
+                # Se você digitou um título manual bacana na hora de salvar, ele respeita e põe em maiúsculo
+                t.titulo_exibicao = str(t.titulo).upper()
             
             temas_unicos.append(t)
             
