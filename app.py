@@ -419,6 +419,78 @@ def status_geracao(task_id):
     if task.status == 'Cancelado': return jsonify({"status": "Cancelado"})
     return jsonify({"status": "Concluido", "dicionario": json.loads(task.resultado), "modelo_utilizado": task.modelo_utilizado})
 
+# =========================================================
+# NOVAS ROTAS: DETECÇÃO DE IA E HUMANIZAÇÃO AVULSA
+# =========================================================
+@app.route('/analisar_ia_trecho', methods=['POST'])
+@login_required
+def analisar_ia_trecho():
+    dados = request.json
+    trecho = dados.get('trecho', '').strip()
+    
+    # Se o texto for muito pequeno, a IA considera natural
+    if not trecho or len(trecho) < 15:
+        return jsonify({"sucesso": True, "porcentagem": 0})
+        
+    modelos_disponiveis = get_modelos_ativos()
+    modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
+    
+    prompt = f"""Você é um detetor de plágio e IA (como o Turnitin). Analise o texto abaixo e determine a probabilidade de ele ter sido gerado por IA. Considere:
+1. Excesso de coesão (muito certinho).
+2. Clichês robóticos.
+3. Falta de 'burstiness' (alternância entre frases longas e curtas).
+TEXTO: {trecho}
+
+Responda APENAS E ESTRITAMENTE com um número de 0 a 100. Nenhuma palavra extra."""
+
+    try:
+        resposta, custo = ia_core.chamar_ia(prompt, modelo_rapido, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
+        db.session.add(RegistroUso(modelo_usado=modelo_rapido, custo=custo))
+        db.session.commit()
+        
+        # Garante que só extrai os números da resposta da IA
+        numeros = re.findall(r'\d+', resposta)
+        porcentagem = int(numeros[0]) if numeros else 50
+        if porcentagem > 100: porcentagem = 100
+        
+        return jsonify({"sucesso": True, "porcentagem": porcentagem})
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": str(e)})
+
+@app.route('/humanizar_trecho_avulso', methods=['POST'])
+@login_required
+def humanizar_trecho_avulso():
+    dados = request.json
+    trecho = dados.get('trecho')
+    modelo = dados.get('modelo', get_modelos_ativos()[0])
+    
+    prompt = f"""Você é um especialista em escrita humana invisível para detectores de IA.
+Sua única tarefa é reescrever o texto abaixo para que pareça 100% humano.
+REGRAS OBRIGATÓRIAS:
+1. Mantenha exatamente o mesmo tamanho e conteúdo do texto original.
+2. Alterne frases curtas e diretas com frases mais explicativas (Burstiness).
+3. Use um vocabulário levemente imprevisível, mas acadêmico (Perplexity).
+4. É ESTRITAMENTE PROIBIDO usar palavras como: crucial, adentrar, mergulho profundo, tapeçaria, notável, farol, locus, momentum.
+
+TEXTO ORIGINAL:
+{trecho}
+
+Responda APENAS com o texto reescrito pronto e limpo, sem marcações."""
+    
+    try:
+        novo_texto, custo = ia_core.chamar_ia(prompt, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
+        db.session.add(RegistroUso(modelo_usado=modelo, custo=custo))
+        db.session.commit()
+        
+        # Limpa asteriscos soltos caso a IA coloque
+        while novo_texto.startswith('**') and novo_texto.endswith('**') and len(novo_texto) > 4: 
+            novo_texto = novo_texto[2:-2].strip()
+            
+        return jsonify({"sucesso": True, "novo_texto": novo_texto})
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": str(e)})
+
+
 @app.route('/assistente_pontual', methods=['POST'])
 @login_required
 def assistente_pontual():
@@ -593,9 +665,6 @@ def banco_temas():
         texto_limpo = t.texto.strip()
         if not texto_limpo: continue
         
-        # NOVO MOTOR DE HASH EXTREMO: 
-        # Remove todos os espaços, quebras de linha e pontuações das primeiras 500 letras.
-        # Assim, se um aluno pôs um espaço a mais ou um enter a mais, o sistema ignora e apaga o duplicado!
         texto_puro_para_comparacao = re.sub(r'[\W_]+', '', texto_limpo[:500].lower())
         texto_hash = hashlib.md5(texto_puro_para_comparacao.encode('utf-8')).hexdigest()
         
