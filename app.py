@@ -224,9 +224,7 @@ TODOS_MODELOS_CONHECIDOS = [
     "anthropic/claude-3-opus",
     "openai/gpt-4o",
     "openai/gpt-4o-mini",
-    "gemini-2.5-pro",
     "google/gemini-2.5-pro",
-    "gemini-2.5-flash",
     "google/gemini-2.5-flash",
     "meta-llama/llama-3.3-70b-instruct",
     "qwen/qwen-2.5-72b-instruct",
@@ -238,13 +236,11 @@ def get_modelos_ativos():
     config = SiteSettings.query.first()
     if config and config.modelos_ativos:
         return [m.strip() for m in config.modelos_ativos.split(',') if m.strip()]
-    return ["anthropic/claude-3.5-sonnet", "gemini-2.5-pro", "gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct", "qwen/qwen-2.5-72b-instruct"]
+    return ["anthropic/claude-3.5-sonnet", "google/gemini-2.5-pro", "google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct", "qwen/qwen-2.5-72b-instruct"]
 
 def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
     with app.app_context():
         ultimo_erro = ""
-        # ESTANQUE DE DINHEIRO: Apenas tenta no modelo escolhido e NO MÁXIMO em 1 modelo reserva barato. 
-        # Isso impede o loop infinito de queimar dólares se a formatação vier errada.
         modelos_para_tentar = fila_modelos[:2]
         
         for modelo in modelos_para_tentar:
@@ -254,8 +250,6 @@ def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
                 
                 tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
                 
-                # NOVO FILTRO TOLERANTE: Se preencheu pelo menos 3 caixas, aceitamos o trabalho! 
-                # É melhor e muito mais barato o utilizador clicar em "Regerar" nas caixas vazias do que mandar a IA fazer tudo de novo.
                 if tags_preenchidas < 3: 
                     raise Exception(f"A IA {modelo} falhou severamente ao preencher as tags.")
                 
@@ -343,7 +337,6 @@ def gerar_rascunho():
         config = PromptConfig.query.filter_by(is_default=True).first()
         
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
-    # O Prompt agora força a IA a devolver AS TAGS DE FORMA ESTRITA para não queimar blocos de texto
     prompt_completo = f"TEMA:\n{tema}\n\n{texto_prompt}\n\nMUITO IMPORTANTE: Use as marcações exatas [START_NOME_DA_TAG] e [END_NOME_DA_TAG] para cada sessão do trabalho."
     
     fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
@@ -435,8 +428,8 @@ def analisar_ia_trecho():
         if not trecho or len(trecho) < 25:
             return jsonify({"sucesso": True, "porcentagem": 0})
             
-        modelos_disponiveis = get_modelos_ativos()
-        modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
+        # AQUI ESTAVA O ERRO DE BLOQUEIO: Forçar modelo barato COM prefixo OpenRouter
+        modelo_rapido = "google/gemini-2.5-flash"
         
         prompt = f"""Você é um analista de textos acadêmicos. Avalie de 0 a 100 qual a probabilidade do texto abaixo ter sido gerado por uma Inteligência Artificial.
 ATENÇÃO: Textos universitários (TCC, desafios) usam naturalmente linguagem culta. NÃO confunda texto bem escrito e formal com Inteligência Artificial!
@@ -522,8 +515,8 @@ def exterminar_cliches():
         dados = request.json or {}
         trecho = str(dados.get('trecho', ''))
         
-        modelos_disponiveis = get_modelos_ativos()
-        modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
+        # AQUI TAMBÉM: Modelo barato com OpenRouter explícito
+        modelo_rapido = "google/gemini-2.5-flash"
         
         prompt = f"""Você é um editor humano de textos acadêmicos implacável. Sua missão é limpar este parágrafo.
 TEXTO ORIGINAL:
@@ -776,7 +769,6 @@ def dashboard():
     grafico_meses_labels = [f"{meses_nomes[m-1]}/{str(y)[2:]}" for y, m in labels_meses]
     grafico_meses_valores = [faturamento_dict[k] for k in labels_meses]
     
-    # === CONEXÃO DIRETA PARA LER O GASTO REAL DA OPENROUTER EM DÓLARES ===
     gasto_real_openrouter = ia_core.consultar_gasto_openrouter(CHAVE_OPENROUTER)
     
     return render_template('dashboard.html', 
@@ -784,7 +776,7 @@ def dashboard():
                            receita_periodo=receita_periodo, 
                            a_receber_periodo=a_receber_periodo, 
                            custo_periodo=custo_periodo, 
-                           gasto_real_openrouter=gasto_real_openrouter, # Variável nova enviada para o painel!
+                           gasto_real_openrouter=gasto_real_openrouter, 
                            trabalhos_periodo=trabalhos_periodo, 
                            uso_modelos=uso_modelos_lista, 
                            graf_meses_lbl=grafico_meses_labels, 
