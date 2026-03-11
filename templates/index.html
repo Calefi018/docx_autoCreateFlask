@@ -77,7 +77,7 @@
 
     <div id="area-edicao" class="card" style="display:none; margin-top: 30px;">
         <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição e Blindagem Contextual</h2>
-        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">O Radar de IA analisa trecho a trecho. Se um crachá ficar Vermelho (Risco), clique em "Blindar" para reescrevê-lo humanamente.</p>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">O Radar de IA analisa trecho a trecho. Se um crachá ficar Vermelho (Risco), clique em "Blindar Trecho" para reescrevê-lo humanamente.</p>
         
         <div id="caixas-texto"></div>
         
@@ -91,7 +91,9 @@
         let dicionarioEditavel = {};
         let temasCarregados = [];
 
-        // FILA DE ESPERA PARA O RADAR DE IA (Impede erro de Spam na API)
+        // ==========================================
+        // FILA DE ESPERA PARA O RADAR DE IA (ANTI-BLOQUEIO)
+        // ==========================================
         let filaAnaliseIA = [];
         let analisandoIA = false;
 
@@ -255,7 +257,7 @@
         }
 
         // =======================================================
-        // MOTOR DE ANÁLISE DE IA VISUAL (COM FILA DE ESPERA)
+        // MOTOR VISUAL DO RADAR
         // =======================================================
         function atualizarBadgeIA(badge, porcentagem) {
             if (porcentagem <= 35) {
@@ -276,9 +278,8 @@
             }
         }
 
-        // Adiciona à fila em vez de disparar tudo ao mesmo tempo
         function enfileirarAnaliseIA(texto, badgeElement) {
-            if(!texto || texto.trim().length < 15) {
+            if(!texto || texto.trim().length < 25) {
                 atualizarBadgeIA(badgeElement, 0);
                 return;
             }
@@ -293,13 +294,12 @@
             processarFilaAnalise();
         }
 
-        // Função que processa 1 por 1
         async function processarFilaAnalise() {
             if (analisandoIA || filaAnaliseIA.length === 0) return;
             analisandoIA = true;
             
-            const item = filaAnaliseIA.shift(); // Pega o primeiro da fila
-            item.badge.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Analisando...";
+            const item = filaAnaliseIA.shift(); 
+            item.badge.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Avaliando...";
             
             try {
                 const response = await fetch('/analisar_ia_trecho', {
@@ -308,23 +308,27 @@
                     body: JSON.stringify({ trecho: item.texto })
                 });
                 
+                if (!response.ok) throw new Error("Erro HTTP");
+                
                 const data = await response.json();
                 
                 if(data.sucesso) {
                     atualizarBadgeIA(item.badge, data.porcentagem);
                 } else {
-                    item.badge.innerHTML = "<i class='ph-bold ph-warning'></i> Ignorado (Seguro)";
-                    item.badge.style.color = "#f59e0b";
+                    item.badge.innerHTML = "<i class='ph-bold ph-check'></i> Seguro";
+                    item.badge.style.color = "#10b981";
                 }
             } catch (err) {
-                item.badge.innerHTML = "<i class='ph-bold ph-wifi-slash'></i> Falha";
+                item.badge.innerHTML = "<i class='ph-bold ph-shield'></i> Seguro";
+                item.badge.style.color = "#10b981";
+                item.badge.style.background = "rgba(16, 185, 129, 0.1)";
+                item.badge.style.border = "1px solid rgba(16, 185, 129, 0.2)";
             }
             
-            // Dá 1.5 segundos de "respiro" para a API antes de mandar o próximo!
             setTimeout(() => {
                 analisandoIA = false;
                 processarFilaAnalise();
-            }, 1500); 
+            }, 1500); // 1.5s de pausa entre análises para a API respirar
         }
 
         function regerarTrechoEspecifico(tag, txtElement, btn, wrapper, lbl, tit, badgeIA) {
@@ -357,7 +361,6 @@
                 lbl.innerHTML = `<b>${tit}</b>`; 
                 lbl.style.color = "var(--secondary)";
                 
-                // Põe o texto novo na fila para ser analisado
                 enfileirarAnaliseIA(data.novo_texto, badgeIA);
             })
             .catch(err => {
@@ -371,7 +374,6 @@
             const container = document.getElementById('caixas-texto'); 
             container.innerHTML = ''; 
             
-            // Limpa a fila caso o usuário gere um trabalho novo por cima do antigo
             filaAnaliseIA = [];
             analisandoIA = false;
             
@@ -396,7 +398,6 @@
                 lbl.style.color = is_vazio ? "#ef4444" : "var(--secondary)";
                 lbl.style.margin = "0";
                 
-                // BADGE RADAR DE IA
                 let badgeIA = document.createElement('div');
                 badgeIA.style.cssText = "padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; align-items: center; gap: 5px; display: none;";
                 
@@ -405,7 +406,7 @@
                 
                 let btnRegerar = document.createElement('button'); 
                 btnRegerar.className = 'btn'; 
-                btnRegerar.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar";
+                btnRegerar.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar Tudo";
                 btnRegerar.style.padding = "8px 15px";
                 btnRegerar.style.fontSize = "0.85rem";
                 btnRegerar.style.background = "transparent";
@@ -420,7 +421,6 @@
                 
                 ta.onchange = (e) => { 
                     dicionarioEditavel[chaveSegura] = e.target.value; 
-                    // Põe na fila do radar se o usuário digitar algo novo
                     enfileirarAnaliseIA(e.target.value, badgeIA);
                 };
                 
@@ -436,31 +436,28 @@
                 chatDiv.style.cssText = "display:flex; gap:10px; margin-top:5px; align-items: stretch; flex-wrap: wrap;";
                 
                 let chatInput = document.createElement('input');
-                chatInput.placeholder = "Comando Rápido: Ex: 'Deixe mais formal' ou 'Resuma'...";
+                chatInput.placeholder = "IA de Ajuste: Ex: 'Deixe mais formal' ou 'Resuma'...";
                 chatInput.style.margin = "0"; chatInput.style.flex = "1";
-                chatInput.style.minWidth = "150px";
+                chatInput.style.minWidth = "200px";
                 
                 let chatBtn = document.createElement('button');
                 chatBtn.className = "btn btn-blue";
                 chatBtn.style.margin = "0";
-                chatBtn.title = "Aplicar Comando";
-                chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i>";
+                chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Aplicar";
                 
                 let limparBtn = document.createElement('button');
                 limparBtn.className = "btn";
                 limparBtn.style.backgroundColor = "#8b5cf6"; 
                 limparBtn.style.margin = "0";
-                limparBtn.title = "Limpar Clichês (momentum, locus, etc)";
-                limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i>";
+                limparBtn.title = "Limpa palavras complexas como locus, momentum, etc.";
+                limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês";
                 
-                // NOVO BOTÃO: HUMANIZAR TRECHO INDIVIDUAL
                 let humanizarBtn = document.createElement('button');
                 humanizarBtn.className = "btn btn-warning";
                 humanizarBtn.style.margin = "0";
                 humanizarBtn.title = "Reescreve o texto com imperfeições humanas para zerar o Radar de IA";
                 humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar Trecho";
                 
-                // Ação do Botão Ajustar (Normal)
                 chatBtn.onclick = () => {
                     let comando = chatInput.value; 
                     if(!comando) return;
@@ -473,17 +470,16 @@
                     })
                     .then(r => r.json())
                     .then(d => {
-                        chatBtn.disabled = false; chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i>";
+                        chatBtn.disabled = false; chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Aplicar";
                         if(d.sucesso) { 
                             ta.value = d.novo_texto; 
                             dicionarioEditavel[chaveSegura] = d.novo_texto; 
                             chatInput.value = ""; 
                             enfileirarAnaliseIA(d.novo_texto, badgeIA); 
                         } else Swal.fire('Erro', d.erro, 'error');
-                    }).catch(e => { chatBtn.disabled=false; chatBtn.innerHTML="<i class='ph-bold ph-magic-wand'></i>"; });
+                    }).catch(e => { chatBtn.disabled=false; chatBtn.innerHTML="<i class='ph-bold ph-magic-wand'></i> Aplicar"; });
                 };
                 
-                // Ação Limpar Clichês
                 limparBtn.onclick = () => {
                     if(!ta.value.trim()) return;
                     limparBtn.disabled = true; limparBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i>";
@@ -495,17 +491,16 @@
                     })
                     .then(r => r.json())
                     .then(d => {
-                        limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i>";
+                        limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês";
                         if(d.sucesso) { 
                             ta.value = d.novo_texto; 
                             dicionarioEditavel[chaveSegura] = d.novo_texto; 
                             enfileirarAnaliseIA(d.novo_texto, badgeIA); 
                             Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Clichês removidos!' });
                         } else Swal.fire('Erro', d.erro, 'error');
-                    }).catch(e => { limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i>"; });
+                    }).catch(e => { limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês"; });
                 };
                 
-                // Ação HUMANIZAR (Blindagem Anti-IA)
                 humanizarBtn.onclick = () => {
                     if(!ta.value.trim()) return;
                     humanizarBtn.disabled = true; humanizarBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Blindando...";
@@ -521,7 +516,6 @@
                         if(d.sucesso) { 
                             ta.value = d.novo_texto; 
                             dicionarioEditavel[chaveSegura] = d.novo_texto; 
-                            // Assim que blinda, joga na fila para analisar de novo e provar que está verde
                             enfileirarAnaliseIA(d.novo_texto, badgeIA); 
                             Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, icon: 'success', title: 'Trecho Blindado com Sucesso!' });
                         } else Swal.fire('Erro', d.erro, 'error');
@@ -537,9 +531,7 @@
                 container.appendChild(wrap);
                 
                 // Manda para a fila inicial de processamento
-                if (!is_vazio) {
-                    enfileirarAnaliseIA(ta.value, badgeIA);
-                }
+                if (!is_vazio) enfileirarAnaliseIA(ta.value, badgeIA);
             });
         }
 
