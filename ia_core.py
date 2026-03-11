@@ -9,13 +9,10 @@ def limpar_texto_ia(texto):
     except Exception: 
         pass
         
-    # =========================================================
-    # PROPOSTA 1: O "ESFREGÃO ANTI-CLICHÊ" AUTOMÁTICO
-    # =========================================================
-    # 1. Remover asteriscos simples (itálico indesejado) preservando os duplos (negrito)
+    # Remove asteriscos simples (itálicos chatos) mas preserva os duplos (negritos)
     texto = re.sub(r'(?<!\*)\*(?!\*)', '', texto)
     
-    # 2. Dicionário de traduções ChatGPTês -> Humano Acadêmico Moderno
+    # Dicionário de limpeza extrema
     substituicoes = {
         r'\bmomentum\b': 'impulso',
         r'\blocus\b': 'ambiente',
@@ -36,7 +33,6 @@ def limpar_texto_ia(texto):
     }
     
     for padrao, substituto in substituicoes.items():
-        # Substitui ignorando maiúsculas e minúsculas
         texto = re.sub(padrao, substituto, texto, flags=re.IGNORECASE)
         
     return texto
@@ -46,9 +42,18 @@ def calcular_custo_api(modelo, prompt_tokens, completion_tokens):
     custo_usd = 0.0
     mod_lower = modelo.lower()
     
+    # Tabela de preços exata atualizada (Março/2024+) - Valores por 1 Milhão de Tokens
     if "claude-3.5-sonnet" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 3.0) + (completion_tokens / 1000000 * 15.0)
-    elif "llama-3.3-70b" in mod_lower or "qwen" in mod_lower:
+    elif "claude-3-opus" in mod_lower:
+        custo_usd = (prompt_tokens / 1000000 * 15.0) + (completion_tokens / 1000000 * 75.0)
+    elif "gpt-4o-mini" in mod_lower:
+        custo_usd = (prompt_tokens / 1000000 * 0.15) + (completion_tokens / 1000000 * 0.60)
+    elif "gpt-4o" in mod_lower:
+        custo_usd = (prompt_tokens / 1000000 * 2.5) + (completion_tokens / 1000000 * 10.0)
+    elif "llama-3.3-70b" in mod_lower:
+        custo_usd = (prompt_tokens / 1000000 * 0.4) + (completion_tokens / 1000000 * 0.4)
+    elif "qwen" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 0.4) + (completion_tokens / 1000000 * 0.4)
     elif "gemini-2.5-pro" in mod_lower or "gemini-pro" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 1.25) + (completion_tokens / 1000000 * 5.0)
@@ -78,7 +83,6 @@ def chamar_ia(prompt, nome_modelo, chave_google=None, chave_openrouter=None):
             "temperature": 0.7
         }
         
-        # Timeout aumentado para 180s para aguentar modelos pesados
         res = requests.post(
             "https://openrouter.ai/api/v1/chat/completions", 
             headers=headers, 
@@ -122,6 +126,7 @@ def extrair_dicionario(texto_ia):
     ]
     dic = {}
     for chave in chaves:
+        # Expressão regular fortificada para lidar com IAs teimosas que formatam errado
         match = re.search(rf"\[START_{chave}\](.*?)(?=\[END_{chave}\]|\[START_|$)", texto_ia, re.DOTALL | re.IGNORECASE)
         if match:
             trecho = match.group(1).strip()
@@ -140,3 +145,17 @@ def extrair_json_seguro(texto):
         return json.loads(texto)
     except Exception: 
         return []
+
+def consultar_gasto_openrouter(chave_openrouter):
+    """Bate na API da OpenRouter e puxa exatamente os dólares gastos na conta."""
+    try:
+        if not chave_openrouter: return 0.0
+        headers = {"Authorization": f"Bearer {chave_openrouter}"}
+        res = requests.get("https://openrouter.ai/api/v1/auth/key", headers=headers, timeout=10)
+        if res.status_code == 200:
+            dados = res.json()
+            # Retorna o uso total em dólares (USD)
+            return float(dados.get("data", {}).get("usage", 0.0))
+        return 0.0
+    except Exception:
+        return 0.0
