@@ -243,14 +243,21 @@ def get_modelos_ativos():
 def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
     with app.app_context():
         ultimo_erro = ""
-        for modelo in fila_modelos:
+        # ESTANQUE DE DINHEIRO: Apenas tenta no modelo escolhido e NO MÁXIMO em 1 modelo reserva barato. 
+        # Isso impede o loop infinito de queimar dólares se a formatação vier errada.
+        modelos_para_tentar = fila_modelos[:2]
+        
+        for modelo in modelos_para_tentar:
             try:
                 texto_resposta, custo_estimado = ia_core.chamar_ia(prompt_completo, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
                 dicionario = ia_core.extrair_dicionario(texto_resposta)
                 
                 tags_preenchidas = sum(1 for v in dicionario.values() if v.strip())
-                if tags_preenchidas < 10: 
-                    raise Exception(f"A IA {modelo} teve preguiça e gerou poucas tags.")
+                
+                # NOVO FILTRO TOLERANTE: Se preencheu pelo menos 3 caixas, aceitamos o trabalho! 
+                # É melhor e muito mais barato o utilizador clicar em "Regerar" nas caixas vazias do que mandar a IA fazer tudo de novo.
+                if tags_preenchidas < 3: 
+                    raise Exception(f"A IA {modelo} falhou severamente ao preencher as tags.")
                 
                 task_verificar = GeracaoTask.query.get(task_id)
                 if task_verificar and task_verificar.status == 'Cancelado':
@@ -273,7 +280,7 @@ def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
         task_erro = GeracaoTask.query.get(task_id)
         if task_erro and task_erro.status != 'Cancelado':
             task_erro.status = 'Erro'
-            task_erro.erro = f"Erro Fatal. Todas as IAs reportaram falha técnica. Último erro: {ultimo_erro}"
+            task_erro.erro = f"Falha ao processar as IAs. Último erro: {ultimo_erro}"
             db.session.commit()
 
 # =========================================================
@@ -336,7 +343,8 @@ def gerar_rascunho():
         config = PromptConfig.query.filter_by(is_default=True).first()
         
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
-    prompt_completo = f"TEMA:\n{tema}\n\n{texto_prompt}"
+    # O Prompt agora força a IA a devolver AS TAGS DE FORMA ESTRITA para não queimar blocos de texto
+    prompt_completo = f"TEMA:\n{tema}\n\n{texto_prompt}\n\nMUITO IMPORTANTE: Use as marcações exatas [START_NOME_DA_TAG] e [END_NOME_DA_TAG] para cada sessão do trabalho."
     
     fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
     nova_task = GeracaoTask(user_id=current_user.id, status='Pendente')
@@ -378,7 +386,7 @@ REGRAS DE BLINDAGEM (ESTILO DE ESCRITA):
 1. Explosividade (Burstiness): Alterne entre frases longas e explicativas e frases extremamente curtas e diretas.
 2. Perplexidade: Troque termos robóticos por sinônimos menos óbvios.
 
-TEXTO ORIGINAL QUE VOCÊ DEVE PARAFRASEAR (Mantenha 100% do sentido original):
+TEXTO ORIGINAL:
 {texto_contexto}
 
 IMPORTANTE: Retorne o resultado usando EXATAMENTE as mesmas tags [START_nome_da_tag] e [END_nome_da_tag]."""
@@ -415,7 +423,7 @@ def status_geracao(task_id):
     return jsonify({"status": "Concluido", "dicionario": json.loads(task.resultado), "modelo_utilizado": task.modelo_utilizado})
 
 # =========================================================
-# NOVAS ROTAS: DETECÇÃO DE IA E HUMANIZAÇÃO AVULSA
+# ROTAS DO RADAR DE IA E HUMANIZADOR (ATUALIZADAS)
 # =========================================================
 @app.route('/analisar_ia_trecho', methods=['POST'])
 @login_required
@@ -424,37 +432,33 @@ def analisar_ia_trecho():
         dados = request.json or {}
         trecho = str(dados.get('trecho', '')).strip()
         
-        if not trecho or len(trecho) < 15:
+        if not trecho or len(trecho) < 25:
             return jsonify({"sucesso": True, "porcentagem": 0})
             
         modelos_disponiveis = get_modelos_ativos()
         modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
         
-        prompt = f"""Você é um sistema rigoroso de detecção de plágio e Inteligência Artificial (estilo Turnitin).
-Sua missão é dizer qual a probabilidade deste texto ter sido gerado por IA.
+        prompt = f"""Você é um analista de textos acadêmicos. Avalie de 0 a 100 qual a probabilidade do texto abaixo ter sido gerado por uma Inteligência Artificial.
+ATENÇÃO: Textos universitários (TCC, desafios) usam naturalmente linguagem culta. NÃO confunda texto bem escrito e formal com Inteligência Artificial!
 
-ATENÇÃO: Textos acadêmicos (TCCs, Trabalhos de Faculdade) naturalmente possuem linguagem formal. NÃO penalize o texto apenas por ser formal ou bem escrito. 
+DÊ UMA NOTA ALTA (70-100%) APENAS SE: 
+- Houver excesso de palavras-clichê robóticas (ex: 'crucial', 'mergulho profundo', 'tapeçaria', 'vital', 'locus', 'notável', 'farol', 'em suma').
+- O texto não tiver variação de tamanho de frases (texto "quadrado" e monótono).
 
-SINAIS DE ALTO RISCO DE IA (Aumentam a porcentagem para 80-100%):
-- Uso de palavras-clichê de ChatGPT: crucial, vital, farol, tapeçaria, notável, em resumo, adentrar, mergulho profundo, locus, momentum, testamento.
-- Estrutura excessivamente mecânica e perfeita.
-- Ausência total de variação no tamanho das frases (falta de "burstiness").
+DÊ UMA NOTA BAIXA (0-30%) SE: 
+- For direto, objetivo, e as frases tiverem tamanhos desiguais.
 
-SINAIS DE TEXTO HUMANO (Abaixam a porcentagem para 0-30%):
-- Frases diretas e objetivas misturadas com explicações longas.
-- Ausência de palavras rebuscadas desnecessárias.
-
-TEXTO A SER ANALISADO:
+TEXTO:
 {trecho}
 
-Responda APENAS E ESTRITAMENTE com um número inteiro de 0 a 100. Não escreva mais NADA além do número."""
+Responda ÚNICA E EXCLUSIVAMENTE com o número da porcentagem (ex: 15). Nenhuma palavra extra."""
 
         resposta, custo = ia_core.chamar_ia(prompt, modelo_rapido, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo_rapido, custo=custo))
         db.session.commit()
         
         numeros = re.findall(r'\d+', resposta)
-        porcentagem = int(numeros[0]) if numeros else 20
+        porcentagem = int(numeros[0]) if numeros else 15
         if porcentagem > 100: porcentagem = 100
         
         return jsonify({"sucesso": True, "porcentagem": porcentagem})
@@ -469,20 +473,18 @@ def humanizar_trecho_avulso():
         trecho = str(dados.get('trecho', ''))
         modelo = dados.get('modelo', get_modelos_ativos()[0])
         
-        prompt = f"""Você é um aluno universitário especialista em escrever textos de forma natural para burlar detectores de Inteligência Artificial.
-Sua missão é reescrever o texto abaixo para que a probabilidade de IA seja 0%.
+        prompt = f"""Sua missão é reescrever o texto abaixo como se fosse um estudante universitário real, visando 0% de detecção por softwares Anti-IA (GPTZero).
 
-REGRAS DE BLINDAGEM ESTRITAS:
-1. Burstiness (Explosividade): Alterne drasticamente o tamanho das frases. Use uma frase curta e direta. Depois, uma mais explicativa.
-2. Imprevisibilidade: Substitua palavras "perfeitas" por sinônimos comuns do dia a dia acadêmico.
-3. Corte floreios: Vá direto ao ponto. Remova transições robóticas como "É importante notar que", "Primeiramente".
-4. PALAVRAS PROIBIDAS: crucial, vital, farol, tapeçaria, testamento, notável, adentrar, mergulho profundo, locus, momentum, outrossim.
-5. Mantenha 100% da informação original e do tamanho do texto. Não invente nada novo.
+TÁTICAS OBRIGATÓRIAS:
+1. Exploda o padrão de frases: Escreva uma frase curta e cortante. Depois, escreva uma mais explicativa e longa.
+2. Troque o vocabulário "chique" por palavras comuns de faculdade. 
+3. É ESTRITAMENTE PROIBIDO usar palavras como: crucial, notável, vital, mergulhar, adentrar, em resumo, outrossim, farol, tapeçaria, locus.
+4. Não adicione saudações, apenas o conteúdo limpo reescrito.
 
 TEXTO ORIGINAL:
 {trecho}
 
-Retorne APENAS o texto reescrito e limpo, sem aspas e sem comentários."""
+Retorne APENAS o novo texto."""
         
         novo_texto, custo = ia_core.chamar_ia(prompt, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo, custo=custo))
@@ -567,7 +569,7 @@ TAREFA: Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO fazer sentido co
         fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
         ultimo_erro = ""
 
-        for modelo in fila_modelos:
+        for modelo in fila_modelos[:2]: # Limitado a 2 tentativas para não queimar saldo
             try:
                 novo_texto, custo = ia_core.chamar_ia(prompt_regeracao, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
                 novo_texto = re.sub(rf"\[/?START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
@@ -653,7 +655,6 @@ def converter_pdf(doc_id):
 @login_required
 def banco_temas():
     temas_brutos = db.session.query(TemaTrabalho).join(Aluno).filter(Aluno.user_id == current_user.id).order_by(TemaTrabalho.data_cadastro.desc()).all()
-    
     temas_unicos = []
     hashes_vistos = set()
     
@@ -666,10 +667,8 @@ def banco_temas():
         
         if texto_hash not in hashes_vistos:
             hashes_vistos.add(texto_hash)
-            
             linhas = [linha.strip() for linha in texto_limpo.split('\n') if linha.strip()]
             titulo_extraido = ""
-            
             for linha in linhas[:5]:
                 if "DESAFIO" in linha.upper():
                     titulo_extraido = linha.upper().replace('*', '').strip()
@@ -680,30 +679,26 @@ def banco_temas():
             
             titulo_atual = str(t.titulo).strip().lower() if t.titulo else ""
             
-            if titulo_extraido:
-                t.titulo_exibicao = titulo_extraido
+            if titulo_extraido: t.titulo_exibicao = titulo_extraido
             elif not titulo_atual or titulo_atual.startswith("tema"):
                 nome_curso = str(t.aluno.curso).strip().upper() if t.aluno.curso and t.aluno.curso.strip() else "DISCIPLINA NÃO INFORMADA"
                 t.titulo_exibicao = f"DESAFIO PROFISSIONAL DE {nome_curso}"
-            else:
-                t.titulo_exibicao = str(t.titulo).upper()
+            else: t.titulo_exibicao = str(t.titulo).upper()
             
             temas_unicos.append(t)
             
     return render_template('banco_temas.html', temas=temas_unicos)
 
 # =========================================================
-# DASHBOARD E ROTAS ADMIN / CRM
+# DASHBOARD FINANCEIRO E COMUNICAÇÃO COM OPENROUTER
 # =========================================================
 @app.route('/dashboard')
 @login_required
 def dashboard():
     data_inicio_str = request.args.get('data_inicio')
     data_fim_str = request.args.get('data_fim')
-
     agora_utc = datetime.utcnow()
     hoje_brasil = agora_utc - timedelta(hours=3)
-    
     data_inicio = None
     data_fim = None
     if data_inicio_str:
@@ -714,26 +709,19 @@ def dashboard():
         except: pass
 
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).all()
-    
-    receita_hoje = 0.0
-    receita_periodo = 0.0
-    a_receber_periodo = 0.0
-    trabalhos_periodo = 0
+    receita_hoje, receita_periodo, a_receber_periodo, trabalhos_periodo = 0.0, 0.0, 0.0, 0
 
     for a in todos_alunos:
         if a.status == 'Pago':
             d_base = a.data_pagamento if a.data_pagamento else a.data_cadastro
-            if d_base:
-                d_base_br = (d_base - timedelta(hours=3)).date()
-                if d_base_br == hoje_brasil.date():
-                    receita_hoje += (a.valor or 70.0)
+            if d_base and (d_base - timedelta(hours=3)).date() == hoje_brasil.date():
+                receita_hoje += (a.valor or 70.0)
 
         data_ref_pagamento = (a.data_pagamento - timedelta(hours=3)).date() if a.data_pagamento else ((a.data_cadastro - timedelta(hours=3)).date() if a.data_cadastro else hoje_brasil.date())
         data_ref_cadastro = (a.data_cadastro - timedelta(hours=3)).date() if a.data_cadastro else hoje_brasil.date()
 
         in_period_pagamento = True
         in_period_cadastro = True
-
         if data_inicio:
             if data_ref_pagamento < data_inicio: in_period_pagamento = False
             if data_ref_cadastro < data_inicio: in_period_cadastro = False
@@ -741,14 +729,9 @@ def dashboard():
             if data_ref_pagamento > data_fim: in_period_pagamento = False
             if data_ref_cadastro > data_fim: in_period_cadastro = False
 
-        if a.status == 'Pago' and in_period_pagamento:
-            receita_periodo += (a.valor or 70.0)
-
-        if a.status != 'Pago' and in_period_cadastro:
-            a_receber_periodo += (a.valor or 70.0)
-
-        if in_period_cadastro:
-            trabalhos_periodo += 1
+        if a.status == 'Pago' and in_period_pagamento: receita_periodo += (a.valor or 70.0)
+        if a.status != 'Pago' and in_period_cadastro: a_receber_periodo += (a.valor or 70.0)
+        if in_period_cadastro: trabalhos_periodo += 1
             
     todos_usos = RegistroUso.query.all()
     custo_periodo = 0.0
@@ -793,11 +776,15 @@ def dashboard():
     grafico_meses_labels = [f"{meses_nomes[m-1]}/{str(y)[2:]}" for y, m in labels_meses]
     grafico_meses_valores = [faturamento_dict[k] for k in labels_meses]
     
+    # === CONEXÃO DIRETA PARA LER O GASTO REAL DA OPENROUTER EM DÓLARES ===
+    gasto_real_openrouter = ia_core.consultar_gasto_openrouter(CHAVE_OPENROUTER)
+    
     return render_template('dashboard.html', 
                            receita_hoje=receita_hoje, 
                            receita_periodo=receita_periodo, 
                            a_receber_periodo=a_receber_periodo, 
                            custo_periodo=custo_periodo, 
+                           gasto_real_openrouter=gasto_real_openrouter, # Variável nova enviada para o painel!
                            trabalhos_periodo=trabalhos_periodo, 
                            uso_modelos=uso_modelos_lista, 
                            graf_meses_lbl=grafico_meses_labels, 
