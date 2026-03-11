@@ -769,14 +769,15 @@ def dashboard():
     grafico_meses_labels = [f"{meses_nomes[m-1]}/{str(y)[2:]}" for y, m in labels_meses]
     grafico_meses_valores = [faturamento_dict[k] for k in labels_meses]
     
-    gasto_real_openrouter = ia_core.consultar_gasto_openrouter(CHAVE_OPENROUTER)
+    # AQUI ESTÁ A NOVA LIGAÇÃO: Puxa a variável de SALDO em vez da de gasto
+    saldo_real_openrouter = ia_core.consultar_saldo_openrouter(CHAVE_OPENROUTER)
     
     return render_template('dashboard.html', 
                            receita_hoje=receita_hoje, 
                            receita_periodo=receita_periodo, 
                            a_receber_periodo=a_receber_periodo, 
                            custo_periodo=custo_periodo, 
-                           gasto_real_openrouter=gasto_real_openrouter, 
+                           saldo_real_openrouter=saldo_real_openrouter, # Envia para o HTML
                            trabalhos_periodo=trabalhos_periodo, 
                            uso_modelos=uso_modelos_lista, 
                            graf_meses_lbl=grafico_meses_labels, 
