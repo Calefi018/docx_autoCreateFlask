@@ -42,7 +42,7 @@ def calcular_custo_api(modelo, prompt_tokens, completion_tokens):
     custo_usd = 0.0
     mod_lower = modelo.lower()
     
-    # Tabela de preços exata atualizada (Março/2024+) - Valores por 1 Milhão de Tokens
+    # Tabela de preços exata atualizada (Valores por 1 Milhão de Tokens)
     if "claude-3.5-sonnet" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 3.0) + (completion_tokens / 1000000 * 15.0)
     elif "claude-3-opus" in mod_lower:
@@ -126,7 +126,6 @@ def extrair_dicionario(texto_ia):
     ]
     dic = {}
     for chave in chaves:
-        # Expressão regular fortificada para lidar com IAs teimosas que formatam errado
         match = re.search(rf"\[START_{chave}\](.*?)(?=\[END_{chave}\]|\[START_|$)", texto_ia, re.DOTALL | re.IGNORECASE)
         if match:
             trecho = match.group(1).strip()
@@ -146,16 +145,26 @@ def extrair_json_seguro(texto):
     except Exception: 
         return []
 
-def consultar_gasto_openrouter(chave_openrouter):
-    """Bate na API da OpenRouter e puxa exatamente os dólares gastos na conta."""
+def consultar_saldo_openrouter(chave_openrouter):
+    """Bate na API da OpenRouter e calcula o SALDO DISPONÍVEL (Limite - Gasto) em Dólares."""
     try:
         if not chave_openrouter: return 0.0
         headers = {"Authorization": f"Bearer {chave_openrouter}"}
         res = requests.get("https://openrouter.ai/api/v1/auth/key", headers=headers, timeout=10)
+        
         if res.status_code == 200:
-            dados = res.json()
-            # Retorna o uso total em dólares (USD)
-            return float(dados.get("data", {}).get("usage", 0.0))
+            dados = res.json().get("data", {})
+            gasto_atual = float(dados.get("usage", 0.0))
+            limite = dados.get("limit")
+            
+            # Se a sua conta tem um limite de recarga estabelecido, ele calcula o saldo.
+            if limite is not None:
+                saldo_restante = float(limite) - gasto_atual
+                return saldo_restante if saldo_restante > 0 else 0.0
+            
+            # Se por acaso a conta não tiver limite, ele não consegue calcular o saldo, e retorna 0
+            return 0.0
+            
         return 0.0
     except Exception:
         return 0.0
