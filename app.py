@@ -301,8 +301,12 @@ def portal():
 def index():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date: 
         return render_template('expirado.html')
+    
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
-    alunos_ativos = [a for a in todos_alunos if a.status != 'Pago']
+    
+    # A MÁGICA ACONTECE AQUI: Apenas mostrar clientes que estão Em Produção (oculta os Pendentes/Prontos e Pagos)
+    alunos_ativos = [a for a in todos_alunos if a.status == 'Produção' or not a.status]
+    
     prompts = PromptConfig.query.all()
     return render_template('index.html', modelos=get_modelos_ativos(), alunos=alunos_ativos, prompts=prompts)
 
