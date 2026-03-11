@@ -77,6 +77,7 @@
 
     <div id="area-edicao" class="card" style="display:none; margin-top: 30px;">
         <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição e Blindagem Contextual</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">O Radar de IA analisa trecho a trecho. Se um crachá ficar Vermelho (Risco), clique em "Blindar" para reescrevê-lo humanamente.</p>
         
         <div id="caixas-texto"></div>
         
@@ -89,6 +90,10 @@
         let pollInterval;
         let dicionarioEditavel = {};
         let temasCarregados = [];
+
+        // FILA DE ESPERA PARA O RADAR DE IA (Impede erro de Spam na API)
+        let filaAnaliseIA = [];
+        let analisandoIA = false;
 
         window.onload = function() {
             let estadoStr = localStorage.getItem('geracao_estado');
@@ -243,57 +248,83 @@
                     montarEditor(dicionarioEditavel);
                     document.getElementById('area-edicao').style.display = 'block';
                     
-                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 4000, icon: 'success', title: 'Trabalho gerado e em análise!', background: '#1e2130', color: '#10b981' });
+                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 4000, icon: 'success', title: 'Trabalho gerado! Analisando IA...', background: '#1e2130', color: '#10b981' });
                 }
             })
             .catch(err => console.error(err));
         }
 
         // =======================================================
-        // MOTOR DE ANÁLISE DE IA VISUAL (CRIAÇÃO DAS CORES)
+        // MOTOR DE ANÁLISE DE IA VISUAL (COM FILA DE ESPERA)
         // =======================================================
         function atualizarBadgeIA(badge, porcentagem) {
-            if (porcentagem <= 30) {
+            if (porcentagem <= 35) {
                 badge.style.background = "rgba(16, 185, 129, 0.2)";
                 badge.style.color = "#10b981";
                 badge.style.border = "1px solid rgba(16, 185, 129, 0.3)";
-                badge.innerHTML = `<i class="ph-bold ph-shield-check"></i> IA: ${porcentagem}% (Humano/Seguro)`;
-            } else if (porcentagem <= 60) {
+                badge.innerHTML = `<i class="ph-bold ph-shield-check"></i> IA: ${porcentagem}% (Seguro)`;
+            } else if (porcentagem <= 70) {
                 badge.style.background = "rgba(245, 158, 11, 0.2)";
                 badge.style.color = "#f59e0b";
                 badge.style.border = "1px solid rgba(245, 158, 11, 0.3)";
-                badge.innerHTML = `<i class="ph-bold ph-warning"></i> IA: ${porcentagem}% (Razoável)`;
+                badge.innerHTML = `<i class="ph-bold ph-warning"></i> IA: ${porcentagem}% (Atenção)`;
             } else {
                 badge.style.background = "rgba(239, 68, 68, 0.2)";
                 badge.style.color = "#ef4444";
                 badge.style.border = "1px solid rgba(239, 68, 68, 0.3)";
-                badge.innerHTML = `<i class="ph-bold ph-warning-octagon"></i> IA: ${porcentagem}% (Robótico/Risco)`;
+                badge.innerHTML = `<i class="ph-bold ph-warning-octagon"></i> IA: ${porcentagem}% (Risco)`;
             }
         }
 
-        function chamarAnaliseIA(texto, badgeElement) {
+        // Adiciona à fila em vez de disparar tudo ao mesmo tempo
+        function enfileirarAnaliseIA(texto, badgeElement) {
             if(!texto || texto.trim().length < 15) {
                 atualizarBadgeIA(badgeElement, 0);
                 return;
             }
+            
             badgeElement.style.display = 'inline-flex';
-            badgeElement.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Analisando...";
+            badgeElement.innerHTML = "<i class='ph-bold ph-hourglass'></i> Aguardando...";
             badgeElement.style.background = "rgba(51, 65, 85, 0.5)";
             badgeElement.style.color = "var(--text-muted)";
             badgeElement.style.border = "1px solid var(--border)";
 
-            fetch('/analisar_ia_trecho', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ trecho: texto })
-            })
-            .then(r => r.json())
-            .then(d => {
-                if(d.sucesso) atualizarBadgeIA(badgeElement, d.porcentagem);
-                else badgeElement.innerHTML = "<i class='ph-bold ph-x'></i> Erro na leitura";
-            }).catch(e => {
-                badgeElement.innerHTML = "<i class='ph-bold ph-wifi-slash'></i> Falha";
-            });
+            filaAnaliseIA.push({ texto: texto, badge: badgeElement });
+            processarFilaAnalise();
+        }
+
+        // Função que processa 1 por 1
+        async function processarFilaAnalise() {
+            if (analisandoIA || filaAnaliseIA.length === 0) return;
+            analisandoIA = true;
+            
+            const item = filaAnaliseIA.shift(); // Pega o primeiro da fila
+            item.badge.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Analisando...";
+            
+            try {
+                const response = await fetch('/analisar_ia_trecho', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ trecho: item.texto })
+                });
+                
+                const data = await response.json();
+                
+                if(data.sucesso) {
+                    atualizarBadgeIA(item.badge, data.porcentagem);
+                } else {
+                    item.badge.innerHTML = "<i class='ph-bold ph-warning'></i> Ignorado (Seguro)";
+                    item.badge.style.color = "#f59e0b";
+                }
+            } catch (err) {
+                item.badge.innerHTML = "<i class='ph-bold ph-wifi-slash'></i> Falha";
+            }
+            
+            // Dá 1.5 segundos de "respiro" para a API antes de mandar o próximo!
+            setTimeout(() => {
+                analisandoIA = false;
+                processarFilaAnalise();
+            }, 1500); 
         }
 
         function regerarTrechoEspecifico(tag, txtElement, btn, wrapper, lbl, tit, badgeIA) {
@@ -313,7 +344,7 @@
             })
             .then(r => r.json())
             .then(data => {
-                btn.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar Tudo"; 
+                btn.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar"; 
                 btn.disabled = false;
                 
                 if(!data.sucesso) { Swal.fire('Erro', data.erro, 'error'); return; }
@@ -326,11 +357,11 @@
                 lbl.innerHTML = `<b>${tit}</b>`; 
                 lbl.style.color = "var(--secondary)";
                 
-                // Recalcula o radar de IA com o texto novo!
-                chamarAnaliseIA(data.novo_texto, badgeIA);
+                // Põe o texto novo na fila para ser analisado
+                enfileirarAnaliseIA(data.novo_texto, badgeIA);
             })
             .catch(err => {
-                btn.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar Tudo"; 
+                btn.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar"; 
                 btn.disabled = false;
                 Swal.fire('Falha', 'Não foi possível regerar: ' + err.message, 'error');
             });
@@ -340,7 +371,11 @@
             const container = document.getElementById('caixas-texto'); 
             container.innerHTML = ''; 
             
-            ordemOficial.forEach((chave, index) => {
+            // Limpa a fila caso o usuário gere um trabalho novo por cima do antigo
+            filaAnaliseIA = [];
+            analisandoIA = false;
+            
+            ordemOficial.forEach((chave) => {
                 let chaveSegura = "{" + "{" + chave + "}" + "}"; 
                 let txt = dic[chaveSegura] ? dic[chaveSegura].trim() : "";
                 let is_vazio = (txt === "");
@@ -370,7 +405,7 @@
                 
                 let btnRegerar = document.createElement('button'); 
                 btnRegerar.className = 'btn'; 
-                btnRegerar.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar Tudo";
+                btnRegerar.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar";
                 btnRegerar.style.padding = "8px 15px";
                 btnRegerar.style.fontSize = "0.85rem";
                 btnRegerar.style.background = "transparent";
@@ -383,10 +418,10 @@
                 ta.value = txt; ta.rows = is_vazio ? 2 : 5; ta.dataset.chave = chave; 
                 ta.style.width = "100%"; ta.style.marginBottom = "15px"; ta.style.lineHeight = "1.5";
                 
-                // Quando o usuário sai do campo de texto, recalcula a IA automaticamente
                 ta.onchange = (e) => { 
                     dicionarioEditavel[chaveSegura] = e.target.value; 
-                    chamarAnaliseIA(e.target.value, badgeIA);
+                    // Põe na fila do radar se o usuário digitar algo novo
+                    enfileirarAnaliseIA(e.target.value, badgeIA);
                 };
                 
                 btnRegerar.onclick = () => regerarTrechoEspecifico(chave, ta, btnRegerar, wrap, lbl, chave.replace(/_/g,' '), badgeIA);
@@ -401,28 +436,29 @@
                 chatDiv.style.cssText = "display:flex; gap:10px; margin-top:5px; align-items: stretch; flex-wrap: wrap;";
                 
                 let chatInput = document.createElement('input');
-                chatInput.placeholder = "Comando de Edição: Ex: 'Deixe mais formal' ou 'Resuma'...";
+                chatInput.placeholder = "Comando Rápido: Ex: 'Deixe mais formal' ou 'Resuma'...";
                 chatInput.style.margin = "0"; chatInput.style.flex = "1";
-                chatInput.style.minWidth = "200px";
+                chatInput.style.minWidth = "150px";
                 
                 let chatBtn = document.createElement('button');
                 chatBtn.className = "btn btn-blue";
                 chatBtn.style.margin = "0";
-                chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Aplicar";
+                chatBtn.title = "Aplicar Comando";
+                chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i>";
                 
                 let limparBtn = document.createElement('button');
                 limparBtn.className = "btn";
                 limparBtn.style.backgroundColor = "#8b5cf6"; 
                 limparBtn.style.margin = "0";
-                limparBtn.title = "Limpa palavras complexas como locus, momentum, etc.";
-                limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês";
+                limparBtn.title = "Limpar Clichês (momentum, locus, etc)";
+                limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i>";
                 
                 // NOVO BOTÃO: HUMANIZAR TRECHO INDIVIDUAL
                 let humanizarBtn = document.createElement('button');
                 humanizarBtn.className = "btn btn-warning";
                 humanizarBtn.style.margin = "0";
                 humanizarBtn.title = "Reescreve o texto com imperfeições humanas para zerar o Radar de IA";
-                humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar (Anti-IA)";
+                humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar Trecho";
                 
                 // Ação do Botão Ajustar (Normal)
                 chatBtn.onclick = () => {
@@ -437,14 +473,14 @@
                     })
                     .then(r => r.json())
                     .then(d => {
-                        chatBtn.disabled = false; chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Aplicar";
+                        chatBtn.disabled = false; chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i>";
                         if(d.sucesso) { 
                             ta.value = d.novo_texto; 
                             dicionarioEditavel[chaveSegura] = d.novo_texto; 
                             chatInput.value = ""; 
-                            chamarAnaliseIA(d.novo_texto, badgeIA); // Recalcula IA!
+                            enfileirarAnaliseIA(d.novo_texto, badgeIA); 
                         } else Swal.fire('Erro', d.erro, 'error');
-                    }).catch(e => { chatBtn.disabled=false; chatBtn.innerHTML="<i class='ph-bold ph-magic-wand'></i> Aplicar"; });
+                    }).catch(e => { chatBtn.disabled=false; chatBtn.innerHTML="<i class='ph-bold ph-magic-wand'></i>"; });
                 };
                 
                 // Ação Limpar Clichês
@@ -459,17 +495,17 @@
                     })
                     .then(r => r.json())
                     .then(d => {
-                        limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês";
+                        limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i>";
                         if(d.sucesso) { 
                             ta.value = d.novo_texto; 
                             dicionarioEditavel[chaveSegura] = d.novo_texto; 
-                            chamarAnaliseIA(d.novo_texto, badgeIA); // Recalcula IA!
+                            enfileirarAnaliseIA(d.novo_texto, badgeIA); 
                             Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Clichês removidos!' });
                         } else Swal.fire('Erro', d.erro, 'error');
-                    }).catch(e => { limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês"; });
+                    }).catch(e => { limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i>"; });
                 };
                 
-                // Ação HUMANIZAR (Novo)
+                // Ação HUMANIZAR (Blindagem Anti-IA)
                 humanizarBtn.onclick = () => {
                     if(!ta.value.trim()) return;
                     humanizarBtn.disabled = true; humanizarBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Blindando...";
@@ -481,14 +517,15 @@
                     })
                     .then(r => r.json())
                     .then(d => {
-                        humanizarBtn.disabled = false; humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar (Anti-IA)";
+                        humanizarBtn.disabled = false; humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar Trecho";
                         if(d.sucesso) { 
                             ta.value = d.novo_texto; 
                             dicionarioEditavel[chaveSegura] = d.novo_texto; 
-                            chamarAnaliseIA(d.novo_texto, badgeIA); // Recalcula IA e deve ficar Verde!
+                            // Assim que blinda, joga na fila para analisar de novo e provar que está verde
+                            enfileirarAnaliseIA(d.novo_texto, badgeIA); 
                             Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, icon: 'success', title: 'Trecho Blindado com Sucesso!' });
                         } else Swal.fire('Erro', d.erro, 'error');
-                    }).catch(e => { humanizarBtn.disabled = false; humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar (Anti-IA)"; });
+                    }).catch(e => { humanizarBtn.disabled = false; humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar Trecho"; });
                 };
                 
                 chatDiv.appendChild(chatInput); 
@@ -499,11 +536,9 @@
                 
                 container.appendChild(wrap);
                 
-                // Dispara a análise inicial do radar em cascata (para não travar a API)
+                // Manda para a fila inicial de processamento
                 if (!is_vazio) {
-                    setTimeout(() => {
-                        chamarAnaliseIA(ta.value, badgeIA);
-                    }, index * 600); // Demora 0.6s entre cada parágrafo para analisar
+                    enfileirarAnaliseIA(ta.value, badgeIA);
                 }
             });
         }
