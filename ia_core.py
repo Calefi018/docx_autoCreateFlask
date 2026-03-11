@@ -146,24 +146,21 @@ def extrair_json_seguro(texto):
         return []
 
 def consultar_saldo_openrouter(chave_openrouter):
-    """Bate na API da OpenRouter e calcula o SALDO DISPONÍVEL (Limite - Gasto) em Dólares."""
+    """Bate na API da OpenRouter e calcula o SALDO DISPONÍVEL (Créditos Comprados - Uso) em Dólares."""
     try:
         if not chave_openrouter: return 0.0
         headers = {"Authorization": f"Bearer {chave_openrouter}"}
-        res = requests.get("https://openrouter.ai/api/v1/auth/key", headers=headers, timeout=10)
+        
+        # AGORA SIM: Endpoint /credits para consultar a carteira (wallet) do usuário
+        res = requests.get("https://openrouter.ai/api/v1/credits", headers=headers, timeout=10)
         
         if res.status_code == 200:
             dados = res.json().get("data", {})
-            gasto_atual = float(dados.get("usage", 0.0))
-            limite = dados.get("limit")
+            total_credits = float(dados.get("total_credits", 0.0))
+            total_usage = float(dados.get("total_usage", 0.0))
             
-            # Se a sua conta tem um limite de recarga estabelecido, ele calcula o saldo.
-            if limite is not None:
-                saldo_restante = float(limite) - gasto_atual
-                return saldo_restante if saldo_restante > 0 else 0.0
-            
-            # Se por acaso a conta não tiver limite, ele não consegue calcular o saldo, e retorna 0
-            return 0.0
+            saldo = total_credits - total_usage
+            return saldo if saldo > 0 else 0.0
             
         return 0.0
     except Exception:
