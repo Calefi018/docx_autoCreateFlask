@@ -76,15 +76,11 @@
     </form>
 
     <div id="area-edicao" class="card" style="display:none; margin-top: 30px;">
-        <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição Contextual</h2>
+        <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição e Blindagem Contextual</h2>
         
         <div id="caixas-texto"></div>
         
-        <button class="btn btn-warning" style="width: 100%; padding: 15px; margin-top:30px; margin-bottom: 10px; color: #000; font-weight: bold;" onclick="humanizarTrabalho()" id="btn-humanizar">
-            <i class="ph-bold ph-shield-check" style="font-size: 1.2rem;"></i> Aplicar Blindagem Anti-IA (Humanizar Tudo)
-        </button>
-
-        <button class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem;" onclick="salvarEDocx()" id="btn-docx">
+        <button class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top: 30px;" onclick="salvarEDocx()" id="btn-docx">
             <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Salvar DOCX Final
         </button>
     </div>
@@ -198,60 +194,6 @@
                 Swal.fire('Erro Crítico', 'Falha na requisição: ' + err.message, 'error');
             });
         }
-        
-        function humanizarTrabalho() {
-            document.querySelectorAll('#caixas-texto textarea').forEach(t => {
-                let chaveSegura = "{" + "{" + t.dataset.chave + "}" + "}";
-                dicionarioEditavel[chaveSegura] = t.value;
-            });
-
-            const area = document.getElementById('area-edicao');
-            const loading = document.getElementById('loading');
-            
-            document.getElementById('loading-icon').innerHTML = '<i class="ph-bold ph-shield-check" style="animation: pulse-brain 1.5s infinite; color: var(--warning);"></i>';
-            document.getElementById('loading-title').innerText = "A Aplicar Blindagem Anti-IA (Isto pode demorar)...";
-            document.getElementById('loading-title').style.color = "var(--warning)";
-
-            area.style.display = 'none';
-            loading.style.display = 'block';
-
-            let payload = {
-                tema: document.getElementById('tema').value,
-                modelo: document.getElementById('select_modelo').value,
-                prompt_id: document.querySelector('[name="prompt_id"]').value,
-                dicionario: dicionarioEditavel
-            };
-
-            fetch('/humanizar_trabalho', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            .then(res => res.json())
-            .then(data => {
-                if(!data.sucesso) { 
-                    loading.style.display = 'none';
-                    area.style.display = 'block';
-                    document.getElementById('loading-title').style.color = "var(--primary)";
-                    Swal.fire('Erro', data.erro, 'error'); 
-                    return; 
-                }
-                
-                localStorage.setItem('geracao_estado', JSON.stringify({
-                    task_id: data.task_id,
-                    aluno_id: document.getElementById('aluno_id').value,
-                    tema: document.getElementById('tema').value
-                }));
-
-                pollInterval = setInterval(() => verificarStatusTask(data.task_id), 3000);
-            })
-            .catch(err => {
-                loading.style.display = 'none';
-                area.style.display = 'block';
-                document.getElementById('loading-title').style.color = "var(--primary)";
-                Swal.fire('Erro Crítico', 'Falha na requisição: ' + err.message, 'error');
-            });
-        }
 
         function cancelarGeracao() {
             let estadoStr = localStorage.getItem('geracao_estado');
@@ -283,9 +225,7 @@
             fetch('/status_geracao/' + taskId)
             .then(res => res.json())
             .then(data => {
-                if(data.status === 'Pendente') {
-                    return;
-                }
+                if(data.status === 'Pendente') return;
                 
                 clearInterval(pollInterval);
                 localStorage.removeItem('geracao_estado'); 
@@ -297,26 +237,67 @@
                 if(data.status === 'Erro') {
                     Swal.fire('Erro da Inteligência', data.erro, 'error');
                 } else if(data.status === 'Cancelado') {
-                    // Limpou silenciosamente
+                    // Silencioso
                 } else if(data.status === 'Concluido') {
                     dicionarioEditavel = data.dicionario;
                     montarEditor(dicionarioEditavel);
                     document.getElementById('area-edicao').style.display = 'block';
                     
-                    Swal.fire({ 
-                        toast: true, position: 'top-end', showConfirmButton: false, 
-                        timer: 4000, icon: 'success', title: 'Processo concluído com sucesso!', 
-                        background: '#1e2130', color: '#10b981' 
-                    });
+                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 4000, icon: 'success', title: 'Trabalho gerado e em análise!', background: '#1e2130', color: '#10b981' });
                 }
             })
-            .catch(err => {
-                console.error("Erro na comunicação em segundo plano:", err);
+            .catch(err => console.error(err));
+        }
+
+        // =======================================================
+        // MOTOR DE ANÁLISE DE IA VISUAL (CRIAÇÃO DAS CORES)
+        // =======================================================
+        function atualizarBadgeIA(badge, porcentagem) {
+            if (porcentagem <= 30) {
+                badge.style.background = "rgba(16, 185, 129, 0.2)";
+                badge.style.color = "#10b981";
+                badge.style.border = "1px solid rgba(16, 185, 129, 0.3)";
+                badge.innerHTML = `<i class="ph-bold ph-shield-check"></i> IA: ${porcentagem}% (Humano/Seguro)`;
+            } else if (porcentagem <= 60) {
+                badge.style.background = "rgba(245, 158, 11, 0.2)";
+                badge.style.color = "#f59e0b";
+                badge.style.border = "1px solid rgba(245, 158, 11, 0.3)";
+                badge.innerHTML = `<i class="ph-bold ph-warning"></i> IA: ${porcentagem}% (Razoável)`;
+            } else {
+                badge.style.background = "rgba(239, 68, 68, 0.2)";
+                badge.style.color = "#ef4444";
+                badge.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+                badge.innerHTML = `<i class="ph-bold ph-warning-octagon"></i> IA: ${porcentagem}% (Robótico/Risco)`;
+            }
+        }
+
+        function chamarAnaliseIA(texto, badgeElement) {
+            if(!texto || texto.trim().length < 15) {
+                atualizarBadgeIA(badgeElement, 0);
+                return;
+            }
+            badgeElement.style.display = 'inline-flex';
+            badgeElement.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Analisando...";
+            badgeElement.style.background = "rgba(51, 65, 85, 0.5)";
+            badgeElement.style.color = "var(--text-muted)";
+            badgeElement.style.border = "1px solid var(--border)";
+
+            fetch('/analisar_ia_trecho', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ trecho: texto })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if(d.sucesso) atualizarBadgeIA(badgeElement, d.porcentagem);
+                else badgeElement.innerHTML = "<i class='ph-bold ph-x'></i> Erro na leitura";
+            }).catch(e => {
+                badgeElement.innerHTML = "<i class='ph-bold ph-wifi-slash'></i> Falha";
             });
         }
 
-        function regerarTrechoEspecifico(tag, txtElement, btn, wrapper, lbl, tit) {
-            btn.innerText = "Lendo..."; 
+        function regerarTrechoEspecifico(tag, txtElement, btn, wrapper, lbl, tit, badgeIA) {
+            btn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Lendo..."; 
             btn.disabled = true;
             
             fetch('/regerar_trecho', {
@@ -330,30 +311,26 @@
                     dicionario: dicionarioEditavel
                 })
             })
-            .then(r => {
-                if(!r.ok) throw new Error("Erro de rede");
-                return r.json();
-            })
+            .then(r => r.json())
             .then(data => {
-                btn.innerText = "Regerar Tudo"; 
+                btn.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar Tudo"; 
                 btn.disabled = false;
                 
-                if(!data.sucesso) {
-                    Swal.fire('Erro', data.erro, 'error');
-                    return;
-                }
+                if(!data.sucesso) { Swal.fire('Erro', data.erro, 'error'); return; }
                 
                 txtElement.value = data.novo_texto;
-                
                 let chaveSegura = "{" + "{" + tag + "}" + "}"; 
                 dicionarioEditavel[chaveSegura] = data.novo_texto;
                 
                 wrapper.style.border = '1px solid var(--border)';
                 lbl.innerHTML = `<b>${tit}</b>`; 
                 lbl.style.color = "var(--secondary)";
+                
+                // Recalcula o radar de IA com o texto novo!
+                chamarAnaliseIA(data.novo_texto, badgeIA);
             })
             .catch(err => {
-                btn.innerText = "Regerar Tudo"; 
+                btn.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar Tudo"; 
                 btn.disabled = false;
                 Swal.fire('Falha', 'Não foi possível regerar: ' + err.message, 'error');
             });
@@ -363,101 +340,117 @@
             const container = document.getElementById('caixas-texto'); 
             container.innerHTML = ''; 
             
-            ordemOficial.forEach(chave => {
+            ordemOficial.forEach((chave, index) => {
                 let chaveSegura = "{" + "{" + chave + "}" + "}"; 
                 let txt = dic[chaveSegura] ? dic[chaveSegura].trim() : "";
                 let is_vazio = (txt === "");
                 
                 let wrap = document.createElement('div');
-                wrap.style.cssText = `margin-bottom:20px; padding:15px; border-radius:8px; border: 1px solid ${is_vazio ? '#ef4444' : 'var(--border)'}; background: rgba(30,33,48,0.3);`;
+                wrap.style.cssText = `margin-bottom:20px; padding:20px; border-radius:10px; border: 1px solid ${is_vazio ? '#ef4444' : 'var(--border)'}; background: rgba(30,33,48,0.4);`;
                 
                 let head = document.createElement('div'); 
-                head.style.cssText = "display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;";
+                head.style.cssText = "display:flex; justify-content:space-between; margin-bottom:12px; align-items:center; flex-wrap: wrap; gap: 10px;";
+                
+                let titleArea = document.createElement('div');
+                titleArea.style.display = 'flex';
+                titleArea.style.alignItems = 'center';
+                titleArea.style.gap = '15px';
                 
                 let lbl = document.createElement('label'); 
                 lbl.innerHTML = `<b>${chave.replace(/_/g,' ')}</b>`; 
                 lbl.style.color = is_vazio ? "#ef4444" : "var(--secondary)";
+                lbl.style.margin = "0";
                 
-                let btn = document.createElement('button'); 
-                btn.className = 'btn'; btn.innerText = "Regerar Tudo";
+                // BADGE RADAR DE IA
+                let badgeIA = document.createElement('div');
+                badgeIA.style.cssText = "padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; align-items: center; gap: 5px; display: none;";
+                
+                titleArea.appendChild(lbl);
+                titleArea.appendChild(badgeIA);
+                
+                let btnRegerar = document.createElement('button'); 
+                btnRegerar.className = 'btn'; 
+                btnRegerar.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar Tudo";
+                btnRegerar.style.padding = "8px 15px";
+                btnRegerar.style.fontSize = "0.85rem";
+                btnRegerar.style.background = "transparent";
+                btnRegerar.style.border = "1px solid var(--border)";
+                btnRegerar.style.color = "var(--text-muted)";
+                btnRegerar.onmouseover = () => { btnRegerar.style.color = "#fff"; btnRegerar.style.borderColor = "var(--primary)"; };
+                btnRegerar.onmouseout = () => { btnRegerar.style.color = "var(--text-muted)"; btnRegerar.style.borderColor = "var(--border)"; };
                 
                 let ta = document.createElement('textarea'); 
-                ta.value = txt; ta.rows = is_vazio ? 2 : 4; ta.dataset.chave = chave; 
-                ta.style.width = "100%"; ta.style.marginBottom = "10px";
-                ta.onchange = (e) => { dicionarioEditavel[chaveSegura] = e.target.value; };
-                btn.onclick = () => regerarTrechoEspecifico(chave, ta, btn, wrap, lbl, chave.replace(/_/g,' '));
+                ta.value = txt; ta.rows = is_vazio ? 2 : 5; ta.dataset.chave = chave; 
+                ta.style.width = "100%"; ta.style.marginBottom = "15px"; ta.style.lineHeight = "1.5";
                 
-                head.appendChild(lbl); head.appendChild(btn); 
-                wrap.appendChild(head); wrap.appendChild(ta); 
+                // Quando o usuário sai do campo de texto, recalcula a IA automaticamente
+                ta.onchange = (e) => { 
+                    dicionarioEditavel[chaveSegura] = e.target.value; 
+                    chamarAnaliseIA(e.target.value, badgeIA);
+                };
+                
+                btnRegerar.onclick = () => regerarTrechoEspecifico(chave, ta, btnRegerar, wrap, lbl, chave.replace(/_/g,' '), badgeIA);
+                
+                head.appendChild(titleArea); 
+                head.appendChild(btnRegerar); 
+                wrap.appendChild(head); 
+                wrap.appendChild(ta); 
 
                 // ==== DIV DE BOTÕES DE AJUSTE RÁPIDO ====
                 let chatDiv = document.createElement('div');
-                chatDiv.style.cssText = "display:flex; gap:10px; margin-top:10px; align-items: stretch; flex-wrap: wrap;";
+                chatDiv.style.cssText = "display:flex; gap:10px; margin-top:5px; align-items: stretch; flex-wrap: wrap;";
                 
                 let chatInput = document.createElement('input');
-                chatInput.placeholder = "IA de Ajuste: Ex: 'Deixe mais formal' ou 'Resuma'...";
+                chatInput.placeholder = "Comando de Edição: Ex: 'Deixe mais formal' ou 'Resuma'...";
                 chatInput.style.margin = "0"; chatInput.style.flex = "1";
                 chatInput.style.minWidth = "200px";
-                chatInput.style.padding = "10px";
-                chatInput.style.borderRadius = "5px";
-                chatInput.style.border = "1px solid var(--border)";
-                chatInput.style.background = "#1e2130";
-                chatInput.style.color = "#e2e8f0";
                 
                 let chatBtn = document.createElement('button');
                 chatBtn.className = "btn btn-blue";
-                chatBtn.style.padding = "10px 15px";
                 chatBtn.style.margin = "0";
-                chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Ajustar Trecho";
+                chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Aplicar";
                 
-                // NOVO BOTÃO: EXTERMINAR CLICHÊS
                 let limparBtn = document.createElement('button');
                 limparBtn.className = "btn";
-                limparBtn.style.backgroundColor = "#8b5cf6"; // Roxo bem bonito
-                limparBtn.style.color = "white";
-                limparBtn.style.padding = "10px 15px";
+                limparBtn.style.backgroundColor = "#8b5cf6"; 
                 limparBtn.style.margin = "0";
-                limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Exterminar Clichês";
+                limparBtn.title = "Limpa palavras complexas como locus, momentum, etc.";
+                limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês";
+                
+                // NOVO BOTÃO: HUMANIZAR TRECHO INDIVIDUAL
+                let humanizarBtn = document.createElement('button');
+                humanizarBtn.className = "btn btn-warning";
+                humanizarBtn.style.margin = "0";
+                humanizarBtn.title = "Reescreve o texto com imperfeições humanas para zerar o Radar de IA";
+                humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar (Anti-IA)";
                 
                 // Ação do Botão Ajustar (Normal)
                 chatBtn.onclick = () => {
                     let comando = chatInput.value; 
                     if(!comando) return;
-                    chatBtn.disabled = true; chatBtn.innerText = "Aguarde...";
+                    chatBtn.disabled = true; chatBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i>";
                     
                     fetch('/assistente_pontual', {
                         method: 'POST', 
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ 
-                            trecho: ta.value, 
-                            comando: comando, 
-                            modelo: document.getElementById('select_modelo').value 
-                        })
+                        body: JSON.stringify({ trecho: ta.value, comando: comando, modelo: document.getElementById('select_modelo').value })
                     })
                     .then(r => r.json())
                     .then(d => {
-                        chatBtn.disabled = false; 
-                        chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Ajustar Trecho";
+                        chatBtn.disabled = false; chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Aplicar";
                         if(d.sucesso) { 
                             ta.value = d.novo_texto; 
                             dicionarioEditavel[chaveSegura] = d.novo_texto; 
                             chatInput.value = ""; 
-                        } else {
-                            Swal.fire('Erro', d.erro, 'error');
-                        }
-                    })
-                    .catch(e => { 
-                        chatBtn.disabled=false; 
-                        chatBtn.innerHTML="<i class='ph-bold ph-magic-wand'></i> Ajustar Trecho"; 
-                        Swal.fire('Erro de Rede', 'Não foi possível comunicar com a IA.', 'error');
-                    });
+                            chamarAnaliseIA(d.novo_texto, badgeIA); // Recalcula IA!
+                        } else Swal.fire('Erro', d.erro, 'error');
+                    }).catch(e => { chatBtn.disabled=false; chatBtn.innerHTML="<i class='ph-bold ph-magic-wand'></i> Aplicar"; });
                 };
                 
-                // Ação do NOVO Botão Limpar Clichês
+                // Ação Limpar Clichês
                 limparBtn.onclick = () => {
                     if(!ta.value.trim()) return;
-                    limparBtn.disabled = true; 
-                    limparBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Limpando...";
+                    limparBtn.disabled = true; limparBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i>";
                     
                     fetch('/exterminar_cliches', {
                         method: 'POST', 
@@ -466,29 +459,52 @@
                     })
                     .then(r => r.json())
                     .then(d => {
-                        limparBtn.disabled = false; 
-                        limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Exterminar Clichês";
+                        limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês";
                         if(d.sucesso) { 
                             ta.value = d.novo_texto; 
                             dicionarioEditavel[chaveSegura] = d.novo_texto; 
-                            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Clichês removidos com sucesso!', background: '#1e2130', color: '#10b981' });
-                        } else {
-                            Swal.fire('Erro', d.erro, 'error');
-                        }
+                            chamarAnaliseIA(d.novo_texto, badgeIA); // Recalcula IA!
+                            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Clichês removidos!' });
+                        } else Swal.fire('Erro', d.erro, 'error');
+                    }).catch(e => { limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês"; });
+                };
+                
+                // Ação HUMANIZAR (Novo)
+                humanizarBtn.onclick = () => {
+                    if(!ta.value.trim()) return;
+                    humanizarBtn.disabled = true; humanizarBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Blindando...";
+                    
+                    fetch('/humanizar_trecho_avulso', {
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ trecho: ta.value, modelo: document.getElementById('select_modelo').value })
                     })
-                    .catch(e => { 
-                        limparBtn.disabled = false; 
-                        limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Exterminar Clichês"; 
-                        Swal.fire('Erro de Rede', 'Falha ao processar a limpeza.', 'error');
-                    });
+                    .then(r => r.json())
+                    .then(d => {
+                        humanizarBtn.disabled = false; humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar (Anti-IA)";
+                        if(d.sucesso) { 
+                            ta.value = d.novo_texto; 
+                            dicionarioEditavel[chaveSegura] = d.novo_texto; 
+                            chamarAnaliseIA(d.novo_texto, badgeIA); // Recalcula IA e deve ficar Verde!
+                            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, icon: 'success', title: 'Trecho Blindado com Sucesso!' });
+                        } else Swal.fire('Erro', d.erro, 'error');
+                    }).catch(e => { humanizarBtn.disabled = false; humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar (Anti-IA)"; });
                 };
                 
                 chatDiv.appendChild(chatInput); 
                 chatDiv.appendChild(chatBtn);
-                chatDiv.appendChild(limparBtn); // Adiciona o botão roxo na interface
+                chatDiv.appendChild(limparBtn); 
+                chatDiv.appendChild(humanizarBtn); 
                 wrap.appendChild(chatDiv);
                 
                 container.appendChild(wrap);
+                
+                // Dispara a análise inicial do radar em cascata (para não travar a API)
+                if (!is_vazio) {
+                    setTimeout(() => {
+                        chamarAnaliseIA(ta.value, badgeIA);
+                    }, index * 600); // Demora 0.6s entre cada parágrafo para analisar
+                }
             });
         }
 
