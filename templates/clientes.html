@@ -15,15 +15,25 @@
         </form>
     </div>
 
-    <h3 style="color: var(--warning); margin-top: 40px;"><i class="ph-fill ph-gear"></i> 1 - Em Produção</h3>
+    <div style="display: flex; gap: 15px; margin-top: 40px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; background: rgba(30,33,48,0.5); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+        <div style="flex: 1; min-width: 250px; position: relative;">
+            <i class="ph-bold ph-magnifying-glass" style="position: absolute; left: 15px; top: 14px; color: var(--text-muted);"></i>
+            <input type="text" id="buscaCliente" placeholder="Buscar cliente por Nome, Curso ou WhatsApp..." onkeyup="filtrarClientes()" style="width: 100%; padding-left: 45px; margin: 0; background: rgba(15, 17, 26, 0.8); border: 1px solid var(--border); color: #fff;">
+        </div>
+        <a href="/exportar_contatos" class="btn btn-green" style="margin: 0; display: flex; align-items: center; gap: 8px; padding: 10px 20px;" title="Baixar planilha para Remarketing no WhatsApp">
+            <i class="ph-bold ph-microsoft-excel-logo" style="font-size: 1.2rem;"></i> Exportar Contatos (Excel)
+        </a>
+    </div>
+
+    <h3 style="color: var(--warning); margin-top: 20px;"><i class="ph-fill ph-gear"></i> 1 - Em Produção</h3>
     
     {% for aluno in alunos_pendentes if aluno.status == 'Produção' or not aluno.status %}
-        <div class="card" style="border-left: 4px solid var(--warning); padding: 20px; margin-bottom: 15px;">
+        <div class="card cliente-card" style="border-left: 4px solid var(--warning); padding: 20px; margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
                 
                 <div>
                     <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 10px;">
-                        {{ aluno.nome }}
+                        <span class="nome-busca">{{ aluno.nome }}</span>
                         
                         <form action="/mudar_status/{{ aluno.id }}" method="POST" style="margin:0;">
                             <select name="novo_status" onchange="this.form.submit()" style="margin:0; padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; font-weight: bold; background: #f59e0b; color: #fff; border: none; outline: none; cursor: pointer;">
@@ -35,8 +45,8 @@
                     </h3>
                     
                     <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 10px; font-size: 0.9rem; flex-wrap: wrap;">
-                        <span><i class="ph-bold ph-graduation-cap"></i> {{ aluno.curso }}</span>
-                        <span><i class="ph-bold ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                        <span class="curso-busca"><i class="ph-bold ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                        <span class="tel-busca"><i class="ph-bold ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
                         <span style="color: var(--primary); font-weight: bold;">R$ {{ "%.2f"|format(aluno.valor or 0) }}</span>
                         
                         {% if aluno.ava_login %}
@@ -73,12 +83,12 @@
     <h3 style="color: var(--danger); margin-top: 40px;"><i class="ph-fill ph-hourglass-high"></i> 2 - (Pronto) Aguardando Pagamento</h3>
     
     {% for aluno in alunos_pendentes if aluno.status == 'Pendente' %}
-        <div class="card" style="border-left: 4px solid var(--danger); padding: 20px; margin-bottom: 15px; background: rgba(239, 68, 68, 0.05);">
+        <div class="card cliente-card" style="border-left: 4px solid var(--danger); padding: 20px; margin-bottom: 15px; background: rgba(239, 68, 68, 0.05);">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
                 
                 <div>
                     <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 10px;">
-                        {{ aluno.nome }}
+                        <span class="nome-busca">{{ aluno.nome }}</span>
                         
                         <form action="/mudar_status/{{ aluno.id }}" method="POST" style="margin:0;">
                             <select name="novo_status" onchange="this.form.submit()" style="margin:0; padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; font-weight: bold; background: #ef4444; color: #fff; border: none; outline: none; cursor: pointer;">
@@ -90,8 +100,8 @@
                     </h3>
                     
                     <div style="color: var(--text-muted); display: flex; align-items: center; gap: 15px; margin-top: 10px; font-size: 0.9rem; flex-wrap: wrap;">
-                        <span><i class="ph-bold ph-graduation-cap"></i> {{ aluno.curso }}</span>
-                        <span><i class="ph-bold ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                        <span class="curso-busca"><i class="ph-bold ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                        <span class="tel-busca"><i class="ph-bold ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
                         <span style="color: var(--danger); font-weight: bold;">R$ {{ "%.2f"|format(aluno.valor or 0) }}</span>
                     </div>
                 </div>
@@ -115,12 +125,13 @@
     <h3 style="color: var(--success); margin-top: 40px;"><i class="ph-fill ph-check-circle"></i> 3 - Pagos (Finalizados)</h3>
     
     {% for aluno in alunos_pagos %}
-        <div class="card" style="border-left: 4px solid var(--success); opacity: 0.7; padding: 20px; margin-bottom: 15px;">
+        <div class="card cliente-card" style="border-left: 4px solid var(--success); opacity: 0.7; padding: 20px; margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                 <div>
-                    <h3 style="margin: 0; color: #fff;">{{ aluno.nome }}</h3>
+                    <h3 style="margin: 0; color: #fff;" class="nome-busca">{{ aluno.nome }}</h3>
                     <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">
-                        {{ aluno.curso }} | <span style="color: var(--success); font-weight: bold;"><i class="ph-bold ph-check"></i> Pago</span>
+                        <span class="curso-busca">{{ aluno.curso }}</span> | 
+                        <span class="tel-busca" style="display:none;">{{ aluno.telefone }}</span> <span style="color: var(--success); font-weight: bold;"><i class="ph-bold ph-check"></i> Pago</span>
                     </div>
                 </div>
                 <div style="display: flex; gap: 8px;">
@@ -145,6 +156,23 @@
     <div id="zap-template" style="display:none;">{{ config.whatsapp_template if config else 'Olá {nome}, seu trabalho está pronto! Valor: R$ {valor}' }}</div>
 
     <script>
+        // SCRIPT DO MOTOR DE BUSCA
+        function filtrarClientes() {
+            let input = document.getElementById('buscaCliente').value.toLowerCase();
+            let cards = document.getElementsByClassName('cliente-card');
+            
+            for (let i = 0; i < cards.length; i++) {
+                let textoCard = cards[i].innerText.toLowerCase();
+                // Verifica se o texto digitado existe dentro de qualquer lugar do card (nome, curso, ou telefone)
+                if (textoCard.includes(input)) {
+                    cards[i].style.display = "";
+                } else {
+                    cards[i].style.display = "none";
+                }
+            }
+        }
+
+        // SCRIPTS ANTIGOS MANTIDOS INTACTOS
         function copiarUnico(texto, tipo) {
             navigator.clipboard.writeText(texto);
             Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: tipo + ' copiado!', background: '#1e2130', color: '#10b981' });
