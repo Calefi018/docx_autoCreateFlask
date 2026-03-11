@@ -8,8 +8,9 @@ import threading
 import logging
 import traceback
 import hashlib
+import csv
 from datetime import datetime, date, timedelta
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -416,7 +417,7 @@ def status_geracao(task_id):
     return jsonify({"status": "Concluido", "dicionario": json.loads(task.resultado), "modelo_utilizado": task.modelo_utilizado})
 
 # =========================================================
-# ROTAS DO RADAR DE IA E HUMANIZADOR (ATUALIZADAS)
+# ROTAS DO RADAR DE IA E HUMANIZADOR 
 # =========================================================
 @app.route('/analisar_ia_trecho', methods=['POST'])
 @login_required
@@ -428,11 +429,10 @@ def analisar_ia_trecho():
         if not trecho or len(trecho) < 25:
             return jsonify({"sucesso": True, "porcentagem": 0})
             
-        # AQUI ESTAVA O ERRO DE BLOQUEIO: Forçar modelo barato COM prefixo OpenRouter
         modelo_rapido = "google/gemini-2.5-flash"
         
         prompt = f"""Você é um analista de textos acadêmicos. Avalie de 0 a 100 qual a probabilidade do texto abaixo ter sido gerado por uma Inteligência Artificial.
-ATENÇÃO: Textos universitários (TCC, desafios) usam naturalmente linguagem culta. NÃO confunda texto bem escrito e formal com Inteligência Artificial!
+ATENÇÃO: Textos universitários usam naturalmente linguagem culta. NÃO confunda texto bem escrito e formal com Inteligência Artificial!
 
 DÊ UMA NOTA ALTA (70-100%) APENAS SE: 
 - Houver excesso de palavras-clichê robóticas (ex: 'crucial', 'mergulho profundo', 'tapeçaria', 'vital', 'locus', 'notável', 'farol', 'em suma').
@@ -514,8 +514,6 @@ def exterminar_cliches():
     try:
         dados = request.json or {}
         trecho = str(dados.get('trecho', ''))
-        
-        # AQUI TAMBÉM: Modelo barato com OpenRouter explícito
         modelo_rapido = "google/gemini-2.5-flash"
         
         prompt = f"""Você é um editor humano de textos acadêmicos implacável. Sua missão é limpar este parágrafo.
@@ -562,7 +560,7 @@ TAREFA: Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO fazer sentido co
         fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
         ultimo_erro = ""
 
-        for modelo in fila_modelos[:2]: # Limitado a 2 tentativas para não queimar saldo
+        for modelo in fila_modelos[:2]: 
             try:
                 novo_texto, custo = ia_core.chamar_ia(prompt_regeracao, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
                 novo_texto = re.sub(rf"\[/?START_{tag}\]", "", novo_texto, flags=re.IGNORECASE)
@@ -642,7 +640,7 @@ def converter_pdf(doc_id):
         return jsonify({"sucesso": False, "erro": str(e)})
 
 # =========================================================
-# BANCO DE TEMAS GLOBAIS (BIBLIOTECA DE BACKUP)
+# BANCO DE TEMAS GLOBAIS E DASHBOARD
 # =========================================================
 @app.route('/banco_temas')
 @login_required
@@ -682,9 +680,6 @@ def banco_temas():
             
     return render_template('banco_temas.html', temas=temas_unicos)
 
-# =========================================================
-# DASHBOARD FINANCEIRO E COMUNICAÇÃO COM OPENROUTER
-# =========================================================
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -769,7 +764,6 @@ def dashboard():
     grafico_meses_labels = [f"{meses_nomes[m-1]}/{str(y)[2:]}" for y, m in labels_meses]
     grafico_meses_valores = [faturamento_dict[k] for k in labels_meses]
     
-    # AQUI ESTÁ A NOVA LIGAÇÃO: Puxa a variável de SALDO em vez da de gasto
     saldo_real_openrouter = ia_core.consultar_saldo_openrouter(CHAVE_OPENROUTER)
     
     return render_template('dashboard.html', 
@@ -777,7 +771,7 @@ def dashboard():
                            receita_periodo=receita_periodo, 
                            a_receber_periodo=a_receber_periodo, 
                            custo_periodo=custo_periodo, 
-                           saldo_real_openrouter=saldo_real_openrouter, # Envia para o HTML
+                           saldo_real_openrouter=saldo_real_openrouter, 
                            trabalhos_periodo=trabalhos_periodo, 
                            uso_modelos=uso_modelos_lista, 
                            graf_meses_lbl=grafico_meses_labels, 
@@ -787,6 +781,44 @@ def dashboard():
                            data_inicio=data_inicio_str or '',
                            data_fim=data_fim_str or '',
                            filtrado=(bool(data_inicio_str) or bool(data_fim_str)))
+
+# =========================================================
+# ROTAS CRM E CLIENTES (INCLUINDO EXPORTAÇÃO EXCEL)
+# =========================================================
+@app.route('/clientes', methods=['GET', 'POST'])
+@login_required
+def clientes():
+    if request.method == 'POST':
+        try: valor_float = float(request.form.get('valor', '70.0').replace(',', '.'))
+        except ValueError: valor_float = 70.0
+        db.session.add(Aluno(user_id=current_user.id, nome=request.form.get('nome'), curso=request.form.get('curso'), telefone=request.form.get('telefone'), ava_login=request.form.get('ava_login'), ava_senha=request.form.get('ava_senha'), valor=valor_float, status='Produção'))
+        db.session.commit(); flash('Cliente cadastrado!', 'success')
+        return redirect(url_for('clientes'))
+    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
+    return render_template('clientes.html', alunos_pendentes=[a for a in todos_alunos if a.status != 'Pago'], alunos_pagos=[a for a in todos_alunos if a.status == 'Pago'], config=SiteSettings.query.first())
+
+@app.route('/exportar_contatos')
+@login_required
+def exportar_contatos():
+    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).all()
+    si = io.StringIO()
+    cw = csv.writer(si, delimiter=';') 
+    
+    # Cabeçalho da Planilha
+    cw.writerow(['Nome do Aluno', 'WhatsApp', 'Curso / Disciplina', 'Status do Trabalho', 'Valor Cobrado (R$)', 'Data de Entrada'])
+    
+    for a in todos_alunos:
+        data_str = a.data_cadastro.strftime('%d/%m/%Y') if a.data_cadastro else 'Não informada'
+        valor_str = f"{a.valor:.2f}".replace('.', ',') if a.valor else '0,00'
+        cw.writerow([a.nome, a.telefone, a.curso, a.status, valor_str, data_str])
+        
+    output = si.getvalue()
+    # O '\ufeff' (BOM) garante que o Excel brasileiro leia os acentos corretamente
+    return Response(
+        '\ufeff' + output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment;filename=Contatos_HubMaster.csv"}
+    )
 
 @app.route('/mudar_status/<int:id>', methods=['POST'])
 @login_required
@@ -824,18 +856,6 @@ def configuracoes():
     for m in ativos_atuais:
         if m not in todos_para_exibir: todos_para_exibir.append(m)
     return render_template('configuracoes.html', config=config, todos_modelos=todos_para_exibir, modelos_ativos=ativos_atuais)
-
-@app.route('/clientes', methods=['GET', 'POST'])
-@login_required
-def clientes():
-    if request.method == 'POST':
-        try: valor_float = float(request.form.get('valor', '70.0').replace(',', '.'))
-        except ValueError: valor_float = 70.0
-        db.session.add(Aluno(user_id=current_user.id, nome=request.form.get('nome'), curso=request.form.get('curso'), telefone=request.form.get('telefone'), ava_login=request.form.get('ava_login'), ava_senha=request.form.get('ava_senha'), valor=valor_float, status='Produção'))
-        db.session.commit(); flash('Cliente cadastrado!', 'success')
-        return redirect(url_for('clientes'))
-    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
-    return render_template('clientes.html', alunos_pendentes=[a for a in todos_alunos if a.status != 'Pago'], alunos_pagos=[a for a in todos_alunos if a.status == 'Pago'], config=SiteSettings.query.first())
 
 @app.route('/editar_cliente/<int:id>', methods=['POST'])
 @login_required
