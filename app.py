@@ -374,19 +374,14 @@ def humanizar_trabalho():
 
 O texto abaixo já está pronto e correto. O seu trabalho é APENAS reescrever AS MESMAS INFORMAÇÕES, OS MESMOS FATOS, E OS MESMOS PERSONAGENS, mas com um estilo de escrita diferente para não ser detectado por softwares de plágio de IA (Turnitin/GPTZero).
 
-REGRAS DE FIDELIDADE (PRIORIDADE MÁXIMA):
-1. Se o texto fala da Maria, fale da Maria. Se fala de RH, fale de RH. NÃO MUDE O ASSUNTO PARA UBERIZAÇÃO, TECNOLOGIA OU QUALQUER OUTRA COISA.
-
 REGRAS DE BLINDAGEM (ESTILO DE ESCRITA):
 1. Explosividade (Burstiness): Alterne entre frases longas e explicativas e frases extremamente curtas e diretas.
-2. Perplexidade: Troque termos robóticos por sinônimos menos óbvios, mas academicamente válidos.
-3. Proibido Clichês de IA: NUNCA use palavras como: crucial, mergulhar, notável, testamento, em resumo, em conclusão, paisagem, aprofundar, vital.
+2. Perplexidade: Troque termos robóticos por sinônimos menos óbvios.
 
 TEXTO ORIGINAL QUE VOCÊ DEVE PARAFRASEAR (Mantenha 100% do sentido original):
 {texto_contexto}
 
-IMPORTANTE: Retorne o resultado usando EXATAMENTE as mesmas tags [START_nome_da_tag] e [END_nome_da_tag].
-"""
+IMPORTANTE: Retorne o resultado usando EXATAMENTE as mesmas tags [START_nome_da_tag] e [END_nome_da_tag]."""
         
         fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
         nova_task = GeracaoTask(user_id=current_user.id, status='Pendente')
@@ -425,32 +420,41 @@ def status_geracao(task_id):
 @app.route('/analisar_ia_trecho', methods=['POST'])
 @login_required
 def analisar_ia_trecho():
-    dados = request.json
-    trecho = dados.get('trecho', '').strip()
-    
-    # Se o texto for muito pequeno, a IA considera natural
-    if not trecho or len(trecho) < 15:
-        return jsonify({"sucesso": True, "porcentagem": 0})
-        
-    modelos_disponiveis = get_modelos_ativos()
-    modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
-    
-    prompt = f"""Você é um detetor de plágio e IA (como o Turnitin). Analise o texto abaixo e determine a probabilidade de ele ter sido gerado por IA. Considere:
-1. Excesso de coesão (muito certinho).
-2. Clichês robóticos.
-3. Falta de 'burstiness' (alternância entre frases longas e curtas).
-TEXTO: {trecho}
-
-Responda APENAS E ESTRITAMENTE com um número de 0 a 100. Nenhuma palavra extra."""
-
     try:
+        dados = request.json or {}
+        trecho = str(dados.get('trecho', '')).strip()
+        
+        if not trecho or len(trecho) < 15:
+            return jsonify({"sucesso": True, "porcentagem": 0})
+            
+        modelos_disponiveis = get_modelos_ativos()
+        modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
+        
+        prompt = f"""Você é um sistema rigoroso de detecção de plágio e Inteligência Artificial (estilo Turnitin).
+Sua missão é dizer qual a probabilidade deste texto ter sido gerado por IA.
+
+ATENÇÃO: Textos acadêmicos (TCCs, Trabalhos de Faculdade) naturalmente possuem linguagem formal. NÃO penalize o texto apenas por ser formal ou bem escrito. 
+
+SINAIS DE ALTO RISCO DE IA (Aumentam a porcentagem para 80-100%):
+- Uso de palavras-clichê de ChatGPT: crucial, vital, farol, tapeçaria, notável, em resumo, adentrar, mergulho profundo, locus, momentum, testamento.
+- Estrutura excessivamente mecânica e perfeita.
+- Ausência total de variação no tamanho das frases (falta de "burstiness").
+
+SINAIS DE TEXTO HUMANO (Abaixam a porcentagem para 0-30%):
+- Frases diretas e objetivas misturadas com explicações longas.
+- Ausência de palavras rebuscadas desnecessárias.
+
+TEXTO A SER ANALISADO:
+{trecho}
+
+Responda APENAS E ESTRITAMENTE com um número inteiro de 0 a 100. Não escreva mais NADA além do número."""
+
         resposta, custo = ia_core.chamar_ia(prompt, modelo_rapido, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo_rapido, custo=custo))
         db.session.commit()
         
-        # Garante que só extrai os números da resposta da IA
         numeros = re.findall(r'\d+', resposta)
-        porcentagem = int(numeros[0]) if numeros else 50
+        porcentagem = int(numeros[0]) if numeros else 20
         if porcentagem > 100: porcentagem = 100
         
         return jsonify({"sucesso": True, "porcentagem": porcentagem})
@@ -460,29 +464,30 @@ Responda APENAS E ESTRITAMENTE com um número de 0 a 100. Nenhuma palavra extra.
 @app.route('/humanizar_trecho_avulso', methods=['POST'])
 @login_required
 def humanizar_trecho_avulso():
-    dados = request.json
-    trecho = dados.get('trecho')
-    modelo = dados.get('modelo', get_modelos_ativos()[0])
-    
-    prompt = f"""Você é um especialista em escrita humana invisível para detectores de IA.
-Sua única tarefa é reescrever o texto abaixo para que pareça 100% humano.
-REGRAS OBRIGATÓRIAS:
-1. Mantenha exatamente o mesmo tamanho e conteúdo do texto original.
-2. Alterne frases curtas e diretas com frases mais explicativas (Burstiness).
-3. Use um vocabulário levemente imprevisível, mas acadêmico (Perplexity).
-4. É ESTRITAMENTE PROIBIDO usar palavras como: crucial, adentrar, mergulho profundo, tapeçaria, notável, farol, locus, momentum.
+    try:
+        dados = request.json or {}
+        trecho = str(dados.get('trecho', ''))
+        modelo = dados.get('modelo', get_modelos_ativos()[0])
+        
+        prompt = f"""Você é um aluno universitário especialista em escrever textos de forma natural para burlar detectores de Inteligência Artificial.
+Sua missão é reescrever o texto abaixo para que a probabilidade de IA seja 0%.
+
+REGRAS DE BLINDAGEM ESTRITAS:
+1. Burstiness (Explosividade): Alterne drasticamente o tamanho das frases. Use uma frase curta e direta. Depois, uma mais explicativa.
+2. Imprevisibilidade: Substitua palavras "perfeitas" por sinônimos comuns do dia a dia acadêmico.
+3. Corte floreios: Vá direto ao ponto. Remova transições robóticas como "É importante notar que", "Primeiramente".
+4. PALAVRAS PROIBIDAS: crucial, vital, farol, tapeçaria, testamento, notável, adentrar, mergulho profundo, locus, momentum, outrossim.
+5. Mantenha 100% da informação original e do tamanho do texto. Não invente nada novo.
 
 TEXTO ORIGINAL:
 {trecho}
 
-Responda APENAS com o texto reescrito pronto e limpo, sem marcações."""
-    
-    try:
+Retorne APENAS o texto reescrito e limpo, sem aspas e sem comentários."""
+        
         novo_texto, custo = ia_core.chamar_ia(prompt, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo, custo=custo))
         db.session.commit()
         
-        # Limpa asteriscos soltos caso a IA coloque
         while novo_texto.startswith('**') and novo_texto.endswith('**') and len(novo_texto) > 4: 
             novo_texto = novo_texto[2:-2].strip()
             
@@ -490,18 +495,17 @@ Responda APENAS com o texto reescrito pronto e limpo, sem marcações."""
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
 
-
 @app.route('/assistente_pontual', methods=['POST'])
 @login_required
 def assistente_pontual():
-    dados = request.json
-    trecho = dados.get('trecho')
-    comando = dados.get('comando')
-    modelo = dados.get('modelo', get_modelos_ativos()[0])
-    
-    prompt = f"Você é um assistente de edição académica de elite.\nTEXTO ORIGINAL:\n{trecho}\n\nPEDIDO DO USUÁRIO:\n{comando}\n\nReescreva o texto original aplicando EXATAMENTE o que foi pedido. Responda APENAS com o novo texto limpo, sem marcações markdown (**)."
-    
     try:
+        dados = request.json or {}
+        trecho = str(dados.get('trecho', ''))
+        comando = str(dados.get('comando', ''))
+        modelo = dados.get('modelo', get_modelos_ativos()[0])
+        
+        prompt = f"Você é um assistente de edição académica de elite.\nTEXTO ORIGINAL:\n{trecho}\n\nPEDIDO DO USUÁRIO:\n{comando}\n\nReescreva o texto original aplicando EXATAMENTE o que foi pedido. Responda APENAS com o novo texto limpo, sem marcações markdown (**)."
+        
         novo_texto, custo = ia_core.chamar_ia(prompt, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo, custo=custo))
         db.session.commit()
@@ -512,26 +516,22 @@ def assistente_pontual():
 @app.route('/exterminar_cliches', methods=['POST'])
 @login_required
 def exterminar_cliches():
-    dados = request.json
-    trecho = dados.get('trecho')
-    
-    modelos_disponiveis = get_modelos_ativos()
-    modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
-    
-    prompt = f"""Você é um editor humano de textos acadêmicos implacável.
-Sua única missão é limpar este parágrafo, tirando o "tom de Inteligência Artificial".
-
+    try:
+        dados = request.json or {}
+        trecho = str(dados.get('trecho', ''))
+        
+        modelos_disponiveis = get_modelos_ativos()
+        modelo_rapido = "gemini-2.5-flash" if "gemini-2.5-flash" in modelos_disponiveis else modelos_disponiveis[0]
+        
+        prompt = f"""Você é um editor humano de textos acadêmicos implacável. Sua missão é limpar este parágrafo.
 TEXTO ORIGINAL:
 {trecho}
-
-REGRAS DE LIMPEZA ESTRITAS:
-1. Remova imediatamente palavras clichês de IA (ex: locus, momentum, tapeçaria, mergulho profundo, crucial, outrossim, dessarte, adentrar, vital, testamento, notável, farol).
-2. Substitua essas palavras por português moderno e natural.
-3. Remova formatações estranhas (como asteriscos simples * em volta de palavras).
-4. Mantenha 100% do tamanho, da estrutura, e do sentido da ideia original.
-5. Retorne APENAS o texto já corrigido e limpo, sem falar "Aqui está o texto"."""
-    
-    try:
+REGRAS: 
+1. Remova palavras clichês de IA (ex: locus, momentum, tapeçaria, mergulho profundo, crucial, outrossim, dessarte, adentrar, vital, testamento, notável, farol).
+2. Substitua por português moderno.
+3. Mantenha 100% do tamanho e do sentido.
+Retorne APENAS o texto limpo."""
+        
         novo_texto, custo = ia_core.chamar_ia(prompt, modelo_rapido, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo_rapido, custo=custo))
         db.session.commit()
@@ -543,9 +543,9 @@ REGRAS DE LIMPEZA ESTRITAS:
 @login_required
 def regerar_trecho():
     try:
-        dados = request.json
-        tema = dados.get('tema', '')
-        tag = dados.get('tag', '')
+        dados = request.json or {}
+        tema = str(dados.get('tema', ''))
+        tag = str(dados.get('tag', ''))
         modelo_selecionado = dados.get('modelo', get_modelos_ativos()[0])
         prompt_id = dados.get('prompt_id')
         contexto_atual = dados.get('dicionario', {}) 
@@ -560,13 +560,9 @@ def regerar_trecho():
 
         prompt_regeracao = f"""Você é um professor avaliador rigoroso.
 TEMA/CASO DO DESAFIO:\n{tema}
-
-CONTEXTO ATUAL DO TRABALHO (Para manter a coerência):\n{texto_contexto}
-
-REGRAS GERAIS E ESTRUTURA:\n{texto_prompt}
-
-TAREFA ESPECÍFICA DE CORREÇÃO:
-Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO que faça sentido com o contexto. NÃO inclua as marcações [START_{tag}] ou [END_{tag}]. NUNCA formate a resposta toda em negrito (**). Retorne APENAS o texto limpo."""
+CONTEXTO ATUAL DO TRABALHO:\n{texto_contexto}
+REGRAS GERAIS:\n{texto_prompt}
+TAREFA: Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO fazer sentido com o contexto. NÃO inclua marcações [START]. Retorne APENAS o texto limpo."""
         
         fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
         ultimo_erro = ""
@@ -598,7 +594,7 @@ def gerar_docx_final():
         dados = request.json or {}
         aluno_id = dados.get('aluno_id')
         dicionario_editado = dados.get('dicionario', {})
-        nome_arquivo = dados.get('nome_arquivo', '').strip()
+        nome_arquivo = str(dados.get('nome_arquivo', '')).strip()
         
         caminho_padrao = os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx')
         with open(caminho_padrao, 'rb') as f: 
@@ -817,15 +813,10 @@ def dashboard():
 def mudar_status(id):
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
-    
     novo_status = request.form.get('novo_status')
     aluno.status = novo_status
-    
-    if novo_status == 'Pago':
-        aluno.data_pagamento = datetime.utcnow()
-    else:
-        aluno.data_pagamento = None
-        
+    if novo_status == 'Pago': aluno.data_pagamento = datetime.utcnow()
+    else: aluno.data_pagamento = None
     db.session.commit()
     return redirect(url_for('clientes'))
 
@@ -838,16 +829,12 @@ def configuracoes():
         if current_user.role == 'admin':
             config.prompt_password = request.form.get('prompt_password')
             config.convert_api_key = request.form.get('convert_api_key')
-            
             modelos_selecionados = request.form.getlist('modelos_ativos')
             novo_modelo = request.form.get('novo_modelo')
             if novo_modelo and novo_modelo.strip():
-                novo_modelo_limpo = novo_modelo.strip()
-                if novo_modelo_limpo not in modelos_selecionados:
-                    modelos_selecionados.append(novo_modelo_limpo)
-                    
+                if novo_modelo.strip() not in modelos_selecionados:
+                    modelos_selecionados.append(novo_modelo.strip())
             config.modelos_ativos = ",".join(modelos_selecionados)
-                
         db.session.commit()
         flash('Configurações salvas!', 'success')
         return redirect(url_for('configuracoes'))
@@ -855,24 +842,18 @@ def configuracoes():
     ativos_atuais = get_modelos_ativos()
     todos_para_exibir = list(TODOS_MODELOS_CONHECIDOS)
     for m in ativos_atuais:
-        if m not in todos_para_exibir:
-            todos_para_exibir.append(m)
-            
+        if m not in todos_para_exibir: todos_para_exibir.append(m)
     return render_template('configuracoes.html', config=config, todos_modelos=todos_para_exibir, modelos_ativos=ativos_atuais)
 
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
 def clientes():
     if request.method == 'POST':
-        try: 
-            val_str = request.form.get('valor', '70.0').replace(',', '.')
-            valor_float = float(val_str)
-        except ValueError: 
-            valor_float = 70.0
+        try: valor_float = float(request.form.get('valor', '70.0').replace(',', '.'))
+        except ValueError: valor_float = 70.0
         db.session.add(Aluno(user_id=current_user.id, nome=request.form.get('nome'), curso=request.form.get('curso'), telefone=request.form.get('telefone'), ava_login=request.form.get('ava_login'), ava_senha=request.form.get('ava_senha'), valor=valor_float, status='Produção'))
         db.session.commit(); flash('Cliente cadastrado!', 'success')
         return redirect(url_for('clientes'))
-    
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
     return render_template('clientes.html', alunos_pendentes=[a for a in todos_alunos if a.status != 'Pago'], alunos_pagos=[a for a in todos_alunos if a.status == 'Pago'], config=SiteSettings.query.first())
 
@@ -882,9 +863,7 @@ def editar_cliente(id):
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     aluno.nome, aluno.curso, aluno.telefone, aluno.ava_login, aluno.ava_senha = request.form.get('nome'), request.form.get('curso'), request.form.get('telefone'), request.form.get('ava_login'), request.form.get('ava_senha')
-    try: 
-        val_str = request.form.get('valor', '70.0').replace(',', '.')
-        aluno.valor = float(val_str)
+    try: aluno.valor = float(request.form.get('valor', '70.0').replace(',', '.'))
     except: pass
     db.session.commit(); flash('Dados atualizados!', 'success')
     return redirect(url_for('clientes'))
@@ -988,47 +967,19 @@ def avaliar_avulso():
 def corrigir_avulso():
     config = PromptConfig.query.filter_by(is_default=True).first()
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
-
     prompt = f"""ATENÇÃO: Você é um professor e revisor de elite.
 TEMA: {request.form.get('tema')}
-
 TRABALHO ATUAL (Com falhas):
 {request.form.get('texto_extraido')}
-
 CRÍTICA DO AVALIADOR:
 {request.form.get('critica')}
-
-TAREFA: Reescreva o trabalho inteiro corrigindo todas as falhas apontadas na crítica acima.
-REGRAS ACADÊMICAS: {texto_prompt}
-
-MUITO IMPORTANTE - FORMATO DE SAÍDA:
-Você OBRIGATORIAMENTE deve estruturar a sua resposta com as seguintes tags para que o sistema consiga montar o documento (não mude o nome das tags e preencha TODAS):
-
-[START_ASPECTO_1] conteúdo [END_ASPECTO_1]
-[START_POR_QUE_1] conteúdo [END_POR_QUE_1]
-[START_ASPECTO_2] conteúdo [END_ASPECTO_2]
-[START_POR_QUE_2] conteúdo [END_POR_QUE_2]
-[START_ASPECTO_3] conteúdo [END_ASPECTO_3]
-[START_POR_QUE_3] conteúdo [END_POR_QUE_3]
-[START_CONCEITOS_TEORICOS] conteúdo [END_CONCEITOS_TEORICOS]
-[START_ANALISE_CONCEITO_1] conteúdo [END_ANALISE_CONCEITO_1]
-[START_ENTENDIMENTO_TEORICO] conteúdo [END_ENTENDIMENTO_TEORICO]
-[START_SOLUCOES_TEORICAS] conteúdo [END_SOLUCOES_TEORICAS]
-[START_RESUMO_MEMORIAL] conteúdo [END_RESUMO_MEMORIAL]
-[START_CONTEXTO_MEMORIAL] conteúdo [END_CONTEXTO_MEMORIAL]
-[START_ANALISE_MEMORIAL] conteúdo [END_ANALISE_MEMORIAL]
-[START_PROPOSTAS_MEMORIAL] conteúdo [END_PROPOSTAS_MEMORIAL]
-[START_CONCLUSAO_MEMORIAL] conteúdo [END_CONCLUSAO_MEMORIAL]
-[START_REFERENCIAS_ADICIONAIS] conteúdo [END_REFERENCIAS_ADICIONAIS]
-[START_AUTOAVALIACAO_MEMORIAL] conteúdo [END_AUTOAVALIACAO_MEMORIAL]
-
-NUNCA formate a resposta toda em negrito. Retorne apenas o conteúdo corretamente preenchido dentro das tags."""
-    
+TAREFA: Reescreva o trabalho inteiro corrigindo todas as falhas.
+REGRAS: {texto_prompt}
+MUITO IMPORTANTE: Use as tags originais para o sistema consertar o docx."""
     try:
         texto_resposta, custo = ia_core.chamar_ia(prompt, request.form.get('modelo'), CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         respostas = ia_core.extrair_dicionario(texto_resposta)
         db.session.add(RegistroUso(modelo_usado=request.form.get('modelo'), custo=custo)); db.session.commit()
-        
         with open(os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx'), 'rb') as f: arquivo_memoria = io.BytesIO(f.read())
         doc_pronto = documentos.preencher_template_com_tags(arquivo_memoria, respostas)
         return jsonify({"arquivo_base64": base64.b64encode(doc_pronto.read()).decode('utf-8'), "nome_arquivo": "Trabalho_Revisado_IA.docx"})
