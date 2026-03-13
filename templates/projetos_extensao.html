@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="margin-top:0; color: var(--success);"><i class="ph-fill ph-hands-clapping"></i> Automação de Projetos de Extensão</h1>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">
+        Preencha os dados do aluno e as datas. O sistema irá substituir automaticamente as tags no seu documento Word e pular os domingos!
+    </p>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        <div style="flex: 1.5; min-width: 300px;">
+            <div class="card" style="border-top: 4px solid var(--success);">
+                <form action="/gerar_extensao" method="POST" enctype="multipart/form-data">
+                    
+                    <h3 style="margin-top: 0;"><i class="ph-bold ph-user"></i> 1. Dados do Aluno</h3>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label>Vincular a um cliente existente (Opcional)</label>
+                            <select name="aluno_id" id="aluno_id" onchange="toggleAvulso()">
+                                <option value="">-- Preencher dados manualmente --</option>
+                                {% for aluno in alunos %}
+                                    <option value="{{ aluno.id }}">{{ aluno.nome }} ({{ aluno.curso }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <label>Matrícula do Acadêmico</label>
+                            <input type="text" name="matricula" placeholder="Ex: 8689599" required>
+                        </div>
+                    </div>
+
+                    <div id="dados_avulsos" style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 25px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label>Nome do Aluno</label>
+                            <input type="text" name="nome_avulso" id="nome_avulso" placeholder="Nome Completo">
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label>Curso</label>
+                            <input type="text" name="curso_avulso" id="curso_avulso" placeholder="Ex: Engenharia Ambiental">
+                        </div>
+                    </div>
+
+                    <h3 style="margin-top: 0; border-top: 1px solid var(--border); padding-top: 20px;"><i class="ph-bold ph-calendar"></i> 2. Geração de Datas</h3>
+                    <div style="margin-bottom: 25px;">
+                        <label>Data de Início da Ação Social</label>
+                        <input type="date" name="data_inicial" required style="width: 200px; color-scheme: dark;">
+                        <p style="font-size: 0.8rem; color: var(--warning); margin-top: 5px;">
+                            <i class="ph-bold ph-info"></i> O sistema irá gerar 30 datas consecutivas a partir desta data, <b>pulando automaticamente todos os Domingos</b>.
+                        </p>
+                    </div>
+
+                    <h3 style="margin-top: 0; border-top: 1px solid var(--border); padding-top: 20px;"><i class="ph-bold ph-file-doc"></i> 3. Arquivo Template (.docx)</h3>
+                    <div style="margin-bottom: 25px;">
+                        <label>Envie o seu Template Oficial com as Tags preparadas</label>
+                        <input type="file" name="template_doc" accept=".docx" required style="padding: 15px; background: rgba(16, 185, 129, 0.1); border: 1px dashed var(--success);">
+                    </div>
+
+                    <button type="submit" class="btn btn-green" style="width: 100%; height: 50px; font-size: 1.1rem;">
+                        <i class="ph-bold ph-magic-wand"></i> Gerar Projeto de Extensão
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div style="flex: 1; min-width: 300px;">
+            <div class="card" style="background: rgba(30, 33, 48, 0.4);">
+                <h3 style="margin-top: 0; color: var(--primary);"><i class="ph-bold ph-code"></i> Como preparar o seu Template do Word</h3>
+                <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">
+                    Abra o seu arquivo <b>.docx</b> (como o Template Paraná) no Word. Onde você quiser que o sistema preencha os dados, digite <b>exatamente</b> as etiquetas abaixo (incluindo as chaves):
+                </p>
+                
+                <div style="background: #0f111a; padding: 15px; border-radius: 8px; margin-top: 15px; font-family: monospace; color: #e2e8f0; font-size: 0.9rem;">
+                    <b style="color: var(--warning);">Dados do Aluno:</b><br>
+                    <span style="color: var(--success);">{{NOME_ALUNO}}</span><br>
+                    <span style="color: var(--success);">{{MATRICULA}}</span><br>
+                    <span style="color: var(--success);">{{CURSO}}</span><br><br>
+                    
+                    <b style="color: var(--warning);">Tabela de Frequência (Datas):</b><br>
+                    <span style="color: var(--primary);">{{DATA_1}}</span> - <i>Preenche a data inicial</i><br>
+                    <span style="color: var(--primary);">{{DATA_2}}</span> - <i>Preenche o dia seguinte</i><br>
+                    <span style="color: var(--primary);">{{DATA_3}}</span> - <i>E assim por diante...</i><br>
+                    <span style="color: var(--text-muted);">... até {{DATA_30}}</span>
+                </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: rgba(245, 158, 11, 0.1); border-left: 3px solid var(--warning); border-radius: 4px;">
+                    <p style="margin: 0; font-size: 0.85rem; color: #fff;">
+                        <b>Exemplo no Word:</b><br><br>
+                        NOME: <span style="color: var(--warning);">{{NOME_ALUNO}}</span><br>
+                        MATRÍCULA: <span style="color: var(--warning);">{{MATRICULA}}</span><br><br>
+                        Ação 1 realizada em: <span style="color: var(--warning);">{{DATA_1}}</span><br>
+                        Ação 2 realizada em: <span style="color: var(--warning);">{{DATA_2}}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleAvulso() {
+            var select = document.getElementById('aluno_id');
+            var avulsos = document.getElementById('dados_avulsos');
+            var nome = document.getElementById('nome_avulso');
+            var curso = document.getElementById('curso_avulso');
+            
+            if (select.value !== "") {
+                avulsos.style.opacity = '0.3';
+                nome.removeAttribute('required');
+                curso.removeAttribute('required');
+            } else {
+                avulsos.style.opacity = '1';
+                nome.setAttribute('required', 'required');
+                curso.setAttribute('required', 'required');
+            }
+        }
+        // Executar ao carregar a página
+        toggleAvulso();
+    </script>
+{% endblock %}
