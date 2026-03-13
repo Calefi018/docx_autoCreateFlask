@@ -7,7 +7,6 @@ import requests
 import threading
 import logging
 import traceback
-import hashlib
 import csv
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file, Response
@@ -87,7 +86,7 @@ CHAVE_API_GOOGLE = os.environ.get("GEMINI_API_KEY")
 CHAVE_OPENROUTER = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
-# MODELOS DO BANCO DE DADOS (COM SAAS)
+# MODELOS DO BANCO DE DADOS
 # =========================================================
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -290,9 +289,8 @@ def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
             db.session.commit()
 
 # =========================================================
-# ROTAS PÚBLICAS E AUTENTICAÇÃO (SaaS INTEGRADO)
+# ROTAS PÚBLICAS E AUTENTICAÇÃO
 # =========================================================
-
 @app.route('/')
 @login_required
 def index():
@@ -351,53 +349,118 @@ def mudar_senha():
             flash('Sua senha foi atualizada!', 'success'); return redirect(url_for('index'))
     return render_template('mudar_senha.html')
 
-# =========================================================
-# ÁREA DO ALUNO E MOTOR HEURÍSTICO
-# =========================================================
 
+# =========================================================
+# NOVA FERRAMENTA: PROJETOS DE EXTENSÃO
+# =========================================================
+@app.route('/projetos_extensao')
+@login_required
+def projetos_extensao():
+    if current_user.role == 'aluno': abort(403)
+    todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.nome).all()
+    return render_template('projetos_extensao.html', alunos=todos_alunos)
+
+@app.route('/gerar_extensao', methods=['POST'])
+@login_required
+def gerar_extensao():
+    if current_user.role == 'aluno': abort(403)
+    
+    aluno_id = request.form.get('aluno_id')
+    matricula = request.form.get('matricula', 'Não informada')
+    nome_avulso = request.form.get('nome_avulso', '')
+    curso_avulso = request.form.get('curso_avulso', '')
+    data_inicial_str = request.form.get('data_inicial', '')
+    
+    arquivo_template = request.files.get('template_doc')
+    if not arquivo_template or not arquivo_template.filename.endswith('.docx'):
+        flash('Envie um arquivo de Template .docx válido (Ex: Template Oficial Paraná).', 'error')
+        return redirect(url_for('projetos_extensao'))
+
+    aluno = Aluno.query.get(aluno_id) if aluno_id else None
+    nome_aluno = aluno.nome if aluno else nome_avulso
+    curso_aluno = aluno.curso if aluno else curso_avulso
+
+    # Dicionário base de substituição para as tags no Word
+    dicionario = {
+        "{{NOME_ALUNO}}": nome_aluno,
+        "{{MATRICULA}}": matricula,
+        "{{CURSO}}": curso_aluno
+    }
+
+    # Se forneceu uma data inicial, gera até 30 datas consecutivas pulando os Domingos
+    if data_inicial_str:
+        try:
+            data_atual = datetime.strptime(data_inicial_str, '%Y-%m-%d')
+            for i in range(1, 31):
+                dicionario[f"{{{{DATA_{i}}}}}"] = data_atual.strftime('%d/%m/%Y')
+                data_atual += timedelta(days=1)
+                if data_atual.weekday() == 6: # Se for 6 (Domingo), pula +1 dia (para Segunda)
+                    data_atual += timedelta(days=1)
+        except Exception:
+            pass
+
+    try:
+        arquivo_memoria = io.BytesIO(arquivo_template.read())
+        doc_pronto = documentos.preencher_template_com_tags(arquivo_memoria, dicionario)
+        doc_bytes = doc_pronto.read()
+        nome_saida = f"Projeto_Extensao_{nome_aluno.replace(' ', '_')}.docx"
+
+        if aluno:
+            novo_doc = Documento(aluno_id=aluno.id, nome_arquivo=nome_saida, dados_arquivo=doc_bytes)
+            db.session.add(novo_doc)
+            db.session.commit()
+            flash('Projeto de Extensão gerado e salvo na pasta do aluno com sucesso!', 'success')
+            return redirect(url_for('cliente_detalhe', id=aluno.id))
+        else:
+            return send_file(
+                io.BytesIO(doc_bytes),
+                as_attachment=True,
+                download_name=nome_saida,
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+    except Exception as e:
+        flash(f'Erro ao processar o documento: {str(e)}', 'error')
+        return redirect(url_for('projetos_extensao'))
+
+
+# =========================================================
+# GABARITO E ÁREA DO ALUNO
+# =========================================================
 @app.route('/area_aluno')
 @login_required
 def area_aluno():
     if current_user.role != 'aluno':
         return redirect(url_for('index'))
-        
     historico = GabaritoSalvo.query.filter_by(user_id=current_user.id).order_by(GabaritoSalvo.id.desc()).all()
     return render_template('area_aluno.html', historico=historico)
 
-@app.route('/api/motor_heuristico', methods=['POST'])
+@app.route('/gabarito_inteligente')
 @login_required
-def motor_heuristico():
-    if current_user.role != 'aluno':
-        return jsonify({"sucesso": False, "erro": "Acesso negado."})
-    
-    if current_user.creditos < 1:
-        return jsonify({"sucesso": False, "erro": "Saldo insuficiente. Entre em contato com o suporte para adquirir mais créditos."})
-        
-    texto_prova = request.form.get('prova', '')
-    if not texto_prova:
-        return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
+def gabarito_inteligente():
+    if current_user.role == 'aluno': abort(403)
+    return render_template('gabarito_inteligente.html')
 
-    current_user.creditos -= 1
-    db.session.commit()
+@app.route('/api/gerar_gabarito', methods=['POST'])
+@login_required
+def api_gerar_gabarito():
+    if current_user.role == 'aluno': abort(403)
+    texto_prova = request.form.get('prova', '')
+    if not texto_prova: return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
 
     modelo_elite = "anthropic/claude-3.5-sonnet"
-    prompt = f"Resolva a prova abaixo de forma acadêmica. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo detalhado e acadêmico.\"}}]\nPROVA:\n{texto_prova}"
+    prompt = f"Resolva a prova abaixo. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo.\"}}]\nPROVA:\n{texto_prova}"
     
     try:
         resposta_ia, custo = ia_core.chamar_ia(prompt, modelo_elite, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         resultado_ia = ia_core.extrair_json_seguro(resposta_ia)
     except Exception as e:
-        current_user.creditos += 1
-        db.session.commit()
-        return jsonify({"sucesso": False, "erro": "Falha na conexão com o banco de dados bibliográfico. Tente novamente."})
+        return jsonify({"sucesso": False, "erro": f"Falha na IA: {e}"})
 
-    if not resultado_ia: 
-        current_user.creditos += 1
-        db.session.commit()
-        return jsonify({"sucesso": False, "erro": "Não foi possível extrair a resolução deste formato de prova."})
+    if not resultado_ia: return jsonify({"sucesso": False, "erro": "A IA falhou ao processar o gabarito."})
 
     db.session.add(RegistroUso(modelo_usado=modelo_elite, custo=custo))
-    
+    db.session.commit()
+
     gabarito_final = []
     for idx, q in enumerate(resultado_ia):
         letra_crua = str(q.get('resposta', '')).upper().strip()
@@ -405,23 +468,15 @@ def motor_heuristico():
         gabarito_final.append({
             "questao": q.get('questao', idx + 1),
             "resposta": match_letra.group(0) if match_letra else "?",
-            "justificativa": q.get('justificativa', 'Sem justificativa encontrada na bibliografia.')
+            "justificativa": q.get('justificativa', 'Sem justificativa.')
         })
-    
-    novo_gabarito = GabaritoSalvo(
-        user_id=current_user.id,
-        prova_texto=texto_prova,
-        resultado_json=json.dumps(gabarito_final)
-    )
-    db.session.add(novo_gabarito)
-    db.session.commit()
 
-    return jsonify({"sucesso": True, "gabarito": gabarito_final})
+    return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": modelo_elite})
+
 
 # =========================================================
-# ROTAS GERAÇÃO E ADMIN (PROTEGIDAS CONTRA ALUNOS)
+# ROTAS DE TRABALHOS (GERAÇÃO/LEITURA)
 # =========================================================
-
 @app.route('/api/temas/<int:aluno_id>')
 @login_required
 def get_temas_aluno(aluno_id):
@@ -484,7 +539,6 @@ def humanizar_trabalho():
             config = PromptConfig.query.filter_by(is_default=True).first()
             
         texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
-        
         texto_contexto = ""
         for k, v in contexto_atual.items():
             if v and str(v).strip():
@@ -550,7 +604,6 @@ def analisar_ia_trecho():
             return jsonify({"sucesso": True, "porcentagem": 0})
             
         modelo_rapido = "google/gemini-2.5-flash"
-        
         prompt = f"""Você é um analista de textos acadêmicos. Avalie de 0 a 100 qual a probabilidade do texto abaixo ter sido gerado por uma Inteligência Artificial.
 ATENÇÃO: Textos universitários usam naturalmente linguagem culta. NÃO confunda texto bem escrito e formal com Inteligência Artificial!
 
@@ -569,11 +622,9 @@ Responda ÚNICA E EXCLUSIVAMENTE com o número da porcentagem (ex: 15). Nenhuma 
         resposta, custo = ia_core.chamar_ia(prompt, modelo_rapido, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo_rapido, custo=custo))
         db.session.commit()
-        
         numeros = re.findall(r'\d+', resposta)
         porcentagem = int(numeros[0]) if numeros else 15
         if porcentagem > 100: porcentagem = 100
-        
         return jsonify({"sucesso": True, "porcentagem": porcentagem})
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
@@ -586,7 +637,6 @@ def humanizar_trecho_avulso():
         dados = request.json or {}
         trecho = str(dados.get('trecho', ''))
         modelo = dados.get('modelo', get_modelos_ativos()[0])
-        
         prompt = f"""Sua missão é reescrever o texto abaixo como se fosse um estudante universitário real, visando 0% de detecção por softwares Anti-IA (GPTZero).
 
 TÁTICAS OBRIGATÓRIAS:
@@ -603,10 +653,8 @@ Retorne APENAS o novo texto."""
         novo_texto, custo = ia_core.chamar_ia(prompt, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo, custo=custo))
         db.session.commit()
-        
         while novo_texto.startswith('**') and novo_texto.endswith('**') and len(novo_texto) > 4: 
             novo_texto = novo_texto[2:-2].strip()
-            
         return jsonify({"sucesso": True, "novo_texto": novo_texto})
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
@@ -620,9 +668,7 @@ def assistente_pontual():
         trecho = str(dados.get('trecho', ''))
         comando = str(dados.get('comando', ''))
         modelo = dados.get('modelo', get_modelos_ativos()[0])
-        
         prompt = f"Você é um assistente de edição académica de elite.\nTEXTO ORIGINAL:\n{trecho}\n\nPEDIDO DO USUÁRIO:\n{comando}\n\nReescreva o texto original aplicando EXATAMENTE o que foi pedido. Responda APENAS com o novo texto limpo, sem marcações markdown (**)."
-        
         novo_texto, custo = ia_core.chamar_ia(prompt, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo, custo=custo))
         db.session.commit()
@@ -638,7 +684,6 @@ def exterminar_cliches():
         dados = request.json or {}
         trecho = str(dados.get('trecho', ''))
         modelo_rapido = "google/gemini-2.5-flash"
-        
         prompt = f"""Você é um editor humano de textos acadêmicos implacável. Sua missão é limpar este parágrafo.
 TEXTO ORIGINAL:
 {trecho}
@@ -647,7 +692,6 @@ REGRAS:
 2. Substitua por português moderno.
 3. Mantenha 100% do tamanho e do sentido.
 Retorne APENAS o texto limpo."""
-        
         novo_texto, custo = ia_core.chamar_ia(prompt, modelo_rapido, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo_rapido, custo=custo))
         db.session.commit()
@@ -701,7 +745,6 @@ TAREFA: Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO fazer sentido co
                 
         return jsonify({"sucesso": False, "erro": f"Falha ao regerar o trecho. Erro: {ultimo_erro}"})
     except Exception as e:
-        traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)})
 
 @app.route('/gerar_docx_final', methods=['POST'])
@@ -772,11 +815,9 @@ def banco_temas():
     temas_brutos = db.session.query(TemaTrabalho).join(Aluno).filter(Aluno.user_id == current_user.id).order_by(TemaTrabalho.data_cadastro.desc()).all()
     temas_unicos = []
     hashes_vistos = set()
-    
     for t in temas_brutos:
         texto_limpo = t.texto.strip()
         if not texto_limpo: continue
-        
         texto_puro_para_comparacao = re.sub(r'[\W_]+', '', texto_limpo[:500].lower())
         texto_hash = hashlib.md5(texto_puro_para_comparacao.encode('utf-8')).hexdigest()
         
@@ -788,18 +829,15 @@ def banco_temas():
                 if "DESAFIO" in linha.upper():
                     titulo_extraido = linha.upper().replace('*', '').strip()
                     break
-            
             if not titulo_extraido and linhas and len(linhas[0]) < 100:
                 titulo_extraido = linhas[0].upper().replace('*', '').strip()
             
             titulo_atual = str(t.titulo).strip().lower() if t.titulo else ""
-            
             if titulo_extraido: t.titulo_exibicao = titulo_extraido
             elif not titulo_atual or titulo_atual.startswith("tema"):
                 nome_curso = str(t.aluno.curso).strip().upper() if t.aluno.curso and t.aluno.curso.strip() else "DISCIPLINA NÃO INFORMADA"
                 t.titulo_exibicao = f"DESAFIO PROFISSIONAL DE {nome_curso}"
             else: t.titulo_exibicao = str(t.titulo).upper()
-            
             temas_unicos.append(t)
             
     return render_template('banco_temas.html', temas=temas_unicos)
@@ -907,9 +945,6 @@ def dashboard():
                            data_fim=data_fim_str or '',
                            filtrado=(bool(data_inicio_str) or bool(data_fim_str)))
 
-# =========================================================
-# ROTAS CRM E CLIENTES (INCLUINDO EXPORTAÇÃO EXCEL E AGRUPAMENTO)
-# =========================================================
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
 def clientes():
@@ -925,7 +960,6 @@ def clientes():
     alunos_pendentes = [a for a in todos_alunos if a.status != 'Pago']
     alunos_pagos_brutos = [a for a in todos_alunos if a.status == 'Pago']
 
-    # LÓGICA DE AGRUPAMENTO DE DATAS (NOVO)
     agora_utc = datetime.utcnow()
     hoje_brasil = (agora_utc - timedelta(hours=3)).date()
     ontem_brasil = hoje_brasil - timedelta(days=1)
@@ -946,13 +980,9 @@ def clientes():
             pagos_agrupados[data_br] = {'label': label_data, 'alunos': []}
         pagos_agrupados[data_br]['alunos'].append(a)
 
-    # Ordenar os grupos da data mais recente para a mais antiga
     lista_pagos_agrupados = [pagos_agrupados[k] for k in sorted(pagos_agrupados.keys(), reverse=True)]
 
-    return render_template('clientes.html', 
-                           alunos_pendentes=alunos_pendentes, 
-                           pagos_agrupados=lista_pagos_agrupados, 
-                           config=SiteSettings.query.first())
+    return render_template('clientes.html', alunos_pendentes=alunos_pendentes, pagos_agrupados=lista_pagos_agrupados, config=SiteSettings.query.first())
 
 @app.route('/exportar_contatos')
 @login_required
@@ -961,20 +991,14 @@ def exportar_contatos():
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).all()
     si = io.StringIO()
     cw = csv.writer(si, delimiter=';') 
-    
     cw.writerow(['Nome do Aluno', 'WhatsApp', 'Curso / Disciplina', 'Status do Trabalho', 'Valor Cobrado (R$)', 'Data de Entrada'])
-    
     for a in todos_alunos:
         data_str = a.data_cadastro.strftime('%d/%m/%Y') if a.data_cadastro else 'Não informada'
         valor_str = f"{a.valor:.2f}".replace('.', ',') if a.valor else '0,00'
         cw.writerow([a.nome, a.telefone, a.curso, a.status, valor_str, data_str])
         
     output = si.getvalue()
-    return Response(
-        '\ufeff' + output,
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment;filename=Contatos_HubMaster.csv"}
-    )
+    return Response('\ufeff' + output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=Contatos_HubMaster.csv"})
 
 @app.route('/mudar_status/<int:id>', methods=['POST'])
 @login_required
@@ -984,12 +1008,9 @@ def mudar_status(id):
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     novo_status = request.form.get('novo_status')
     aluno.status = novo_status
-    
-    # Proteção de Data: Só regista pagamento novo se ele ainda não tinha um!
     if novo_status == 'Pago':
         if not aluno.data_pagamento:
             aluno.data_pagamento = datetime.utcnow()
-            
     db.session.commit()
     return redirect(url_for('clientes'))
 
@@ -1115,45 +1136,6 @@ def delete_doc(doc_id):
     aluno_id = doc.aluno_id
     db.session.delete(doc); db.session.commit()
     return redirect(url_for('cliente_detalhe', id=aluno_id))
-
-@app.route('/gabarito_inteligente')
-@login_required
-def gabarito_inteligente():
-    if current_user.role == 'aluno': abort(403)
-    return render_template('gabarito_inteligente.html')
-
-@app.route('/api/gerar_gabarito', methods=['POST'])
-@login_required
-def api_gerar_gabarito():
-    if current_user.role == 'aluno': abort(403)
-    texto_prova = request.form.get('prova', '')
-    if not texto_prova: return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
-
-    modelo_elite = "anthropic/claude-3.5-sonnet"
-    prompt = f"Resolva a prova abaixo. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo.\"}}]\nPROVA:\n{texto_prova}"
-    
-    try:
-        resposta_ia, custo = ia_core.chamar_ia(prompt, modelo_elite, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
-        resultado_ia = ia_core.extrair_json_seguro(resposta_ia)
-    except Exception as e:
-        return jsonify({"sucesso": False, "erro": f"Falha na IA: {e}"})
-
-    if not resultado_ia: return jsonify({"sucesso": False, "erro": "A IA falhou ao processar o gabarito."})
-
-    db.session.add(RegistroUso(modelo_usado=modelo_elite, custo=custo))
-    db.session.commit()
-
-    gabarito_final = []
-    for idx, q in enumerate(resultado_ia):
-        letra_crua = str(q.get('resposta', '')).upper().strip()
-        match_letra = re.search(r'[A-E]', letra_crua)
-        gabarito_final.append({
-            "questao": q.get('questao', idx + 1),
-            "resposta": match_letra.group(0) if match_letra else "?",
-            "justificativa": q.get('justificativa', 'Sem justificativa.')
-        })
-
-    return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": modelo_elite})
 
 @app.route('/prompts')
 @login_required
