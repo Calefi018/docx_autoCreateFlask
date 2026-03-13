@@ -7,6 +7,7 @@ import requests
 import threading
 import logging
 import traceback
+import hashlib  # <-- BIBLIOTECA RESTAURADA PARA O BANCO DE TEMAS!
 import csv
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file, Response
@@ -181,7 +182,7 @@ Não use formatação em itálico (asterisco simples) para termos em inglês com
 # =========================================================
 with app.app_context():
     db.create_all()
-    # CORREÇÃO AQUI: 'user' entre aspas duplas para evitar conflito no PostgreSQL
+    # CORREÇÃO AQUI: "user" entre aspas duplas para evitar conflito no PostgreSQL
     try: db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN creditos INTEGER DEFAULT 0')); db.session.commit()
     except Exception: db.session.rollback()
     
@@ -351,7 +352,6 @@ def mudar_senha():
             flash('Sua senha foi atualizada!', 'success'); return redirect(url_for('index'))
     return render_template('mudar_senha.html')
 
-
 # =========================================================
 # NOVA FERRAMENTA: PROJETOS DE EXTENSÃO
 # =========================================================
@@ -403,7 +403,8 @@ def gerar_extensao():
 
     try:
         arquivo_memoria = io.BytesIO(arquivo_template.read())
-        doc_pronto = documentos.preencher_template_com_tags(arquivo_memoria, dicionario)
+        # Chama a nova função do documentos.py que preserva a formatação!
+        doc_pronto = documentos.preencher_template_extensao(arquivo_memoria, dicionario)
         doc_bytes = doc_pronto.read()
         nome_saida = f"Projeto_Extensao_{nome_aluno.replace(' ', '_')}.docx"
 
@@ -423,7 +424,6 @@ def gerar_extensao():
     except Exception as e:
         flash(f'Erro ao processar o documento: {str(e)}', 'error')
         return redirect(url_for('projetos_extensao'))
-
 
 # =========================================================
 # GABARITO E ÁREA DO ALUNO
@@ -474,7 +474,6 @@ def api_gerar_gabarito():
         })
 
     return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": modelo_elite})
-
 
 # =========================================================
 # ROTAS DE TRABALHOS (GERAÇÃO/LEITURA)
