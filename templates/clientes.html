@@ -142,6 +142,9 @@
                         </button>
                     </form>
                     <a href="/cliente/{{ aluno.id }}" class="btn btn-blue"><i class="ph-bold ph-folder-open"></i> Pasta</a>
+                    
+                    <button type="button" onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }}, '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn" style="background: var(--border);" title="Editar Dados do Cliente"><i class="ph-bold ph-pencil-simple"></i></button>
+
                     <button type="button" onclick="novoPedido('{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn btn-warning" title="Criar um novo trabalho para este mesmo aluno">
                         <i class="ph-bold ph-plus-circle"></i> Novo Pedido
                     </button>
@@ -156,14 +159,12 @@
     <div id="zap-template" style="display:none;">{{ config.whatsapp_template if config else 'Olá {nome}, seu trabalho está pronto! Valor: R$ {valor}' }}</div>
 
     <script>
-        // SCRIPT DO MOTOR DE BUSCA
         function filtrarClientes() {
             let input = document.getElementById('buscaCliente').value.toLowerCase();
             let cards = document.getElementsByClassName('cliente-card');
             
             for (let i = 0; i < cards.length; i++) {
                 let textoCard = cards[i].innerText.toLowerCase();
-                // Verifica se o texto digitado existe dentro de qualquer lugar do card (nome, curso, ou telefone)
                 if (textoCard.includes(input)) {
                     cards[i].style.display = "";
                 } else {
@@ -172,7 +173,6 @@
             }
         }
 
-        // SCRIPTS ANTIGOS MANTIDOS INTACTOS
         function copiarUnico(texto, tipo) {
             navigator.clipboard.writeText(texto);
             Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: tipo + ' copiado!', background: '#1e2130', color: '#10b981' });
