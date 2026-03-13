@@ -6,25 +6,34 @@
     </h1>
 
     <div class="card" style="border-top: 4px solid var(--primary); margin-bottom: 20px;">
-        <h2 style="margin: 0; color: #fff;">{{ aluno.nome }}</h2>
-        <div style="color: var(--text-muted); display: flex; gap: 20px; margin-top: 10px; font-size: 1rem; flex-wrap: wrap; align-items: center;">
-            <span><i class="ph-bold ph-graduation-cap"></i> {{ aluno.curso }}</span>
-            <span><i class="ph-bold ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
-            
-            {% if aluno.ava_login %}
-            <span style="display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px;">
-                <i class="ph-bold ph-user-circle"></i> {{ aluno.ava_login }}
-                <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_login }}', 'Login AVA')" title="Copiar Login"></i>
-                
-                {% if aluno.ava_senha %}
-                <span style="color: var(--border); margin: 0 4px;">|</span>
-                <i class="ph-bold ph-key"></i> {{ aluno.ava_senha }}
-                <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_senha }}', 'Senha AVA')" title="Copiar Senha"></i>
-                {% endif %}
-            </span>
-            {% endif %}
-            
-            <span style="color: var(--success); font-weight: bold;">R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</span>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+            <div>
+                <h2 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 15px;">
+                    {{ aluno.nome }}
+                    <button onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }}, '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 10px; font-size: 0.9rem;" title="Editar Cliente">
+                        <i class="ph-bold ph-pencil-simple"></i> Editar Ficha
+                    </button>
+                </h2>
+                <div style="color: var(--text-muted); display: flex; gap: 20px; margin-top: 10px; font-size: 1rem; flex-wrap: wrap; align-items: center;">
+                    <span><i class="ph-bold ph-graduation-cap"></i> {{ aluno.curso }}</span>
+                    <span><i class="ph-bold ph-whatsapp-logo"></i> {{ aluno.telefone }}</span>
+                    
+                    {% if aluno.ava_login %}
+                    <span style="display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px;">
+                        <i class="ph-bold ph-user-circle"></i> {{ aluno.ava_login }}
+                        <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_login }}', 'Login AVA')" title="Copiar Login"></i>
+                        
+                        {% if aluno.ava_senha %}
+                        <span style="color: var(--border); margin: 0 4px;">|</span>
+                        <i class="ph-bold ph-key"></i> {{ aluno.ava_senha }}
+                        <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_senha }}', 'Senha AVA')" title="Copiar Senha"></i>
+                        {% endif %}
+                    </span>
+                    {% endif %}
+                    
+                    <span style="color: var(--success); font-weight: bold;">R$ {{ "%.2f"|format(aluno.valor or 70.0) }}</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -112,6 +121,33 @@
             Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Copiado!', background: '#1e2130', color: '#10b981' });
         }
 
+        // NOVO: Função para editar o Cliente a partir da página da pasta
+        function editarClienteTotal(id, nome, curso, telefone, valor, login, senha) {
+            Swal.fire({
+                title: 'Editar Ficha do Cliente',
+                html: `
+                    <div style="text-align: left; display: flex; flex-direction: column; gap: 10px;">
+                        <input id="sw-nome" class="swal2-input" value="${nome}" placeholder="Nome">
+                        <input id="sw-curso" class="swal2-input" value="${curso}" placeholder="Curso">
+                        <input id="sw-tel" class="swal2-input" value="${telefone}" placeholder="WhatsApp">
+                        <input id="sw-login" class="swal2-input" value="${login}" placeholder="Login AVA">
+                        <input id="sw-senha" class="swal2-input" value="${senha}" placeholder="Senha AVA">
+                        <input id="sw-valor" type="number" step="0.01" class="swal2-input" value="${valor}" placeholder="Valor R$">
+                    </div>
+                `,
+                background: '#1e2130', color: '#e2e8f0', showCancelButton: true, confirmButtonText: 'Salvar', confirmButtonColor: '#6366f1',
+                preConfirm: () => {
+                    let form = document.createElement('form'); form.method = 'POST'; form.action = '/editar_cliente/' + id;
+                    ['nome','curso','tel','login','senha','valor'].forEach(k => {
+                        let i = document.createElement('input'); i.type = 'hidden'; 
+                        i.name = k === 'tel' ? 'telefone' : (k.includes('login') ? 'ava_login' : (k.includes('senha') ? 'ava_senha' : k));
+                        i.value = document.getElementById('sw-'+k).value; form.appendChild(i);
+                    });
+                    document.body.appendChild(form); form.submit();
+                }
+            });
+        }
+
         function editarTema(id, tituloAtual, textoAtual) {
             Swal.fire({
                 title: 'Editar Tema/Portfólio',
@@ -145,7 +181,6 @@
             });
         }
 
-        // NOVA FUNÇÃO: Dispara a conversão e recarrega a página ao terminar
         function converterParaPDF(doc_id) {
             Swal.fire({
                 title: 'Convertendo para PDF...',
