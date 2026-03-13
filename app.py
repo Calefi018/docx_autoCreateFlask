@@ -181,8 +181,10 @@ Não use formatação em itálico (asterisco simples) para termos em inglês com
 # =========================================================
 with app.app_context():
     db.create_all()
-    try: db.session.execute(db.text("ALTER TABLE user ADD COLUMN creditos INTEGER DEFAULT 0")); db.session.commit()
+    # CORREÇÃO AQUI: 'user' entre aspas duplas para evitar conflito no PostgreSQL
+    try: db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN creditos INTEGER DEFAULT 0')); db.session.commit()
     except Exception: db.session.rollback()
+    
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Produção'")); db.session.commit()
     except Exception: db.session.rollback()
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN valor FLOAT DEFAULT 70.0")); db.session.commit()
