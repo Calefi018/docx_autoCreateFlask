@@ -68,6 +68,7 @@
                 </p>
                 
                 <div style="background: #0f111a; padding: 15px; border-radius: 8px; margin-top: 15px; font-family: monospace; color: #e2e8f0; font-size: 0.9rem;">
+                    {% raw %}
                     <b style="color: var(--warning);">Dados do Aluno:</b><br>
                     <span style="color: var(--success);">{{NOME_ALUNO}}</span><br>
                     <span style="color: var(--success);">{{MATRICULA}}</span><br>
@@ -78,15 +79,18 @@
                     <span style="color: var(--primary);">{{DATA_2}}</span> - <i>Preenche o dia seguinte</i><br>
                     <span style="color: var(--primary);">{{DATA_3}}</span> - <i>E assim por diante...</i><br>
                     <span style="color: var(--text-muted);">... até {{DATA_30}}</span>
+                    {% endraw %}
                 </div>
 
                 <div style="margin-top: 20px; padding: 15px; background: rgba(245, 158, 11, 0.1); border-left: 3px solid var(--warning); border-radius: 4px;">
                     <p style="margin: 0; font-size: 0.85rem; color: #fff;">
+                        {% raw %}
                         <b>Exemplo no Word:</b><br><br>
                         NOME: <span style="color: var(--warning);">{{NOME_ALUNO}}</span><br>
                         MATRÍCULA: <span style="color: var(--warning);">{{MATRICULA}}</span><br><br>
                         Ação 1 realizada em: <span style="color: var(--warning);">{{DATA_1}}</span><br>
                         Ação 2 realizada em: <span style="color: var(--warning);">{{DATA_2}}</span>
+                        {% endraw %}
                     </p>
                 </div>
             </div>
