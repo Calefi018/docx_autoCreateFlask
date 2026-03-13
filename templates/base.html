@@ -50,26 +50,30 @@
             <i class="ph-fill ph-student"></i> HubMaster
         </div>
         
-        {% if current_user.role != 'aluno' %}
-            <a href="/" class="nav-item"><i class="ph-bold ph-magic-wand"></i> Gerador de Trabalhos</a>
-            <a href="/clientes" class="nav-item"><i class="ph-bold ph-users"></i> CRM / Clientes</a>
+        {% if current_user.is_authenticated %}
+            {% if current_user.role != 'aluno' %}
+                <a href="/" class="nav-item"><i class="ph-bold ph-magic-wand"></i> Gerador de Trabalhos</a>
+                <a href="/clientes" class="nav-item"><i class="ph-bold ph-users"></i> CRM / Clientes</a>
+                
+                <a href="/projetos_extensao" class="nav-item" style="color: var(--success);"><i class="ph-bold ph-hands-clapping"></i> Projetos de Extensão</a>
+                
+                <a href="/banco_temas" class="nav-item"><i class="ph-bold ph-books"></i> Banco de Temas</a>
+                <a href="/dashboard" class="nav-item"><i class="ph-bold ph-chart-line-up"></i> Financeiro</a>
+                
+                <div style="margin: 20px 20px 10px 20px; font-size: 0.75rem; font-weight: bold; color: var(--border); text-transform: uppercase;">Sistema</div>
+                <a href="/configuracoes" class="nav-item"><i class="ph-bold ph-gear"></i> Configurações</a>
+                <a href="/prompts" class="nav-item"><i class="ph-bold ph-brain"></i> Cérebro IA</a>
+                <a href="/admin" class="nav-item"><i class="ph-bold ph-shield-check"></i> Controle de Acessos</a>
+            {% else %}
+                <a href="/area_aluno" class="nav-item"><i class="ph-bold ph-student"></i> Minha Área</a>
+            {% endif %}
             
-            <a href="/projetos_extensao" class="nav-item" style="color: var(--success);"><i class="ph-bold ph-hands-clapping"></i> Projetos de Extensão</a>
-            
-            <a href="/banco_temas" class="nav-item"><i class="ph-bold ph-books"></i> Banco de Temas</a>
-            <a href="/dashboard" class="nav-item"><i class="ph-bold ph-chart-line-up"></i> Financeiro</a>
-            
-            <div style="margin: 20px 20px 10px 20px; font-size: 0.75rem; font-weight: bold; color: var(--border); text-transform: uppercase;">Sistema</div>
-            <a href="/configuracoes" class="nav-item"><i class="ph-bold ph-gear"></i> Configurações</a>
-            <a href="/prompts" class="nav-item"><i class="ph-bold ph-brain"></i> Cérebro IA</a>
-            <a href="/admin" class="nav-item"><i class="ph-bold ph-shield-check"></i> Controle de Acessos</a>
+            <div style="flex-grow: 1;"></div>
+            <a href="/mudar_senha" class="nav-item"><i class="ph-bold ph-lock-key"></i> Mudar Senha</a>
+            <a href="/logout" class="nav-item" style="color: var(--danger);"><i class="ph-bold ph-sign-out"></i> Sair do Sistema</a>
         {% else %}
-            <a href="/area_aluno" class="nav-item"><i class="ph-bold ph-student"></i> Minha Área</a>
+            <a href="/login" class="nav-item"><i class="ph-bold ph-sign-in"></i> Fazer Login</a>
         {% endif %}
-        
-        <div style="flex-grow: 1;"></div>
-        <a href="/mudar_senha" class="nav-item"><i class="ph-bold ph-lock-key"></i> Mudar Senha</a>
-        <a href="/logout" class="nav-item" style="color: var(--danger);"><i class="ph-bold ph-sign-out"></i> Sair do Sistema</a>
     </div>
 
     <div class="main-content">
