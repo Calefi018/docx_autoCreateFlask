@@ -301,12 +301,9 @@ def portal():
 def index():
     if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date: 
         return render_template('expirado.html')
-    
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
-    
-    # A MÁGICA ACONTECE AQUI: Apenas mostrar clientes que estão Em Produção (oculta os Pendentes/Prontos e Pagos)
+    # Mostra no gerador apenas os alunos que estão em "Produção" (Esconde os Pagos e Pendentes)
     alunos_ativos = [a for a in todos_alunos if a.status == 'Produção' or not a.status]
-    
     prompts = PromptConfig.query.all()
     return render_template('index.html', modelos=get_modelos_ativos(), alunos=alunos_ativos, prompts=prompts)
 
@@ -808,7 +805,6 @@ def exportar_contatos():
     si = io.StringIO()
     cw = csv.writer(si, delimiter=';') 
     
-    # Cabeçalho da Planilha
     cw.writerow(['Nome do Aluno', 'WhatsApp', 'Curso / Disciplina', 'Status do Trabalho', 'Valor Cobrado (R$)', 'Data de Entrada'])
     
     for a in todos_alunos:
@@ -817,13 +813,13 @@ def exportar_contatos():
         cw.writerow([a.nome, a.telefone, a.curso, a.status, valor_str, data_str])
         
     output = si.getvalue()
-    # O '\ufeff' (BOM) garante que o Excel brasileiro leia os acentos corretamente
     return Response(
         '\ufeff' + output,
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment;filename=Contatos_HubMaster.csv"}
     )
 
+# =============== A CORREÇÃO DE DINHEIRO ESTÁ AQUI =================
 @app.route('/mudar_status/<int:id>', methods=['POST'])
 @login_required
 def mudar_status(id):
@@ -831,10 +827,16 @@ def mudar_status(id):
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     novo_status = request.form.get('novo_status')
     aluno.status = novo_status
-    if novo_status == 'Pago': aluno.data_pagamento = datetime.utcnow()
-    else: aluno.data_pagamento = None
+    
+    # Se mudar para pago, só regista a data se ele NÃO TINHA data.
+    # Assim nunca apagamos o histórico se você o mover sem querer!
+    if novo_status == 'Pago': 
+        if not aluno.data_pagamento:
+            aluno.data_pagamento = datetime.utcnow()
+            
     db.session.commit()
     return redirect(url_for('clientes'))
+# ====================================================================
 
 @app.route('/configuracoes', methods=['GET', 'POST'])
 @login_required
