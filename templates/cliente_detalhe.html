@@ -10,7 +10,7 @@
             <div>
                 <h2 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 15px;">
                     {{ aluno.nome }}
-                    <button onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|replace('\'', '\\\'') }}', '{{ aluno.curso|replace('\'', '\\\'') }}', '{{ aluno.telefone|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }}, '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 10px; font-size: 0.9rem;" title="Editar Cliente">
+                    <button onclick="editarClienteTotal({{ aluno.id }}, '{{ aluno.nome|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.curso|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.telefone|default('', true)|replace('\'', '\\\'') }}', {{ aluno.valor or 70.0 }}, '{{ aluno.ava_login|default('', true)|replace('\'', '\\\'') }}', '{{ aluno.ava_senha|default('', true)|replace('\'', '\\\'') }}')" class="btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 10px; font-size: 0.9rem;" title="Editar Cliente">
                         <i class="ph-bold ph-pencil-simple"></i> Editar Ficha
                     </button>
                 </h2>
@@ -21,12 +21,12 @@
                     {% if aluno.ava_login %}
                     <span style="display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px;">
                         <i class="ph-bold ph-user-circle"></i> {{ aluno.ava_login }}
-                        <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_login }}', 'Login AVA')" title="Copiar Login"></i>
+                        <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_login|replace('\'', '\\\'') }}', 'Login AVA')" title="Copiar Login"></i>
                         
                         {% if aluno.ava_senha %}
                         <span style="color: var(--border); margin: 0 4px;">|</span>
                         <i class="ph-bold ph-key"></i> {{ aluno.ava_senha }}
-                        <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_senha }}', 'Senha AVA')" title="Copiar Senha"></i>
+                        <i class="ph-bold ph-copy" style="cursor:pointer; color:var(--primary);" onclick="copiarUnico('{{ aluno.ava_senha|replace('\'', '\\\'') }}', 'Senha AVA')" title="Copiar Senha"></i>
                         {% endif %}
                     </span>
                     {% endif %}
@@ -54,7 +54,7 @@
                             <h4 style="margin: 0; color: #fff;"><i class="ph-fill ph-text-align-left" style="color: var(--warning);"></i> {{ tema.titulo or 'Tema salvo' }}</h4>
                             <div style="display: flex; gap: 5px;">
                                 <button onclick="copiarTema({{ tema.id }})" class="btn btn-blue" style="padding: 6px 10px; font-size: 0.8rem;"><i class="ph-bold ph-copy"></i></button>
-                                <button onclick="editarTema({{ tema.id }}, '{{ tema.titulo|default('', true)|replace('\'', '\\\'') }}', `{{ tema.texto|replace('`', '\\`') }}`)" class="btn" style="background:var(--border); padding: 6px 10px; font-size: 0.8rem;"><i class="ph-bold ph-pencil-simple"></i></button>
+                                <button onclick='editarTema({{ tema.id }}, {{ (tema.titulo or "")|tojson|safe }}, {{ (tema.texto or "")|tojson|safe }})' class="btn" style="background:var(--border); padding: 6px 10px; font-size: 0.8rem;"><i class="ph-bold ph-pencil-simple"></i></button>
                                 <a href="/deletar_tema/{{ tema.id }}" class="btn btn-danger" style="padding: 6px 10px; font-size: 0.8rem;" onclick="return confirm('Apagar?')"><i class="ph-bold ph-trash"></i></a>
                             </div>
                         </div>
@@ -96,7 +96,7 @@
                             <button onclick="copiarMemorial({{ doc.id }})" class="btn btn-warning" style="padding: 6px 10px; font-size: 0.8rem; color: #000;" title="Copiar Memorial Extraído"><i class="ph-bold ph-copy"></i> Memorial</button>
                             {% endif %}
                             
-                            <button onclick="renomearDoc({{ doc.id }}, '{{ doc.nome_arquivo|replace('\'', '\\\'') }}')" class="btn" style="background: var(--border); padding: 6px 10px; font-size: 0.8rem;" title="Renomear"><i class="ph-bold ph-pencil-simple"></i></button>
+                            <button onclick="renomearDoc({{ doc.id }}, '{{ doc.nome_arquivo|default('', true)|replace('\'', '\\\'') }}')" class="btn" style="background: var(--border); padding: 6px 10px; font-size: 0.8rem;" title="Renomear"><i class="ph-bold ph-pencil-simple"></i></button>
                             <a href="/download_doc/{{ doc.id }}" class="btn btn-blue" style="padding: 6px 10px; font-size: 0.8rem;" title="Baixar"><i class="ph-bold ph-download-simple"></i></a>
                             <a href="/delete_doc/{{ doc.id }}" class="btn btn-danger" style="padding: 6px 10px; font-size: 0.8rem;" onclick="return confirm('Apagar arquivo?')" title="Apagar"><i class="ph-bold ph-trash"></i></a>
                         </div>
@@ -121,7 +121,6 @@
             Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Copiado!', background: '#1e2130', color: '#10b981' });
         }
 
-        // NOVO: Função para editar o Cliente a partir da página da pasta
         function editarClienteTotal(id, nome, curso, telefone, valor, login, senha) {
             Swal.fire({
                 title: 'Editar Ficha do Cliente',
@@ -152,8 +151,8 @@
             Swal.fire({
                 title: 'Editar Tema/Portfólio',
                 html: `
-                    <input id="edit-titulo" class="swal2-input" value="${tituloAtual}" placeholder="Título (Ex: Portfólio 2)" style="width: 90%;">
-                    <textarea id="edit-texto" class="swal2-textarea" style="width: 90%; height: 200px; font-size: 0.85rem;">${textoAtual}</textarea>
+                    <input id="edit-titulo" class="swal2-input" value="${tituloAtual.replace(/"/g, '&quot;')}" placeholder="Título (Ex: Portfólio 2)" style="width: 90%;">
+                    <textarea id="edit-texto" class="swal2-textarea" style="width: 90%; height: 200px; font-size: 0.85rem;">${textoAtual.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
                 `,
                 background: '#1e2130', color: '#e2e8f0', confirmButtonText: 'Salvar Alterações', confirmButtonColor: '#6366f1', showCancelButton: true, width: '700px',
                 preConfirm: () => {
