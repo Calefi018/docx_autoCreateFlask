@@ -3,6 +3,10 @@ import os
 from docx import Document
 
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
+    """
+    MOTOR 1: Usado APENAS para os Trabalhos Acadêmicos gerados por IA.
+    Aplica formatação Markdown (**negrito**) e regras específicas de títulos.
+    """
     doc = Document(arquivo_template)
     
     def processar_paragrafo(paragrafo):
@@ -64,9 +68,39 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
     arquivo_saida.seek(0)
     return arquivo_saida
 
+
+def preencher_template_extensao(arquivo_template, dicionario_dados):
+    """
+    MOTOR 2 (NOVO): Usado APENAS para Projetos de Extensão e Documentos Oficiais.
+    Substituição limpa e direta. Não aplica Markdown, preservando o layout da faculdade.
+    """
+    doc = Document(arquivo_template)
+
+    # 1. Substitui em parágrafos normais (Fora de tabelas)
+    for paragrafo in doc.paragraphs:
+        for marcador, valor in dicionario_dados.items():
+            if marcador in paragrafo.text:
+                paragrafo.text = paragrafo.text.replace(marcador, str(valor))
+                
+    # 2. Substitui dentro de tabelas (Onde ficam as datas e cargas horárias)
+    for tabela in doc.tables:
+        for linha in tabela.rows:
+            for celula in linha.cells:
+                for paragrafo in celula.paragraphs:
+                    for marcador, valor in dicionario_dados.items():
+                        if marcador in paragrafo.text:
+                            paragrafo.text = paragrafo.text.replace(marcador, str(valor))
+
+    arquivo_saida = io.BytesIO()
+    doc.save(arquivo_saida)
+    arquivo_saida.seek(0)
+    return arquivo_saida
+
+
 def extrair_texto_docx(arquivo_bytes):
     doc = Document(io.BytesIO(arquivo_bytes)) if isinstance(arquivo_bytes, bytes) else Document(arquivo_bytes)
     return "\n".join([p.text for p in doc.paragraphs])
+
 
 def extrair_etapa_5(arquivo_bytes):
     doc = Document(io.BytesIO(arquivo_bytes))
