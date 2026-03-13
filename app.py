@@ -87,7 +87,7 @@ CHAVE_API_GOOGLE = os.environ.get("GEMINI_API_KEY")
 CHAVE_OPENROUTER = os.environ.get("OPENAI_API_KEY")
 
 # =========================================================
-# MODELOS DO BANCO DE DADOS
+# MODELOS DO BANCO DE DADOS (COM SAAS)
 # =========================================================
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -95,7 +95,16 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='admin') 
     expiration_date = db.Column(db.Date, nullable=True)
+    creditos = db.Column(db.Integer, default=0)
     alunos = db.relationship('Aluno', backref='responsavel', lazy=True)
+    gabaritos = db.relationship('GabaritoSalvo', backref='dono', lazy=True)
+
+class GabaritoSalvo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    prova_texto = db.Column(db.Text, nullable=False)
+    resultado_json = db.Column(db.Text, nullable=False)
+    data_geracao = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Aluno(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -173,6 +182,8 @@ Não use formatação em itálico (asterisco simples) para termos em inglês com
 # =========================================================
 with app.app_context():
     db.create_all()
+    try: db.session.execute(db.text("ALTER TABLE user ADD COLUMN creditos INTEGER DEFAULT 0")); db.session.commit()
+    except Exception: db.session.rollback()
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Produção'")); db.session.commit()
     except Exception: db.session.rollback()
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN valor FLOAT DEFAULT 70.0")); db.session.commit()
@@ -204,7 +215,7 @@ with app.app_context():
     try:
         if not User.query.filter_by(username='admin').first():
             senha_hash = generate_password_hash('admin123')
-            admin_user = User(username='admin', password=senha_hash, role='admin')
+            admin_user = User(username='admin', password=senha_hash, role='admin', creditos=0)
             db.session.add(admin_user)
             db.session.commit()
         if not PromptConfig.query.filter_by(is_default=True).first():
@@ -279,37 +290,142 @@ def executar_geracao_bg(task_id, prompt_completo, fila_modelos):
             db.session.commit()
 
 # =========================================================
-# ROTAS PÚBLICAS E GERAÇÃO
+# ROTAS PÚBLICAS E AUTENTICAÇÃO (SaaS INTEGRADO)
 # =========================================================
-@app.route('/portal', methods=['GET', 'POST'])
-def portal():
-    aluno = None
-    erro = None
-    if request.method == 'POST':
-        telefone_busca = request.form.get('telefone', '')
-        tel_limpo = re.sub(r'\D', '', telefone_busca)
-        for a in Aluno.query.all():
-            if a.telefone and re.sub(r'\D', '', a.telefone) == tel_limpo:
-                aluno = a
-                break
-        if not aluno: 
-            erro = "Nenhum trabalho encontrado para este número de WhatsApp."
-    return render_template('portal.html', aluno=aluno, erro=erro)
 
 @app.route('/')
 @login_required
 def index():
-    if current_user.role == 'cliente' and current_user.expiration_date and date.today() > current_user.expiration_date: 
-        return render_template('expirado.html')
+    if current_user.role == 'aluno':
+        return redirect(url_for('area_aluno'))
+        
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
-    # Mostra no gerador apenas os alunos que estão em "Produção" (Esconde os Pagos e Pendentes)
     alunos_ativos = [a for a in todos_alunos if a.status == 'Produção' or not a.status]
     prompts = PromptConfig.query.all()
     return render_template('index.html', modelos=get_modelos_ativos(), alunos=alunos_ativos, prompts=prompts)
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated: 
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        user = User.query.filter_by(username=request.form.get('username')).first()
+        if user and check_password_hash(user.password, request.form.get('password')):
+            login_user(user)
+            return redirect(url_for('index'))
+        flash('Credenciais incorretas.', 'error')
+    return render_template('login.html')
+
+@app.route('/cadastro', methods=['GET', 'POST'])
+def cadastro():
+    if current_user.is_authenticated: 
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if User.query.filter_by(username=username).first():
+            flash('Este usuário já existe. Tente fazer login.', 'error')
+            return redirect(url_for('cadastro'))
+            
+        novo_aluno = User(username=username, password=generate_password_hash(password), role='aluno', creditos=0)
+        db.session.add(novo_aluno)
+        db.session.commit()
+        
+        login_user(novo_aluno)
+        return redirect(url_for('area_aluno'))
+    return render_template('cadastro.html')
+
+@app.route('/logout')
+@login_required
+def logout(): 
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/mudar_senha', methods=['GET', 'POST'])
+@login_required
+def mudar_senha():
+    if request.method == 'POST':
+        if check_password_hash(current_user.password, request.form.get('senha_atual')):
+            current_user.password = generate_password_hash(request.form.get('nova_senha')); db.session.commit()
+            flash('Sua senha foi atualizada!', 'success'); return redirect(url_for('index'))
+    return render_template('mudar_senha.html')
+
+# =========================================================
+# ÁREA DO ALUNO E MOTOR HEURÍSTICO
+# =========================================================
+
+@app.route('/area_aluno')
+@login_required
+def area_aluno():
+    if current_user.role != 'aluno':
+        return redirect(url_for('index'))
+        
+    historico = GabaritoSalvo.query.filter_by(user_id=current_user.id).order_by(GabaritoSalvo.id.desc()).all()
+    return render_template('area_aluno.html', historico=historico)
+
+@app.route('/api/motor_heuristico', methods=['POST'])
+@login_required
+def motor_heuristico():
+    if current_user.role != 'aluno':
+        return jsonify({"sucesso": False, "erro": "Acesso negado."})
+    
+    if current_user.creditos < 1:
+        return jsonify({"sucesso": False, "erro": "Saldo insuficiente. Entre em contato com o suporte para adquirir mais créditos."})
+        
+    texto_prova = request.form.get('prova', '')
+    if not texto_prova:
+        return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
+
+    current_user.creditos -= 1
+    db.session.commit()
+
+    modelo_elite = "anthropic/claude-3.5-sonnet"
+    prompt = f"Resolva a prova abaixo de forma acadêmica. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo detalhado e acadêmico.\"}}]\nPROVA:\n{texto_prova}"
+    
+    try:
+        resposta_ia, custo = ia_core.chamar_ia(prompt, modelo_elite, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
+        resultado_ia = ia_core.extrair_json_seguro(resposta_ia)
+    except Exception as e:
+        current_user.creditos += 1
+        db.session.commit()
+        return jsonify({"sucesso": False, "erro": "Falha na conexão com o banco de dados bibliográfico. Tente novamente."})
+
+    if not resultado_ia: 
+        current_user.creditos += 1
+        db.session.commit()
+        return jsonify({"sucesso": False, "erro": "Não foi possível extrair a resolução deste formato de prova."})
+
+    db.session.add(RegistroUso(modelo_usado=modelo_elite, custo=custo))
+    
+    gabarito_final = []
+    for idx, q in enumerate(resultado_ia):
+        letra_crua = str(q.get('resposta', '')).upper().strip()
+        match_letra = re.search(r'[A-E]', letra_crua)
+        gabarito_final.append({
+            "questao": q.get('questao', idx + 1),
+            "resposta": match_letra.group(0) if match_letra else "?",
+            "justificativa": q.get('justificativa', 'Sem justificativa encontrada na bibliografia.')
+        })
+    
+    novo_gabarito = GabaritoSalvo(
+        user_id=current_user.id,
+        prova_texto=texto_prova,
+        resultado_json=json.dumps(gabarito_final)
+    )
+    db.session.add(novo_gabarito)
+    db.session.commit()
+
+    return jsonify({"sucesso": True, "gabarito": gabarito_final})
+
+# =========================================================
+# ROTAS GERAÇÃO E ADMIN (PROTEGIDAS CONTRA ALUNOS)
+# =========================================================
+
 @app.route('/api/temas/<int:aluno_id>')
 @login_required
 def get_temas_aluno(aluno_id):
+    if current_user.role == 'aluno': abort(403)
     temas = TemaTrabalho.query.filter_by(aluno_id=aluno_id).all()
     lista_temas = [{"id": t.id, "titulo": t.titulo, "texto": t.texto} for t in temas]
     return jsonify(lista_temas)
@@ -317,6 +433,7 @@ def get_temas_aluno(aluno_id):
 @app.route('/api/extrair_memorial/<int:doc_id>', methods=['GET'])
 @login_required
 def api_extrair_memorial(doc_id):
+    if current_user.role == 'aluno': abort(403)
     doc = Documento.query.get_or_404(doc_id)
     if doc.aluno.user_id != current_user.id and current_user.role != 'admin':
         return jsonify({"sucesso": False, "erro": "Acesso negado."}), 403
@@ -329,6 +446,7 @@ def api_extrair_memorial(doc_id):
 @app.route('/gerar_rascunho', methods=['POST'])
 @login_required
 def gerar_rascunho():
+    if current_user.role == 'aluno': abort(403)
     tema = request.form.get('tema')
     modelo_selecionado = request.form.get('modelo')
     prompt_id = request.form.get('prompt_id')
@@ -352,6 +470,7 @@ def gerar_rascunho():
 @app.route('/humanizar_trabalho', methods=['POST'])
 @login_required
 def humanizar_trabalho():
+    if current_user.role == 'aluno': abort(403)
     try:
         dados = request.json
         tema = dados.get('tema', '')
@@ -400,6 +519,7 @@ IMPORTANTE: Retorne o resultado usando EXATAMENTE as mesmas tags [START_nome_da_
 @app.route('/cancelar_geracao/<int:task_id>', methods=['POST'])
 @login_required
 def cancelar_geracao(task_id):
+    if current_user.role == 'aluno': abort(403)
     task = GeracaoTask.query.get(task_id)
     if task and task.user_id == current_user.id and task.status == 'Pendente':
         task.status = 'Cancelado'
@@ -410,6 +530,7 @@ def cancelar_geracao(task_id):
 @app.route('/status_geracao/<int:task_id>', methods=['GET'])
 @login_required
 def status_geracao(task_id):
+    if current_user.role == 'aluno': abort(403)
     task = GeracaoTask.query.get(task_id)
     if not task or task.user_id != current_user.id: return jsonify({"sucesso": False, "erro": "Tarefa não encontrada."})
     if task.status == 'Pendente': return jsonify({"status": "Pendente"})
@@ -417,12 +538,10 @@ def status_geracao(task_id):
     if task.status == 'Cancelado': return jsonify({"status": "Cancelado"})
     return jsonify({"status": "Concluido", "dicionario": json.loads(task.resultado), "modelo_utilizado": task.modelo_utilizado})
 
-# =========================================================
-# ROTAS DO RADAR DE IA E HUMANIZADOR 
-# =========================================================
 @app.route('/analisar_ia_trecho', methods=['POST'])
 @login_required
 def analisar_ia_trecho():
+    if current_user.role == 'aluno': abort(403)
     try:
         dados = request.json or {}
         trecho = str(dados.get('trecho', '')).strip()
@@ -462,6 +581,7 @@ Responda ÚNICA E EXCLUSIVAMENTE com o número da porcentagem (ex: 15). Nenhuma 
 @app.route('/humanizar_trecho_avulso', methods=['POST'])
 @login_required
 def humanizar_trecho_avulso():
+    if current_user.role == 'aluno': abort(403)
     try:
         dados = request.json or {}
         trecho = str(dados.get('trecho', ''))
@@ -494,6 +614,7 @@ Retorne APENAS o novo texto."""
 @app.route('/assistente_pontual', methods=['POST'])
 @login_required
 def assistente_pontual():
+    if current_user.role == 'aluno': abort(403)
     try:
         dados = request.json or {}
         trecho = str(dados.get('trecho', ''))
@@ -512,6 +633,7 @@ def assistente_pontual():
 @app.route('/exterminar_cliches', methods=['POST'])
 @login_required
 def exterminar_cliches():
+    if current_user.role == 'aluno': abort(403)
     try:
         dados = request.json or {}
         trecho = str(dados.get('trecho', ''))
@@ -536,6 +658,7 @@ Retorne APENAS o texto limpo."""
 @app.route('/regerar_trecho', methods=['POST'])
 @login_required
 def regerar_trecho():
+    if current_user.role == 'aluno': abort(403)
     try:
         dados = request.json or {}
         tema = str(dados.get('tema', ''))
@@ -584,6 +707,7 @@ TAREFA: Reescreva APENAS o trecho da tag {tag}. É OBRIGATÓRIO fazer sentido co
 @app.route('/gerar_docx_final', methods=['POST'])
 @login_required
 def gerar_docx_final():
+    if current_user.role == 'aluno': abort(403)
     try:
         dados = request.json or {}
         aluno_id = dados.get('aluno_id')
@@ -617,6 +741,7 @@ def gerar_docx_final():
 @app.route('/converter_pdf/<int:doc_id>', methods=['POST'])
 @login_required
 def converter_pdf(doc_id):
+    if current_user.role == 'aluno': abort(403)
     try:
         doc = Documento.query.get_or_404(doc_id)
         if doc.aluno.user_id != current_user.id and current_user.role != 'admin': return jsonify({"sucesso": False, "erro": "Acesso negado."}), 403
@@ -640,12 +765,10 @@ def converter_pdf(doc_id):
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
 
-# =========================================================
-# BANCO DE TEMAS GLOBAIS E DASHBOARD
-# =========================================================
 @app.route('/banco_temas')
 @login_required
 def banco_temas():
+    if current_user.role == 'aluno': abort(403)
     temas_brutos = db.session.query(TemaTrabalho).join(Aluno).filter(Aluno.user_id == current_user.id).order_by(TemaTrabalho.data_cadastro.desc()).all()
     temas_unicos = []
     hashes_vistos = set()
@@ -684,6 +807,7 @@ def banco_temas():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    if current_user.role == 'aluno': abort(403)
     data_inicio_str = request.args.get('data_inicio')
     data_fim_str = request.args.get('data_fim')
     agora_utc = datetime.utcnow()
@@ -784,23 +908,56 @@ def dashboard():
                            filtrado=(bool(data_inicio_str) or bool(data_fim_str)))
 
 # =========================================================
-# ROTAS CRM E CLIENTES (INCLUINDO EXPORTAÇÃO EXCEL)
+# ROTAS CRM E CLIENTES (INCLUINDO EXPORTAÇÃO EXCEL E AGRUPAMENTO)
 # =========================================================
 @app.route('/clientes', methods=['GET', 'POST'])
 @login_required
 def clientes():
+    if current_user.role == 'aluno': abort(403)
     if request.method == 'POST':
         try: valor_float = float(request.form.get('valor', '70.0').replace(',', '.'))
         except ValueError: valor_float = 70.0
         db.session.add(Aluno(user_id=current_user.id, nome=request.form.get('nome'), curso=request.form.get('curso'), telefone=request.form.get('telefone'), ava_login=request.form.get('ava_login'), ava_senha=request.form.get('ava_senha'), valor=valor_float, status='Produção'))
         db.session.commit(); flash('Cliente cadastrado!', 'success')
         return redirect(url_for('clientes'))
+        
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.id.desc()).all()
-    return render_template('clientes.html', alunos_pendentes=[a for a in todos_alunos if a.status != 'Pago'], alunos_pagos=[a for a in todos_alunos if a.status == 'Pago'], config=SiteSettings.query.first())
+    alunos_pendentes = [a for a in todos_alunos if a.status != 'Pago']
+    alunos_pagos_brutos = [a for a in todos_alunos if a.status == 'Pago']
+
+    # LÓGICA DE AGRUPAMENTO DE DATAS (NOVO)
+    agora_utc = datetime.utcnow()
+    hoje_brasil = (agora_utc - timedelta(hours=3)).date()
+    ontem_brasil = hoje_brasil - timedelta(days=1)
+
+    pagos_agrupados = {}
+    for a in alunos_pagos_brutos:
+        data_ref = a.data_pagamento if a.data_pagamento else a.data_cadastro
+        data_br = (data_ref - timedelta(hours=3)).date() if data_ref else hoje_brasil
+
+        if data_br == hoje_brasil:
+            label_data = f"{data_br.strftime('%d/%m/%Y')} (Hoje)"
+        elif data_br == ontem_brasil:
+            label_data = f"{data_br.strftime('%d/%m/%Y')} (Ontem)"
+        else:
+            label_data = data_br.strftime('%d/%m/%Y')
+
+        if data_br not in pagos_agrupados:
+            pagos_agrupados[data_br] = {'label': label_data, 'alunos': []}
+        pagos_agrupados[data_br]['alunos'].append(a)
+
+    # Ordenar os grupos da data mais recente para a mais antiga
+    lista_pagos_agrupados = [pagos_agrupados[k] for k in sorted(pagos_agrupados.keys(), reverse=True)]
+
+    return render_template('clientes.html', 
+                           alunos_pendentes=alunos_pendentes, 
+                           pagos_agrupados=lista_pagos_agrupados, 
+                           config=SiteSettings.query.first())
 
 @app.route('/exportar_contatos')
 @login_required
 def exportar_contatos():
+    if current_user.role == 'aluno': abort(403)
     todos_alunos = Aluno.query.filter_by(user_id=current_user.id).all()
     si = io.StringIO()
     cw = csv.writer(si, delimiter=';') 
@@ -819,28 +976,27 @@ def exportar_contatos():
         headers={"Content-Disposition": "attachment;filename=Contatos_HubMaster.csv"}
     )
 
-# =============== A CORREÇÃO DE DINHEIRO ESTÁ AQUI =================
 @app.route('/mudar_status/<int:id>', methods=['POST'])
 @login_required
 def mudar_status(id):
+    if current_user.role == 'aluno': abort(403)
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     novo_status = request.form.get('novo_status')
     aluno.status = novo_status
     
-    # Se mudar para pago, só regista a data se ele NÃO TINHA data.
-    # Assim nunca apagamos o histórico se você o mover sem querer!
-    if novo_status == 'Pago': 
+    # Proteção de Data: Só regista pagamento novo se ele ainda não tinha um!
+    if novo_status == 'Pago':
         if not aluno.data_pagamento:
             aluno.data_pagamento = datetime.utcnow()
             
     db.session.commit()
     return redirect(url_for('clientes'))
-# ====================================================================
 
 @app.route('/configuracoes', methods=['GET', 'POST'])
 @login_required
 def configuracoes():
+    if current_user.role == 'aluno': abort(403)
     config = SiteSettings.query.first()
     if request.method == 'POST':
         config.whatsapp_template = request.form.get('whatsapp_template')
@@ -866,6 +1022,7 @@ def configuracoes():
 @app.route('/editar_cliente/<int:id>', methods=['POST'])
 @login_required
 def editar_cliente(id):
+    if current_user.role == 'aluno': abort(403)
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     aluno.nome, aluno.curso, aluno.telefone, aluno.ava_login, aluno.ava_senha = request.form.get('nome'), request.form.get('curso'), request.form.get('telefone'), request.form.get('ava_login'), request.form.get('ava_senha')
@@ -877,6 +1034,7 @@ def editar_cliente(id):
 @app.route('/deletar_cliente/<int:id>', methods=['GET'])
 @login_required
 def deletar_cliente(id):
+    if current_user.role == 'aluno': abort(403)
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     db.session.delete(aluno); db.session.commit(); flash('Cliente apagado.', 'success')
@@ -885,6 +1043,7 @@ def deletar_cliente(id):
 @app.route('/cliente/<int:id>', methods=['GET'])
 @login_required
 def cliente_detalhe(id):
+    if current_user.role == 'aluno': abort(403)
     aluno = Aluno.query.get_or_404(id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     return render_template('cliente_detalhe.html', aluno=aluno)
@@ -892,6 +1051,7 @@ def cliente_detalhe(id):
 @app.route('/adicionar_tema/<int:aluno_id>', methods=['POST'])
 @login_required
 def adicionar_tema(aluno_id):
+    if current_user.role == 'aluno': abort(403)
     aluno = Aluno.query.get_or_404(aluno_id)
     if aluno.user_id != current_user.id and current_user.role != 'admin': abort(403)
     if request.form.get('texto'): 
@@ -902,6 +1062,7 @@ def adicionar_tema(aluno_id):
 @app.route('/editar_tema/<int:tema_id>', methods=['POST'])
 @login_required
 def editar_tema(tema_id):
+    if current_user.role == 'aluno': abort(403)
     tema = TemaTrabalho.query.get_or_404(tema_id)
     if Aluno.query.get(tema.aluno_id).user_id != current_user.id and current_user.role != 'admin': abort(403)
     tema.titulo, tema.texto = request.form.get('titulo'), request.form.get('texto')
@@ -911,6 +1072,7 @@ def editar_tema(tema_id):
 @app.route('/deletar_tema/<int:tema_id>')
 @login_required
 def deletar_tema(tema_id):
+    if current_user.role == 'aluno': abort(403)
     tema = TemaTrabalho.query.get_or_404(tema_id)
     if Aluno.query.get(tema.aluno_id).user_id != current_user.id and current_user.role != 'admin': abort(403)
     db.session.delete(tema); db.session.commit(); flash('Apagado.', 'success')
@@ -919,6 +1081,7 @@ def deletar_tema(tema_id):
 @app.route('/upload_doc/<int:aluno_id>', methods=['POST'])
 @login_required
 def upload_doc(aluno_id):
+    if current_user.role == 'aluno': abort(403)
     try:
         arquivo = request.files.get('arquivo')
         if arquivo and arquivo.filename.lower().endswith(('.docx', '.pdf')):
@@ -935,6 +1098,7 @@ def download_doc(doc_id):
 @app.route('/rename_doc/<int:doc_id>', methods=['POST'])
 @login_required
 def rename_doc(doc_id):
+    if current_user.role == 'aluno': abort(403)
     doc = Documento.query.get_or_404(doc_id)
     novo_nome = request.form.get('novo_nome', '').strip()
     if novo_nome:
@@ -946,82 +1110,22 @@ def rename_doc(doc_id):
 @app.route('/delete_doc/<int:doc_id>')
 @login_required
 def delete_doc(doc_id):
+    if current_user.role == 'aluno': abort(403)
     doc = Documento.query.get_or_404(doc_id)
     aluno_id = doc.aluno_id
     db.session.delete(doc); db.session.commit()
     return redirect(url_for('cliente_detalhe', id=aluno_id))
 
-@app.route('/revisao_avulsa')
-@login_required
-def revisao_avulsa(): return render_template('revisao_avulsa.html', modelos=get_modelos_ativos())
-
-@app.route('/avaliar_avulso', methods=['POST'])
-@login_required
-def avaliar_avulso():
-    arquivo = request.files.get('arquivo_trabalho')
-    if not arquivo or not arquivo.filename.endswith('.docx'): return jsonify({"erro": "Envie um .docx válido."}), 400
-    texto_trabalho = documentos.extrair_texto_docx(arquivo.read())
-    prompt = f"Analise o TEMA: {request.form.get('tema')} \nE O TRABALHO DO ALUNO: {texto_trabalho}\nFaça uma crítica de 3 linhas apontando o que falta para tirar nota máxima. Responda apenas com texto limpo sem formatações."
-    try: 
-        resposta_ia, custo = ia_core.chamar_ia(prompt, request.form.get('modelo'), CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
-        db.session.add(RegistroUso(modelo_usado=request.form.get('modelo'), custo=custo)); db.session.commit()
-        return jsonify({"critica": resposta_ia.replace('*', '').strip(), "texto_extraido": texto_trabalho})
-    except Exception as e: return jsonify({"erro": str(e)}), 500
-
-@app.route('/corrigir_avulso', methods=['POST'])
-@login_required
-def corrigir_avulso():
-    config = PromptConfig.query.filter_by(is_default=True).first()
-    texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
-    prompt = f"""ATENÇÃO: Você é um professor e revisor de elite.
-TEMA: {request.form.get('tema')}
-TRABALHO ATUAL (Com falhas):
-{request.form.get('texto_extraido')}
-CRÍTICA DO AVALIADOR:
-{request.form.get('critica')}
-TAREFA: Reescreva o trabalho inteiro corrigindo todas as falhas.
-REGRAS: {texto_prompt}
-MUITO IMPORTANTE: Use as tags originais para o sistema consertar o docx."""
-    try:
-        texto_resposta, custo = ia_core.chamar_ia(prompt, request.form.get('modelo'), CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
-        respostas = ia_core.extrair_dicionario(texto_resposta)
-        db.session.add(RegistroUso(modelo_usado=request.form.get('modelo'), custo=custo)); db.session.commit()
-        with open(os.path.join(app.root_path, 'TEMPLATE_COM_TAGS.docx'), 'rb') as f: arquivo_memoria = io.BytesIO(f.read())
-        doc_pronto = documentos.preencher_template_com_tags(arquivo_memoria, respostas)
-        return jsonify({"arquivo_base64": base64.b64encode(doc_pronto.read()).decode('utf-8'), "nome_arquivo": "Trabalho_Revisado_IA.docx"})
-    except Exception as e: return jsonify({"erro": str(e)}), 500
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if current_user.is_authenticated: return redirect(url_for('index'))
-    if request.method == 'POST':
-        user = User.query.filter_by(username=request.form.get('username')).first()
-        if user and check_password_hash(user.password, request.form.get('password')):
-            login_user(user); return redirect(url_for('index'))
-        flash('Credenciais incorretas.', 'error')
-    return render_template('login.html')
-
-@app.route('/logout')
-@login_required
-def logout(): logout_user(); return redirect(url_for('login'))
-
-@app.route('/mudar_senha', methods=['GET', 'POST'])
-@login_required
-def mudar_senha():
-    if request.method == 'POST':
-        if check_password_hash(current_user.password, request.form.get('senha_atual')):
-            current_user.password = generate_password_hash(request.form.get('nova_senha')); db.session.commit()
-            flash('Sua senha foi atualizada!', 'success'); return redirect(url_for('index'))
-    return render_template('mudar_senha.html')
-
 @app.route('/gabarito_inteligente')
 @login_required
 def gabarito_inteligente():
+    if current_user.role == 'aluno': abort(403)
     return render_template('gabarito_inteligente.html')
 
 @app.route('/api/gerar_gabarito', methods=['POST'])
 @login_required
 def api_gerar_gabarito():
+    if current_user.role == 'aluno': abort(403)
     texto_prova = request.form.get('prova', '')
     if not texto_prova: return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
 
@@ -1087,7 +1191,7 @@ def admin():
     if current_user.role not in ['admin', 'sub-admin']: abort(403)
     if request.method == 'POST':
         data_exp = request.form.get('expiration_date')
-        db.session.add(User(username=request.form.get('username'), password=generate_password_hash(request.form.get('password')), role=request.form.get('role'), expiration_date=datetime.strptime(data_exp, '%Y-%m-%d').date() if data_exp else None))
+        db.session.add(User(username=request.form.get('username'), password=generate_password_hash(request.form.get('password')), role=request.form.get('role'), creditos=0, expiration_date=datetime.strptime(data_exp, '%Y-%m-%d').date() if data_exp else None))
         db.session.commit(); flash('Usuário criado.', 'success')
     return render_template('admin.html', users=User.query.all(), hoje=date.today())
 
@@ -1098,10 +1202,15 @@ def edit_user(id):
     user = User.query.get_or_404(id)
     if request.method == 'POST':
         if request.form.get('password'): user.password = generate_password_hash(request.form.get('password'))
-        if current_user.role == 'admin': user.role = request.form.get('role')
+        if current_user.role == 'admin': 
+            user.role = request.form.get('role')
+            if request.form.get('creditos') is not None:
+                try: user.creditos = int(request.form.get('creditos'))
+                except ValueError: pass
+                
         data_exp = request.form.get('expiration_date')
         user.expiration_date = datetime.strptime(data_exp, '%Y-%m-%d').date() if data_exp else None
-        db.session.commit(); flash('Atualizado!', 'success')
+        db.session.commit(); flash('Usuário Atualizado!', 'success')
         return redirect(url_for('admin'))
     return render_template('edit_user.html', user=user)
 
