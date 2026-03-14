@@ -1,6 +1,9 @@
 import io
 import os
+import re
 from docx import Document
+from docx.oxml.text.paragraph import CT_P
+from docx.text.paragraph import Paragraph
 
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
     """
@@ -71,25 +74,50 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
 
 def preencher_template_extensao(arquivo_template, dicionario_dados):
     """
-    MOTOR 2 (NOVO): Usado APENAS para Projetos de Extensão e Documentos Oficiais.
-    Substituição limpa e direta. Não aplica Markdown, preservando o layout da faculdade.
+    MOTOR 2 (RAIO-X DE XML): Usado APENAS para Projetos de Extensão.
+    Varre o código fonte do Word para encontrar textos dentro de CAIXAS DE TEXTO flutuantes, 
+    formas, cabeçalhos, rodapés e tabelas aninhadas, preservando o layout da faculdade.
     """
     doc = Document(arquivo_template)
 
-    # 1. Substitui em parágrafos normais (Fora de tabelas)
-    for paragrafo in doc.paragraphs:
+    def substituir_em_paragrafo(p):
+        if not p.text: return
+        
+        # Limpeza rápida de segurança caso haja espaços acidentais nas chaves (Ex: {{DATA_ 1}})
+        texto_limpo = re.sub(r'\{\{\s*(.*?)\s*\}\}', lambda m: '{{' + m.group(1).replace(' ', '') + '}}', p.text)
+        if p.text != texto_limpo:
+            p.text = texto_limpo
+
         for marcador, valor in dicionario_dados.items():
-            if marcador in paragrafo.text:
-                paragrafo.text = paragrafo.text.replace(marcador, str(valor))
+            if marcador in p.text:
+                # 1ª Tentativa: Substituir mantendo a formatação exata da fonte
+                substituiu_run = False
+                for run in p.runs:
+                    if marcador in run.text:
+                        run.text = run.text.replace(marcador, str(valor))
+                        substituiu_run = True
                 
-    # 2. Substitui dentro de tabelas (Onde ficam as datas e cargas horárias)
-    for tabela in doc.tables:
-        for linha in tabela.rows:
-            for celula in linha.cells:
-                for paragrafo in celula.paragraphs:
-                    for marcador, valor in dicionario_dados.items():
-                        if marcador in paragrafo.text:
-                            paragrafo.text = paragrafo.text.replace(marcador, str(valor))
+                # 2ª Tentativa (Fallback): Se as tags estiverem separadas invisivelmente pelo Word
+                # Substitui o texto bruto do parágrafo inteiro (Ideal para caixas de texto)
+                if not substituiu_run:
+                    p.text = p.text.replace(marcador, str(valor))
+
+    # 1. VARREDURA PROFUNDA NO CORPO (Acha Caixas de Texto!)
+    # Ao iterar pelo CT_P (Paragraph XML), o Python acha os textos que estão soltos ou dentro de caixas/shapes
+    for node in doc.element.body.iter(CT_P):
+        p = Paragraph(node, doc)
+        substituir_em_paragrafo(p)
+
+    # 2. VARREDURA NOS CABEÇALHOS E RODAPÉS
+    for section in doc.sections:
+        if section.header:
+            for node in section.header._element.iter(CT_P):
+                p = Paragraph(node, section.header)
+                substituir_em_paragrafo(p)
+        if section.footer:
+            for node in section.footer._element.iter(CT_P):
+                p = Paragraph(node, section.footer)
+                substituir_em_paragrafo(p)
 
     arquivo_saida = io.BytesIO()
     doc.save(arquivo_saida)
