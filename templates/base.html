@@ -28,7 +28,8 @@
         .nav-item i { font-size: 1.2rem; }
         .main-content { flex: 1; padding: 30px; overflow-y: auto; height: 100vh; box-sizing: border-box; }
         .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .btn { cursor: pointer; padding: 8px 16px; border-radius: 6px; border: none; font-weight: 600; font-size: 0.9rem; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: #fff; }
+        /* AQUI ESTÁ A CORREÇÃO DAS CORES (background-color na class base) */
+        .btn { cursor: pointer; padding: 8px 16px; border-radius: 6px; border: none; font-weight: 600; font-size: 0.9rem; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: #fff; background-color: var(--primary); }
         .btn-primary { background: var(--primary); } .btn-primary:hover { background: var(--primary-hover); }
         .btn-success, .btn-green { background: var(--success); } .btn-success:hover { opacity: 0.9; }
         .btn-warning { background: var(--warning); color: #000; } .btn-warning:hover { opacity: 0.9; }
@@ -56,9 +57,7 @@
                 <a href="/clientes" class="nav-item"><i class="ph-bold ph-users"></i> CRM / Clientes</a>
                 <a href="/projetos_extensao" class="nav-item" style="color: var(--success);"><i class="ph-bold ph-hands-clapping"></i> Projetos de Extensão</a>
                 <a href="/banco_temas" class="nav-item"><i class="ph-bold ph-books"></i> Banco de Temas</a>
-                
                 <a href="/gabarito_inteligente" class="nav-item" style="color: var(--warning);"><i class="ph-bold ph-check-square-offset"></i> Gabarito Inteligente</a>
-                
                 <a href="/dashboard" class="nav-item"><i class="ph-bold ph-chart-line-up"></i> Financeiro</a>
                 
                 <div style="margin: 20px 20px 10px 20px; font-size: 0.75rem; font-weight: bold; color: var(--border); text-transform: uppercase;">Sistema</div>
