@@ -330,7 +330,7 @@ def mudar_senha():
     return render_template('mudar_senha.html')
 
 # =========================================================
-# FERRAMENTA: GABARITO INTELIGENTE 
+# FERRAMENTA: GABARITO INTELIGENTE
 # =========================================================
 @app.route('/gabarito_inteligente')
 @login_required
@@ -371,7 +371,7 @@ def api_gerar_gabarito():
 
 
 # =========================================================
-# FERRAMENTA: PROJETOS DE EXTENSÃO COM OPÇÃO DE PDF
+# FERRAMENTA: PROJETOS DE EXTENSÃO
 # =========================================================
 @app.route('/projetos_extensao')
 @login_required
@@ -386,7 +386,7 @@ def gerar_extensao():
     matricula = request.form.get('matricula', 'Não informada')
     nome_avulso = request.form.get('nome_avulso', '')
     curso_avulso = request.form.get('curso_avulso', '')
-    gerar_pdf = request.form.get('gerar_pdf') == 'sim' # Verifica se o usuario marcou a caixa
+    gerar_pdf = request.form.get('gerar_pdf') == 'sim'
     
     aluno = Aluno.query.get(aluno_id) if aluno_id else None
     nome_aluno = aluno.nome if aluno else nome_avulso
@@ -438,7 +438,6 @@ def gerar_extensao():
         dicionario[f"{{{{DATA_{i+1}}}}}"] = datas_reversas[i].strftime('%d/%m/%Y')
 
     try:
-        # GERAR ARQUIVOS DOCX
         with open(caminho_evidencias, 'rb') as f1:
             memoria_evidencias = io.BytesIO(f1.read())
         doc_evidencias = documentos.preencher_template_extensao(memoria_evidencias, dicionario)
@@ -452,7 +451,6 @@ def gerar_extensao():
         nome_arq_evidencias = f"[EXTENSÃO] Evidências - {nome_aluno}.docx"
         nome_arq_ficha = f"[EXTENSÃO] Ficha - {nome_aluno}.docx"
 
-        # MOTOR DE CONVERSÃO PDF OPCIONAL
         pdf_evidencias_bytes = None
         pdf_ficha_bytes = None
 
@@ -465,9 +463,8 @@ def gerar_extensao():
                 resp2 = requests.post(f'https://v2.convertapi.com/convert/docx/to/pdf?Secret={config.convert_api_key}', files={'File': (nome_arq_ficha, bytes_ficha)}).json()
                 if 'Files' in resp2: pdf_ficha_bytes = base64.b64decode(resp2['Files'][0]['FileData'])
             else:
-                flash('Chave da ConvertAPI não encontrada nas Configurações. Apenas arquivos DOCX foram gerados.', 'warning')
+                flash('Chave da ConvertAPI não encontrada nas Configurações.', 'warning')
 
-        # SE FOR CLIENTE DO SISTEMA: Salva tudo no CRM
         if aluno:
             db.session.add(Documento(aluno_id=aluno.id, nome_arquivo=nome_arq_evidencias, dados_arquivo=bytes_evidencias))
             db.session.add(Documento(aluno_id=aluno.id, nome_arquivo=nome_arq_ficha, dados_arquivo=bytes_ficha))
@@ -479,8 +476,6 @@ def gerar_extensao():
             db.session.commit()
             flash('Projeto de Extensão gerado e salvo com sucesso!', 'success')
             return redirect(url_for('cliente_detalhe', id=aluno.id))
-        
-        # SE FOR AVULSO: Envia os arquivos na tela (Sem ZIP!)
         else:
             arquivos_para_baixar = [
                 {"nome": nome_arq_evidencias, "b64": base64.b64encode(bytes_evidencias).decode('utf-8')},
@@ -529,7 +524,18 @@ def gerar_rascunho():
     
     config = PromptConfig.query.get(int(prompt_id)) if prompt_id and str(prompt_id).isdigit() else PromptConfig.query.filter_by(is_default=True).first()
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
-    prompt_completo = f"TEMA:\n{tema}\n\n{texto_prompt}\n\nMUITO IMPORTANTE: Use as marcações exatas [START_NOME_DA_TAG] e [END_NOME_DA_TAG] para cada sessão do trabalho."
+    
+    # [CORREÇÃO AQUI]: O ESCUDO ANTI-META! Oculto e poderoso.
+    prompt_completo = f"""TEMA:
+{tema}
+
+{texto_prompt}
+
+MUITO IMPORTANTE: Use as marcações exatas [START_NOME_DA_TAG] e [END_NOME_DA_TAG] para cada sessão.
+REGRAS DE SEGURANÇA MÁXIMA (ANTI-DETECÇÃO):
+1. É ESTRITAMENTE PROIBIDO fazer "meta-comentários" sobre o trabalho.
+2. Na Autoavaliação ou Resumo, NUNCA mencione "limites de caracteres", "exigências do prompt", "Etapa 5", ou a dificuldade de escrever o texto.
+3. Fale APENAS sobre o caso prático, os conceitos da disciplina e o aprendizado do aluno."""
     
     fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
     nova_task = GeracaoTask(user_id=current_user.id, status='Pendente')
@@ -548,12 +554,20 @@ def humanizar_trabalho():
         contexto_atual = dados.get('dicionario', {}) 
         texto_contexto = "".join([f"[START_{k.replace('{{', '').replace('}}', '')}]\n{v}\n[END_{k.replace('{{', '').replace('}}', '')}]\n\n" for k, v in contexto_atual.items() if v and str(v).strip()])
 
-        prompt_humanizador = f"""ATENÇÃO: O SEU ÚNICO PAPEL AGORA É SER UM REVISOR DE ESTILO E PARAFRASEADOR. 
+        # [CORREÇÃO AQUI]: RETORNO DA BLINDAGEM PESADA DE HUMANIZAÇÃO
+        prompt_humanizador = f"""ATENÇÃO: O SEU ÚNICO PAPEL AGORA É SER UM REVISOR DE ESTILO E PARAFRASEADOR HUMANO. 
 É ESTRITAMENTE PROIBIDO INVENTAR ASSUNTOS, PERSONAGENS OU CONCEITOS NOVOS.
-O texto abaixo já está pronto e correto. O seu trabalho é APENAS reescrever AS MESMAS INFORMAÇÕES com um estilo diferente para não ser detectado por softwares de plágio de IA.
+
+O texto abaixo já está pronto, mas está muito robótico. Sua missão é reescrever AS MESMAS INFORMAÇÕES para atingir 0% de detecção por softwares de plágio de IA (Turnitin/GPTZero).
+
+REGRAS DE BLINDAGEM DE ELITE:
+1. Explosividade (Burstiness): Alterne o tamanho das frases drasticamente. Escreva uma frase curta e direta. Depois, uma longa e reflexiva.
+2. Perplexidade: Troque o vocabulário "robótico" (crucial, vital, mergulho profundo, tapeçaria, notável, em suma) por português claro de um estudante universitário brasileiro (bom, mas não um robô perfeito).
+3. Anti-Meta: NUNCA mencione limites de caracteres, restrições do prompt, ou termos como 'Etapa 5'.
+4. Retorne o resultado usando EXATAMENTE as mesmas tags (ex: [START_NOME_DA_TAG] e [END_NOME_DA_TAG]).
+
 TEXTO ORIGINAL:
-{texto_contexto}
-IMPORTANTE: Retorne o resultado usando EXATAMENTE as mesmas tags."""
+{texto_contexto}"""
         
         fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
         nova_task = GeracaoTask(user_id=current_user.id, status='Pendente')
@@ -605,7 +619,19 @@ def humanizar_trecho_avulso():
     try:
         dados = request.json or {}
         modelo = dados.get('modelo', get_modelos_ativos()[0])
-        prompt = f"Reescreva o texto abaixo como se fosse um estudante universitário real.\nTEXTO ORIGINAL:\n{dados.get('trecho', '')}\nRetorne APENAS o novo texto."
+        # [CORREÇÃO AQUI]: BLINDAGEM DE TRECHO AVULSO
+        prompt = f"""Sua missão é reescrever o texto abaixo como se fosse um estudante universitário real, visando 0% de detecção por softwares Anti-IA (GPTZero, Turnitin).
+
+TÁTICAS OBRIGATÓRIAS:
+1. Exploda o padrão de frases: Escreva uma frase curta. Depois, uma mais longa e explicativa.
+2. Troque o vocabulário "chique" por palavras comuns. PROIBIDO usar: crucial, notável, vital, mergulhar, em resumo, outrossim, farol, tapeçaria.
+3. PROIBIDO fazer "meta-comentários" (ex: reclamar de limite de caracteres ou falar sobre a redação do trabalho). 
+4. Não adicione saudações.
+
+TEXTO ORIGINAL:
+{dados.get('trecho', '')}
+
+Retorne APENAS o novo texto limpo."""
         novo_texto, custo = ia_core.chamar_ia(prompt, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo, custo=custo)); db.session.commit()
         return jsonify({"sucesso": True, "novo_texto": novo_texto.strip('* ')})
@@ -618,7 +644,7 @@ def assistente_pontual():
     try:
         dados = request.json or {}
         modelo = dados.get('modelo', get_modelos_ativos()[0])
-        prompt = f"TEXTO ORIGINAL:\n{dados.get('trecho', '')}\n\nPEDIDO:\n{dados.get('comando', '')}\n\nReescreva aplicando o pedido. Retorne APENAS o novo texto."
+        prompt = f"TEXTO ORIGINAL:\n{dados.get('trecho', '')}\n\nPEDIDO:\n{dados.get('comando', '')}\n\nReescreva aplicando o pedido. Retorne APENAS o novo texto limpo de formatações excessivas."
         novo_texto, custo = ia_core.chamar_ia(prompt, modelo, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado=modelo, custo=custo)); db.session.commit()
         return jsonify({"sucesso": True, "novo_texto": novo_texto})
@@ -629,7 +655,7 @@ def assistente_pontual():
 @login_required
 def exterminar_cliches():
     try:
-        prompt = f"Remova palavras clichês de IA deste texto:\n{request.json.get('trecho', '')}\nRetorne APENAS o texto limpo."
+        prompt = f"Remova palavras clichês de IA (ex: crucial, vital, tapeçaria, locus) deste texto e simplifique a linguagem:\n{request.json.get('trecho', '')}\nRetorne APENAS o texto limpo."
         novo_texto, custo = ia_core.chamar_ia(prompt, "google/gemini-2.5-flash", CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado="google/gemini-2.5-flash", custo=custo)); db.session.commit()
         return jsonify({"sucesso": True, "novo_texto": novo_texto})
@@ -645,7 +671,7 @@ def regerar_trecho():
         contexto_atual = dados.get('dicionario', {}) 
         texto_contexto = "".join([f"{k}:\n{v}\n\n" for k, v in contexto_atual.items() if v and str(v).strip()])
 
-        prompt = f"TEMA:\n{dados.get('tema', '')}\nCONTEXTO:\n{texto_contexto}\nReescreva APENAS o trecho da tag {tag}. Retorne APENAS o texto limpo."
+        prompt = f"TEMA:\n{dados.get('tema', '')}\nCONTEXTO:\n{texto_contexto}\nReescreva APENAS o trecho da tag {tag}. ATENÇÃO: NUNCA mencione limites de caracteres ou regras de formatação. Retorne APENAS o texto limpo."
         fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
         
         for modelo in fila_modelos[:2]: 
