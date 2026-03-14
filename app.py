@@ -525,7 +525,7 @@ def gerar_rascunho():
     config = PromptConfig.query.get(int(prompt_id)) if prompt_id and str(prompt_id).isdigit() else PromptConfig.query.filter_by(is_default=True).first()
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
     
-    # [CORREÇÃO AQUI]: O ESCUDO ANTI-META! Oculto e poderoso.
+    # PROTEÇÃO ANTI-META PARA TORNAR O ALUNO "CALADO"
     prompt_completo = f"""TEMA:
 {tema}
 
@@ -533,8 +533,8 @@ def gerar_rascunho():
 
 MUITO IMPORTANTE: Use as marcações exatas [START_NOME_DA_TAG] e [END_NOME_DA_TAG] para cada sessão.
 REGRAS DE SEGURANÇA MÁXIMA (ANTI-DETECÇÃO):
-1. É ESTRITAMENTE PROIBIDO fazer "meta-comentários" sobre o trabalho.
-2. Na Autoavaliação ou Resumo, NUNCA mencione "limites de caracteres", "exigências do prompt", "Etapa 5", ou a dificuldade de escrever o texto.
+1. É ESTRITAMENTE PROIBIDO fazer "meta-comentários" sobre a estrutura da prova.
+2. Na Autoavaliação ou Resumo, NUNCA mencione "limites de caracteres", "exigências do prompt", "Etapa 5", ou a dificuldade de escrever o texto. Fale como se o trabalho fosse real e prático.
 3. Fale APENAS sobre o caso prático, os conceitos da disciplina e o aprendizado do aluno."""
     
     fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
@@ -554,17 +554,17 @@ def humanizar_trabalho():
         contexto_atual = dados.get('dicionario', {}) 
         texto_contexto = "".join([f"[START_{k.replace('{{', '').replace('}}', '')}]\n{v}\n[END_{k.replace('{{', '').replace('}}', '')}]\n\n" for k, v in contexto_atual.items() if v and str(v).strip()])
 
-        # [CORREÇÃO AQUI]: RETORNO DA BLINDAGEM PESADA DE HUMANIZAÇÃO
-        prompt_humanizador = f"""ATENÇÃO: O SEU ÚNICO PAPEL AGORA É SER UM REVISOR DE ESTILO E PARAFRASEADOR HUMANO. 
+        # DEVOLVENDO O RIGOR ACADÊMICO À HUMANIZAÇÃO
+        prompt_humanizador = f"""ATENÇÃO: O SEU ÚNICO PAPEL AGORA É SER UM REVISOR DE ESTILO E PARAFRASEADOR ACADÊMICO DE ELITE. 
 É ESTRITAMENTE PROIBIDO INVENTAR ASSUNTOS, PERSONAGENS OU CONCEITOS NOVOS.
 
-O texto abaixo já está pronto, mas está muito robótico. Sua missão é reescrever AS MESMAS INFORMAÇÕES para atingir 0% de detecção por softwares de plágio de IA (Turnitin/GPTZero).
+O texto abaixo já está pronto e correto. O seu trabalho é APENAS reescrever AS MESMAS INFORMAÇÕES para não ser detectado por softwares de plágio de IA (Turnitin/GPTZero).
 
-REGRAS DE BLINDAGEM DE ELITE:
-1. Explosividade (Burstiness): Alterne o tamanho das frases drasticamente. Escreva uma frase curta e direta. Depois, uma longa e reflexiva.
-2. Perplexidade: Troque o vocabulário "robótico" (crucial, vital, mergulho profundo, tapeçaria, notável, em suma) por português claro de um estudante universitário brasileiro (bom, mas não um robô perfeito).
-3. Anti-Meta: NUNCA mencione limites de caracteres, restrições do prompt, ou termos como 'Etapa 5'.
-4. Retorne o resultado usando EXATAMENTE as mesmas tags (ex: [START_NOME_DA_TAG] e [END_NOME_DA_TAG]).
+REGRAS DE BLINDAGEM (ESTILO DE ESCRITA):
+1. Explosividade (Burstiness): Alterne o tamanho das frases. Escreva uma frase mais curta e direta. Depois, uma longa e explicativa.
+2. Tom Acadêmico Humano: Mantenha a FORMALIDADE e o rigor técnico. Não seja informal. Troque o vocabulário "robótico" (crucial, vital, mergulho profundo, tapeçaria, notável, locus, multifacetada) por um português culto e natural de um pesquisador humano excelente.
+3. Anti-Meta: NUNCA mencione limites de caracteres, restrições de formato ou termos como 'Etapa 5'.
+4. Retorne o resultado usando EXATAMENTE as mesmas tags.
 
 TEXTO ORIGINAL:
 {texto_contexto}"""
@@ -605,7 +605,23 @@ def analisar_ia_trecho():
     try:
         trecho = str(request.json.get('trecho', '')).strip()
         if not trecho or len(trecho) < 25: return jsonify({"sucesso": True, "porcentagem": 0})
-        prompt = f"Avalie de 0 a 100 qual a probabilidade do texto abaixo ter sido gerado por IA. TEXTO:\n{trecho}\nResponda APENAS com o número."
+        
+        # PROMPT DE DETECÇÃO CORRIGIDO: ENTENDE LINGUAGEM TÉCNICA E MÉDICA
+        prompt = f"""Você é um analista de textos acadêmicos. Avalie de 0 a 100 qual a probabilidade do texto abaixo ter sido gerado por uma Inteligência Artificial.
+ATENÇÃO: Textos universitários usam naturalmente linguagem técnica, formal e culta. NÃO confunda texto técnico bem escrito com Inteligência Artificial!
+
+DÊ UMA NOTA ALTA (70-100%) APENAS SE: 
+- Houver excesso de palavras-clichê robóticas (ex: 'crucial', 'mergulho profundo', 'tapeçaria', 'vital', 'locus', 'notável', 'farol', 'em suma', 'multifacetada').
+- O texto não tiver variação de tamanho de frases (texto "quadrado" e monótono).
+
+DÊ UMA NOTA BAIXA (0-30%) SE: 
+- For direto, objetivo, técnico/médico e as frases tiverem tamanhos desiguais.
+
+TEXTO:
+{trecho}
+
+Responda ÚNICA E EXCLUSIVAMENTE com o número da porcentagem (ex: 15). Nenhuma palavra extra."""
+
         resposta, custo = ia_core.chamar_ia(prompt, "google/gemini-2.5-flash", CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado="google/gemini-2.5-flash", custo=custo)); db.session.commit()
         numeros = re.findall(r'\d+', resposta)
@@ -619,12 +635,13 @@ def humanizar_trecho_avulso():
     try:
         dados = request.json or {}
         modelo = dados.get('modelo', get_modelos_ativos()[0])
-        # [CORREÇÃO AQUI]: BLINDAGEM DE TRECHO AVULSO
-        prompt = f"""Sua missão é reescrever o texto abaixo como se fosse um estudante universitário real, visando 0% de detecção por softwares Anti-IA (GPTZero, Turnitin).
+        # RESTAURANDO A BLINDAGEM DE TRECHO COM RIGOR
+        prompt = f"""Sua missão é reescrever o texto abaixo visando 0% de detecção por softwares Anti-IA (GPTZero, Turnitin).
+ATENÇÃO: Você DEVE manter o RIGOR ACADÊMICO e a FORMALIDADE TÉCNICA. Não seja informal, não use gírias. Escreva como um excelente pesquisador humano real.
 
 TÁTICAS OBRIGATÓRIAS:
-1. Exploda o padrão de frases: Escreva uma frase curta. Depois, uma mais longa e explicativa.
-2. Troque o vocabulário "chique" por palavras comuns. PROIBIDO usar: crucial, notável, vital, mergulhar, em resumo, outrossim, farol, tapeçaria.
+1. Explosividade: Alterne o padrão de frases. Escreva uma frase curta. Depois, uma mais longa e explicativa.
+2. Vocabulário: Use termos técnicos corretos, mas fuja das palavras que denunciam IA. PROIBIDO usar: crucial, notável, vital, mergulhar, em resumo, outrossim, farol, tapeçaria, locus, multifacetada.
 3. PROIBIDO fazer "meta-comentários" (ex: reclamar de limite de caracteres ou falar sobre a redação do trabalho). 
 4. Não adicione saudações.
 
@@ -655,7 +672,7 @@ def assistente_pontual():
 @login_required
 def exterminar_cliches():
     try:
-        prompt = f"Remova palavras clichês de IA (ex: crucial, vital, tapeçaria, locus) deste texto e simplifique a linguagem:\n{request.json.get('trecho', '')}\nRetorne APENAS o texto limpo."
+        prompt = f"Remova palavras clichês de IA (ex: crucial, vital, tapeçaria, locus, multifacetada) deste texto, mantendo a formalidade técnica e acadêmica de forma natural:\n{request.json.get('trecho', '')}\nRetorne APENAS o texto limpo."
         novo_texto, custo = ia_core.chamar_ia(prompt, "google/gemini-2.5-flash", CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
         db.session.add(RegistroUso(modelo_usado="google/gemini-2.5-flash", custo=custo)); db.session.commit()
         return jsonify({"sucesso": True, "novo_texto": novo_texto})
