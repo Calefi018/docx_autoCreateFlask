@@ -103,21 +103,24 @@ def preencher_template_extensao(arquivo_template, dicionario_dados):
                     p.text = p.text.replace(marcador, str(valor))
 
     # 1. VARREDURA PROFUNDA NO CORPO (Acha Caixas de Texto!)
-    # Ao iterar pelo CT_P (Paragraph XML), o Python acha os textos que estão soltos ou dentro de caixas/shapes
-    for node in doc.element.body.iter(CT_P):
-        p = Paragraph(node, doc)
-        substituir_em_paragrafo(p)
+    # Ao iterar sem argumentos, ele acha TUDO. Depois verificamos se é um parágrafo (CT_P)
+    for node in doc.element.body.iter():
+        if isinstance(node, CT_P):
+            p = Paragraph(node, doc)
+            substituir_em_paragrafo(p)
 
     # 2. VARREDURA NOS CABEÇALHOS E RODAPÉS
     for section in doc.sections:
         if section.header:
-            for node in section.header._element.iter(CT_P):
-                p = Paragraph(node, section.header)
-                substituir_em_paragrafo(p)
+            for node in section.header._element.iter():
+                if isinstance(node, CT_P):
+                    p = Paragraph(node, section.header)
+                    substituir_em_paragrafo(p)
         if section.footer:
-            for node in section.footer._element.iter(CT_P):
-                p = Paragraph(node, section.footer)
-                substituir_em_paragrafo(p)
+            for node in section.footer._element.iter():
+                if isinstance(node, CT_P):
+                    p = Paragraph(node, section.footer)
+                    substituir_em_paragrafo(p)
 
     arquivo_saida = io.BytesIO()
     doc.save(arquivo_saida)
