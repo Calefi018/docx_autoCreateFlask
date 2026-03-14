@@ -98,9 +98,9 @@ class User(UserMixin, db.Model):
     expiration_date = db.Column(db.Date, nullable=True)
     creditos = db.Column(db.Integer, default=0)
     alunos = db.relationship('Aluno', backref='responsavel', lazy=True)
-    gabaritos = db.relationship('GabaritoSalvo', backref='dono', lazy=True) # <-- DE VOLTA!
+    gabaritos = db.relationship('GabaritoSalvo', backref='dono', lazy=True) 
 
-class GabaritoSalvo(db.Model): # <-- DE VOLTA!
+class GabaritoSalvo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     prova_texto = db.Column(db.Text, nullable=False)
@@ -330,7 +330,7 @@ def mudar_senha():
     return render_template('mudar_senha.html')
 
 # =========================================================
-# FERRAMENTA: GABARITO INTELIGENTE (MANTIDO!)
+# FERRAMENTA: GABARITO INTELIGENTE 
 # =========================================================
 @app.route('/gabarito_inteligente')
 @login_required
@@ -371,7 +371,7 @@ def api_gerar_gabarito():
 
 
 # =========================================================
-# FERRAMENTA: PROJETOS DE EXTENSÃO (MOTOR INTELIGENTE)
+# FERRAMENTA: PROJETOS DE EXTENSÃO COM OPÇÃO DE PDF
 # =========================================================
 @app.route('/projetos_extensao')
 @login_required
@@ -386,6 +386,7 @@ def gerar_extensao():
     matricula = request.form.get('matricula', 'Não informada')
     nome_avulso = request.form.get('nome_avulso', '')
     curso_avulso = request.form.get('curso_avulso', '')
+    gerar_pdf = request.form.get('gerar_pdf') == 'sim' # Verifica se o usuario marcou a caixa
     
     aluno = Aluno.query.get(aluno_id) if aluno_id else None
     nome_aluno = aluno.nome if aluno else nome_avulso
@@ -437,6 +438,7 @@ def gerar_extensao():
         dicionario[f"{{{{DATA_{i+1}}}}}"] = datas_reversas[i].strftime('%d/%m/%Y')
 
     try:
+        # GERAR ARQUIVOS DOCX
         with open(caminho_evidencias, 'rb') as f1:
             memoria_evidencias = io.BytesIO(f1.read())
         doc_evidencias = documentos.preencher_template_extensao(memoria_evidencias, dicionario)
@@ -450,19 +452,47 @@ def gerar_extensao():
         nome_arq_evidencias = f"[EXTENSÃO] Evidências - {nome_aluno}.docx"
         nome_arq_ficha = f"[EXTENSÃO] Ficha - {nome_aluno}.docx"
 
+        # MOTOR DE CONVERSÃO PDF OPCIONAL
+        pdf_evidencias_bytes = None
+        pdf_ficha_bytes = None
+
+        if gerar_pdf:
+            config = SiteSettings.query.first()
+            if config and config.convert_api_key:
+                resp1 = requests.post(f'https://v2.convertapi.com/convert/docx/to/pdf?Secret={config.convert_api_key}', files={'File': (nome_arq_evidencias, bytes_evidencias)}).json()
+                if 'Files' in resp1: pdf_evidencias_bytes = base64.b64decode(resp1['Files'][0]['FileData'])
+                
+                resp2 = requests.post(f'https://v2.convertapi.com/convert/docx/to/pdf?Secret={config.convert_api_key}', files={'File': (nome_arq_ficha, bytes_ficha)}).json()
+                if 'Files' in resp2: pdf_ficha_bytes = base64.b64decode(resp2['Files'][0]['FileData'])
+            else:
+                flash('Chave da ConvertAPI não encontrada nas Configurações. Apenas arquivos DOCX foram gerados.', 'warning')
+
+        # SE FOR CLIENTE DO SISTEMA: Salva tudo no CRM
         if aluno:
             db.session.add(Documento(aluno_id=aluno.id, nome_arquivo=nome_arq_evidencias, dados_arquivo=bytes_evidencias))
             db.session.add(Documento(aluno_id=aluno.id, nome_arquivo=nome_arq_ficha, dados_arquivo=bytes_ficha))
+            if pdf_evidencias_bytes:
+                db.session.add(Documento(aluno_id=aluno.id, nome_arquivo=nome_arq_evidencias.replace('.docx','.pdf'), dados_arquivo=pdf_evidencias_bytes))
+            if pdf_ficha_bytes:
+                db.session.add(Documento(aluno_id=aluno.id, nome_arquivo=nome_arq_ficha.replace('.docx','.pdf'), dados_arquivo=pdf_ficha_bytes))
+            
             db.session.commit()
             flash('Projeto de Extensão gerado e salvo com sucesso!', 'success')
             return redirect(url_for('cliente_detalhe', id=aluno.id))
+        
+        # SE FOR AVULSO: Envia os arquivos na tela (Sem ZIP!)
         else:
-            memory_zip = io.BytesIO()
-            with zipfile.ZipFile(memory_zip, 'w') as zf:
-                zf.writestr(nome_arq_evidencias, bytes_evidencias)
-                zf.writestr(nome_arq_ficha, bytes_ficha)
-            memory_zip.seek(0)
-            return send_file(memory_zip, as_attachment=True, download_name=f"Extensao_Pronta_{nome_aluno.replace(' ', '_')}.zip", mimetype='application/zip')
+            arquivos_para_baixar = [
+                {"nome": nome_arq_evidencias, "b64": base64.b64encode(bytes_evidencias).decode('utf-8')},
+                {"nome": nome_arq_ficha, "b64": base64.b64encode(bytes_ficha).decode('utf-8')}
+            ]
+            if pdf_evidencias_bytes:
+                arquivos_para_baixar.append({"nome": nome_arq_evidencias.replace('.docx','.pdf'), "b64": base64.b64encode(pdf_evidencias_bytes).decode('utf-8')})
+            if pdf_ficha_bytes:
+                arquivos_para_baixar.append({"nome": nome_arq_ficha.replace('.docx','.pdf'), "b64": base64.b64encode(pdf_ficha_bytes).decode('utf-8')})
+            
+            todos_alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.nome).all()
+            return render_template('projetos_extensao.html', alunos=todos_alunos, avulsos=arquivos_para_baixar)
 
     except Exception as e:
         flash(f'Erro ao processar os documentos: {str(e)}', 'error')
