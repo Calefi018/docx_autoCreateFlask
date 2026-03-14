@@ -8,7 +8,6 @@ from docx.text.paragraph import Paragraph
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
     """
     MOTOR 1: Usado APENAS para os Trabalhos Acadêmicos gerados por IA.
-    Aplica formatação Markdown (**negrito**) e regras específicas de títulos.
     """
     doc = Document(arquivo_template)
     
@@ -73,63 +72,72 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
 
 def preencher_template_extensao(arquivo_template, dicionario_dados):
     """
-    MOTOR 2 (BLINDADO E À PROVA DE FALHAS): Usado APENAS para Projetos de Extensão.
-    Faz auto-limpeza de erros de digitação nas tags e caça caixas de texto escondidas.
+    MOTOR 2 (O TRATOR DE XML): Lê até os cantos mais escuros do Word (Caixas flutuantes).
+    Possui um auto-corretor de erros de digitação das tags.
     """
     doc = Document(arquivo_template)
 
     def arrumar_tag_quebrada(match):
-        # Limpa espaços, caracteres invisiveis e transforma em maiúsculo
-        miolo = match.group(1).replace(' ', '').replace('\u200b', '').upper()
-        miolo = miolo.replace('-', '_') # Se o usuário usou traço no lugar de underline, conserta
+        # 1. Tira todos os espaços e formatações fantasma
+        inner = match.group(1).replace(' ', '').replace('\u200b', '').replace('\xa0', '').upper()
+        inner = inner.replace('-', '_')
         
-        # Se for uma tag de data com zero (Ex: DATA_08), remove o zero para casar com o sistema (DATA_8)
-        if miolo.startswith('DATA_'):
-            partes = miolo.split('_')
-            if len(partes) == 2 and partes[1].isdigit():
-                miolo = f"DATA_{int(partes[1])}"
+        # 2. Corrige erros comuns no Nome e Matrícula
+        if inner == 'NOMEALUNO': return '{{NOME_ALUNO}}'
+        if inner == 'MATRICULA': return '{{MATRICULA}}'
+        if inner == 'CURSO': return '{{CURSO}}'
+        
+        # 3. Corrige as Datas (Transforma {{DATA 08}} ou {{DATA8}} em {{DATA_8}})
+        if inner.startswith('DATA'):
+            num = inner.replace('DATA', '').replace('_', '')
+            if num.isdigit():
+                return f"{{{{DATA_{int(num)}}}}}"
                 
-        return f"{{{{{miolo}}}}}"
+        return f"{{{{{inner}}}}}"
 
     def substituir_em_paragrafo(p):
         if not p.text: return
         
-        texto_limpo = p.text
-        # Remove lixo invisível do Word
-        for char in ['\u200b', '\u200c', '\u200d', '\ufeff']:
-            texto_limpo = texto_limpo.replace(char, '')
-            
-        # Aciona o "corretor automático" nas etiquetas do documento
+        texto_original = p.text
+        # Remove lixo de código do Word
+        texto_limpo = re.sub(r'[\u200b\u200c\u200d\ufeff\xa0]', '', texto_original)
+        
+        # Passa o corretor ortográfico nas chaves {{ }}
         texto_limpo = re.sub(r'\{\{(.*?)\}\}', arrumar_tag_quebrada, texto_limpo)
-
-        # Se o corretor mudou algo, aplica no documento real
-        if p.text != texto_limpo:
-            p.text = texto_limpo
-
-        # Agora que tudo está limpo e padronizado, aplica os dados do cliente!
+        
+        modificou = False
         for marcador, valor in dicionario_dados.items():
-            if marcador in p.text:
-                substituiu_run = False
-                for run in p.runs:
-                    run_limpo = run.text
-                    for char in ['\u200b', '\u200c', '\u200d', '\ufeff']:
-                        run_limpo = run_limpo.replace(char, '')
-                        
-                    if marcador in run_limpo:
-                        run.text = run_limpo.replace(marcador, str(valor))
-                        substituiu_run = True
+            if marcador in texto_limpo:
+                texto_limpo = texto_limpo.replace(marcador, str(valor))
+                modificou = True
                 
-                # Se falhar pelo run, aplica a força bruta no parágrafo todo
-                if not substituiu_run:
-                    p.text = p.text.replace(marcador, str(valor))
+        # Se alterou algo (Corrigiu tag ou inseriu dado do cliente)
+        if modificou or texto_limpo != texto_original:
+            # Salva a fonte original para não quebrar o visual da Caixa de Texto
+            font_name, font_size, bold = None, None, None
+            if p.runs:
+                for run in p.runs:
+                    if run.text.strip():
+                        font_name = run.font.name
+                        font_size = run.font.size
+                        bold = run.bold
+                        break
+                        
+            p.clear() # Limpa a caixa
+            new_run = p.add_run(texto_limpo) # Coloca o dado novo
+            
+            # Devolve a formatação original
+            if font_name: new_run.font.name = font_name
+            if font_size: new_run.font.size = font_size
+            if bold is not None: new_run.bold = bold
 
-    # Varre todo o XML do documento (Pegando textos soltos e CAIXAS DE TEXTO)
+    # Raio-X em toda a estrutura (Pega Text Boxes e Shapes)
     for node in doc.element.body.iter():
         if isinstance(node, CT_P):
             p = Paragraph(node, doc)
             substituir_em_paragrafo(p)
 
-    # Varre Cabeçalhos e Rodapés
+    # Raio-X nos Cabeçalhos e Rodapés
     for section in doc.sections:
         if section.header:
             for node in section.header._element.iter():
@@ -155,6 +163,7 @@ def extrair_texto_docx(arquivo_bytes):
 
 def extrair_etapa_5(arquivo_bytes):
     doc = Document(io.BytesIO(arquivo_bytes))
+    
     linhas = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
     idx_inicio = -1
     
@@ -172,6 +181,7 @@ def extrair_etapa_5(arquivo_bytes):
         return False, "Não foi possível separar as instruções do texto final. O arquivo pode estar fora do padrão."
         
     linhas_finais = linhas[idx_inicio:]
+    
     headers_oficiais = [
         "Resumo", "Contextualização do desafio", "Análise", 
         "Propostas de solução", "Conclusão reflexiva", "Referências", "Autoavaliação"
