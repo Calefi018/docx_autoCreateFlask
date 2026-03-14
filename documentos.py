@@ -18,7 +18,6 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
         
         for marcador, texto_novo in dicionario_dados.items():
             if marcador in texto_original:
-                # Converte para string para garantir que não haja erro de tipo
                 texto_original = texto_original.replace(marcador, str(texto_novo))
                 tem_tag = True
                 
@@ -74,42 +73,63 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
 
 def preencher_template_extensao(arquivo_template, dicionario_dados):
     """
-    MOTOR 2 (RAIO-X DE XML): Usado APENAS para Projetos de Extensão.
-    Varre o código fonte do Word para encontrar textos dentro de CAIXAS DE TEXTO flutuantes, 
-    formas, cabeçalhos, rodapés e tabelas aninhadas, preservando o layout da faculdade.
+    MOTOR 2 (BLINDADO E À PROVA DE FALHAS): Usado APENAS para Projetos de Extensão.
+    Faz auto-limpeza de erros de digitação nas tags e caça caixas de texto escondidas.
     """
     doc = Document(arquivo_template)
+
+    def arrumar_tag_quebrada(match):
+        # Limpa espaços, caracteres invisiveis e transforma em maiúsculo
+        miolo = match.group(1).replace(' ', '').replace('\u200b', '').upper()
+        miolo = miolo.replace('-', '_') # Se o usuário usou traço no lugar de underline, conserta
+        
+        # Se for uma tag de data com zero (Ex: DATA_08), remove o zero para casar com o sistema (DATA_8)
+        if miolo.startswith('DATA_'):
+            partes = miolo.split('_')
+            if len(partes) == 2 and partes[1].isdigit():
+                miolo = f"DATA_{int(partes[1])}"
+                
+        return f"{{{{{miolo}}}}}"
 
     def substituir_em_paragrafo(p):
         if not p.text: return
         
-        # Limpeza rápida de segurança caso haja espaços acidentais nas chaves (Ex: {{DATA_ 1}})
-        texto_limpo = re.sub(r'\{\{\s*(.*?)\s*\}\}', lambda m: '{{' + m.group(1).replace(' ', '') + '}}', p.text)
+        texto_limpo = p.text
+        # Remove lixo invisível do Word
+        for char in ['\u200b', '\u200c', '\u200d', '\ufeff']:
+            texto_limpo = texto_limpo.replace(char, '')
+            
+        # Aciona o "corretor automático" nas etiquetas do documento
+        texto_limpo = re.sub(r'\{\{(.*?)\}\}', arrumar_tag_quebrada, texto_limpo)
+
+        # Se o corretor mudou algo, aplica no documento real
         if p.text != texto_limpo:
             p.text = texto_limpo
 
+        # Agora que tudo está limpo e padronizado, aplica os dados do cliente!
         for marcador, valor in dicionario_dados.items():
             if marcador in p.text:
-                # 1ª Tentativa: Substituir mantendo a formatação exata da fonte
                 substituiu_run = False
                 for run in p.runs:
-                    if marcador in run.text:
-                        run.text = run.text.replace(marcador, str(valor))
+                    run_limpo = run.text
+                    for char in ['\u200b', '\u200c', '\u200d', '\ufeff']:
+                        run_limpo = run_limpo.replace(char, '')
+                        
+                    if marcador in run_limpo:
+                        run.text = run_limpo.replace(marcador, str(valor))
                         substituiu_run = True
                 
-                # 2ª Tentativa (Fallback): Se as tags estiverem separadas invisivelmente pelo Word
-                # Substitui o texto bruto do parágrafo inteiro (Ideal para caixas de texto)
+                # Se falhar pelo run, aplica a força bruta no parágrafo todo
                 if not substituiu_run:
                     p.text = p.text.replace(marcador, str(valor))
 
-    # 1. VARREDURA PROFUNDA NO CORPO (Acha Caixas de Texto!)
-    # Ao iterar sem argumentos, ele acha TUDO. Depois verificamos se é um parágrafo (CT_P)
+    # Varre todo o XML do documento (Pegando textos soltos e CAIXAS DE TEXTO)
     for node in doc.element.body.iter():
         if isinstance(node, CT_P):
             p = Paragraph(node, doc)
             substituir_em_paragrafo(p)
 
-    # 2. VARREDURA NOS CABEÇALHOS E RODAPÉS
+    # Varre Cabeçalhos e Rodapés
     for section in doc.sections:
         if section.header:
             for node in section.header._element.iter():
@@ -135,7 +155,6 @@ def extrair_texto_docx(arquivo_bytes):
 
 def extrair_etapa_5(arquivo_bytes):
     doc = Document(io.BytesIO(arquivo_bytes))
-    
     linhas = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
     idx_inicio = -1
     
@@ -153,7 +172,6 @@ def extrair_etapa_5(arquivo_bytes):
         return False, "Não foi possível separar as instruções do texto final. O arquivo pode estar fora do padrão."
         
     linhas_finais = linhas[idx_inicio:]
-    
     headers_oficiais = [
         "Resumo", "Contextualização do desafio", "Análise", 
         "Propostas de solução", "Conclusão reflexiva", "Referências", "Autoavaliação"
