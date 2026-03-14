@@ -7,8 +7,9 @@ import requests
 import threading
 import logging
 import traceback
-import hashlib  # <-- BIBLIOTECA RESTAURADA PARA O BANCO DE TEMAS!
+import hashlib
 import csv
+import zipfile  # <-- Nova biblioteca para agrupar os arquivos avulsos
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file, Response
 from flask_sqlalchemy import SQLAlchemy
@@ -182,7 +183,6 @@ Não use formatação em itálico (asterisco simples) para termos em inglês com
 # =========================================================
 with app.app_context():
     db.create_all()
-    # CORREÇÃO AQUI: "user" entre aspas duplas para evitar conflito no PostgreSQL
     try: db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN creditos INTEGER DEFAULT 0')); db.session.commit()
     except Exception: db.session.rollback()
     
@@ -353,7 +353,7 @@ def mudar_senha():
     return render_template('mudar_senha.html')
 
 # =========================================================
-# NOVA FERRAMENTA: PROJETOS DE EXTENSÃO
+# NOVA FERRAMENTA: PROJETOS DE EXTENSÃO (MOTOR TEMPORAL)
 # =========================================================
 @app.route('/projetos_extensao')
 @login_required
@@ -371,58 +371,87 @@ def gerar_extensao():
     matricula = request.form.get('matricula', 'Não informada')
     nome_avulso = request.form.get('nome_avulso', '')
     curso_avulso = request.form.get('curso_avulso', '')
-    data_inicial_str = request.form.get('data_inicial', '')
     
-    arquivo_template = request.files.get('template_doc')
-    if not arquivo_template or not arquivo_template.filename.endswith('.docx'):
-        flash('Envie um arquivo de Template .docx válido (Ex: Template Oficial Paraná).', 'error')
-        return redirect(url_for('projetos_extensao'))
-
     aluno = Aluno.query.get(aluno_id) if aluno_id else None
     nome_aluno = aluno.nome if aluno else nome_avulso
     curso_aluno = aluno.curso if aluno else curso_avulso
 
-    # Dicionário base de substituição para as tags no Word
+    # ==========================================
+    # LÓGICA DO MOTOR TEMPORAL (DE TRÁS PRA FRENTE)
+    # ==========================================
+    datas_reversas = []
+    agora_utc = datetime.utcnow()
+    data_atual = (agora_utc - timedelta(hours=3)).date() # Data de hoje no fuso do Brasil
+    
+    # A última e a penúltima serão preenchidas com o dia de hoje (conforme pedido)
+    datas_reversas.append(data_atual) 
+    datas_reversas.append(data_atual)
+    
+    data_temp = data_atual - timedelta(days=1)
+    
+    # Gera até ter 30 datas totais para preencher as tags, pulando os domingos
+    while len(datas_reversas) < 30:
+        if data_temp.weekday() != 6: # 6 é Domingo
+            datas_reversas.append(data_temp)
+        data_temp -= timedelta(days=1)
+        
+    # Como as datas foram geradas da mais recente para a mais antiga, invertemos a lista
+    # Assim, datas_reversas[0] será a data mais velha (DATA_1), e a [29] será hoje (DATA_30).
+    datas_reversas.reverse() 
+
+    # Construção do Dicionário para o Substituidor do Word
     dicionario = {
         "{{NOME_ALUNO}}": nome_aluno,
         "{{MATRICULA}}": matricula,
         "{{CURSO}}": curso_aluno
     }
+    
+    for i in range(30):
+        dicionario[f"{{{{DATA_{i+1}}}}}"] = datas_reversas[i].strftime('%d/%m/%Y')
 
-    # Se forneceu uma data inicial, gera até 30 datas consecutivas pulando os Domingos
-    if data_inicial_str:
-        try:
-            data_atual = datetime.strptime(data_inicial_str, '%Y-%m-%d')
-            for i in range(1, 31):
-                dicionario[f"{{{{DATA_{i}}}}}"] = data_atual.strftime('%d/%m/%Y')
-                data_atual += timedelta(days=1)
-                if data_atual.weekday() == 6: # Se for 6 (Domingo), pula +1 dia (para Segunda)
-                    data_atual += timedelta(days=1)
-        except Exception:
-            pass
+    # Busca os templates chumbados na Raiz do Servidor
+    caminho_evidencias = os.path.join(app.root_path, 'TEMPLATE_EVIDENCIAS_PARANA.docx')
+    caminho_ficha = os.path.join(app.root_path, 'TEMPLATE_FICHA_PARANA.docx')
+    
+    if not os.path.exists(caminho_evidencias) or not os.path.exists(caminho_ficha):
+        flash('Erro: Os arquivos TEMPLATE_EVIDENCIAS_PARANA.docx ou TEMPLATE_FICHA_PARANA.docx não foram encontrados no servidor.', 'error')
+        return redirect(url_for('projetos_extensao'))
 
     try:
-        arquivo_memoria = io.BytesIO(arquivo_template.read())
-        # Chama a nova função do documentos.py que preserva a formatação!
-        doc_pronto = documentos.preencher_template_extensao(arquivo_memoria, dicionario)
-        doc_bytes = doc_pronto.read()
-        nome_saida = f"Projeto_Extensao_{nome_aluno.replace(' ', '_')}.docx"
+        # Processar o Template de Evidências
+        with open(caminho_evidencias, 'rb') as f1:
+            memoria_evidencias = io.BytesIO(f1.read())
+        doc_evidencias = documentos.preencher_template_extensao(memoria_evidencias, dicionario)
+        bytes_evidencias = doc_evidencias.read()
+        
+        # Processar o Template de Ficha de Frequência
+        with open(caminho_ficha, 'rb') as f2:
+            memoria_ficha = io.BytesIO(f2.read())
+        doc_ficha = documentos.preencher_template_extensao(memoria_ficha, dicionario)
+        bytes_ficha = doc_ficha.read()
 
+        nome_arq_evidencias = f"[EXTENSÃO] Evidências - {nome_aluno}.docx"
+        nome_arq_ficha = f"[EXTENSÃO] Ficha - {nome_aluno}.docx"
+
+        # Se for um Aluno do CRM, salva os dois docs perfeitamente separados na pasta dele
         if aluno:
-            novo_doc = Documento(aluno_id=aluno.id, nome_arquivo=nome_saida, dados_arquivo=doc_bytes)
-            db.session.add(novo_doc)
+            db.session.add(Documento(aluno_id=aluno.id, nome_arquivo=nome_arq_evidencias, dados_arquivo=bytes_evidencias))
+            db.session.add(Documento(aluno_id=aluno.id, nome_arquivo=nome_arq_ficha, dados_arquivo=bytes_ficha))
             db.session.commit()
-            flash('Projeto de Extensão gerado e salvo na pasta do aluno com sucesso!', 'success')
+            flash('Projeto de Extensão gerado e salvo com sucesso na pasta do cliente!', 'success')
             return redirect(url_for('cliente_detalhe', id=aluno.id))
+        
+        # Se for avulso, junta os dois num arquivo .ZIP e baixa
         else:
-            return send_file(
-                io.BytesIO(doc_bytes),
-                as_attachment=True,
-                download_name=nome_saida,
-                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            )
+            memory_zip = io.BytesIO()
+            with zipfile.ZipFile(memory_zip, 'w') as zf:
+                zf.writestr(nome_arq_evidencias, bytes_evidencias)
+                zf.writestr(nome_arq_ficha, bytes_ficha)
+            memory_zip.seek(0)
+            return send_file(memory_zip, as_attachment=True, download_name=f"Extensao_Pronta_{nome_aluno.replace(' ', '_')}.zip", mimetype='application/zip')
+
     except Exception as e:
-        flash(f'Erro ao processar o documento: {str(e)}', 'error')
+        flash(f'Erro ao processar os documentos: {str(e)}', 'error')
         return redirect(url_for('projetos_extensao'))
 
 # =========================================================
@@ -476,7 +505,7 @@ def api_gerar_gabarito():
     return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": modelo_elite})
 
 # =========================================================
-# ROTAS DE TRABALHOS (GERAÇÃO/LEITURA)
+# ROTAS DE TRABALHOS E IA
 # =========================================================
 @app.route('/api/temas/<int:aluno_id>')
 @login_required
