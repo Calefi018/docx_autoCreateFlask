@@ -4,10 +4,12 @@ import re
 from docx import Document
 from docx.oxml.text.paragraph import CT_P
 from docx.text.paragraph import Paragraph
+from docx.oxml.ns import qn
 
 def preencher_template_com_tags(arquivo_template, dicionario_dados):
     """
     MOTOR 1: Usado APENAS para os Trabalhos Acadêmicos gerados por IA.
+    Aplica formatação Markdown (**negrito**) e regras específicas de títulos.
     """
     doc = Document(arquivo_template)
     
@@ -72,22 +74,21 @@ def preencher_template_com_tags(arquivo_template, dicionario_dados):
 
 def preencher_template_extensao(arquivo_template, dicionario_dados):
     """
-    MOTOR 2 (O TRATOR DE XML): Lê até os cantos mais escuros do Word (Caixas flutuantes).
-    Possui um auto-corretor de erros de digitação das tags.
+    MOTOR 2 (ALTA PRECISÃO): Usado APENAS para Projetos de Extensão.
+    Filtra Caixas de Texto, junta tags fragmentadas pelo Word e auto-corrige erros.
     """
     doc = Document(arquivo_template)
 
     def arrumar_tag_quebrada(match):
-        # 1. Tira todos os espaços e formatações fantasma
+        # Remove lixos invisíveis e espaços (ex: {{ DATA_ 08 }} vira {{DATA_8}})
         inner = match.group(1).replace(' ', '').replace('\u200b', '').replace('\xa0', '').upper()
         inner = inner.replace('-', '_')
         
-        # 2. Corrige erros comuns no Nome e Matrícula
         if inner == 'NOMEALUNO': return '{{NOME_ALUNO}}'
         if inner == 'MATRICULA': return '{{MATRICULA}}'
         if inner == 'CURSO': return '{{CURSO}}'
         
-        # 3. Corrige as Datas (Transforma {{DATA 08}} ou {{DATA8}} em {{DATA_8}})
+        # Converte zeros extras (DATA_08 -> DATA_8)
         if inner.startswith('DATA'):
             num = inner.replace('DATA', '').replace('_', '')
             if num.isdigit():
@@ -95,14 +96,29 @@ def preencher_template_extensao(arquivo_template, dicionario_dados):
                 
         return f"{{{{{inner}}}}}"
 
+    def has_shape(run):
+        # Verifica se este 'run' é, na verdade, uma imagem ou o "esqueleto" da Caixa de Texto
+        for tag in ['w:drawing', 'w:pict', 'w:object', 'v:shape']:
+            try:
+                if len(list(run._element.iter(qn(tag)))) > 0:
+                    return True
+            except:
+                pass
+        return False
+
     def substituir_em_paragrafo(p):
-        if not p.text: return
-        
-        texto_original = p.text
-        # Remove lixo de código do Word
-        texto_limpo = re.sub(r'[\u200b\u200c\u200d\ufeff\xa0]', '', texto_original)
-        
-        # Passa o corretor ortográfico nas chaves {{ }}
+        # 1. Isola apenas os pedaços de texto puro, protegendo os esqueletos das caixas de texto
+        safe_runs = [r for r in p.runs if not has_shape(r)]
+        if not safe_runs:
+            return
+            
+        # 2. Junta os textos que o Word quebrou invisivelmente
+        full_text = "".join(r.text for r in safe_runs if r.text)
+        if "{{" not in full_text:
+            return
+
+        # 3. Passa a vassoura nos espaços vazios e erros de digitação das chaves
+        texto_limpo = re.sub(r'[\u200b\u200c\u200d\ufeff\xa0]', '', full_text)
         texto_limpo = re.sub(r'\{\{(.*?)\}\}', arrumar_tag_quebrada, texto_limpo)
         
         modificou = False
@@ -111,44 +127,28 @@ def preencher_template_extensao(arquivo_template, dicionario_dados):
                 texto_limpo = texto_limpo.replace(marcador, str(valor))
                 modificou = True
                 
-        # Se alterou algo (Corrigiu tag ou inseriu dado do cliente)
-        if modificou or texto_limpo != texto_original:
-            # Salva a fonte original para não quebrar o visual da Caixa de Texto
-            font_name, font_size, bold = None, None, None
-            if p.runs:
-                for run in p.runs:
-                    if run.text.strip():
-                        font_name = run.font.name
-                        font_size = run.font.size
-                        bold = run.bold
-                        break
-                        
-            p.clear() # Limpa a caixa
-            new_run = p.add_run(texto_limpo) # Coloca o dado novo
-            
-            # Devolve a formatação original
-            if font_name: new_run.font.name = font_name
-            if font_size: new_run.font.size = font_size
-            if bold is not None: new_run.bold = bold
+        # 4. Injeta a data limpa no primeiro espaço de texto e apaga os pedaços quebrados
+        if modificou or texto_limpo != full_text:
+            safe_runs[0].text = texto_limpo
+            for r in safe_runs[1:]:
+                r.text = ""
 
-    # Raio-X em toda a estrutura (Pega Text Boxes e Shapes)
+    # RAIO-X: Entra nas Caixas de Texto, Tabelas Flutuantes e Textos Normais
     for node in doc.element.body.iter():
         if isinstance(node, CT_P):
             p = Paragraph(node, doc)
             substituir_em_paragrafo(p)
 
-    # Raio-X nos Cabeçalhos e Rodapés
+    # RAIO-X: Entra nos Cabeçalhos e Rodapés
     for section in doc.sections:
         if section.header:
             for node in section.header._element.iter():
                 if isinstance(node, CT_P):
-                    p = Paragraph(node, section.header)
-                    substituir_em_paragrafo(p)
+                    substituir_em_paragrafo(Paragraph(node, section.header))
         if section.footer:
             for node in section.footer._element.iter():
                 if isinstance(node, CT_P):
-                    p = Paragraph(node, section.footer)
-                    substituir_em_paragrafo(p)
+                    substituir_em_paragrafo(Paragraph(node, section.footer))
 
     arquivo_saida = io.BytesIO()
     doc.save(arquivo_saida)
@@ -163,7 +163,6 @@ def extrair_texto_docx(arquivo_bytes):
 
 def extrair_etapa_5(arquivo_bytes):
     doc = Document(io.BytesIO(arquivo_bytes))
-    
     linhas = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
     idx_inicio = -1
     
@@ -181,7 +180,6 @@ def extrair_etapa_5(arquivo_bytes):
         return False, "Não foi possível separar as instruções do texto final. O arquivo pode estar fora do padrão."
         
     linhas_finais = linhas[idx_inicio:]
-    
     headers_oficiais = [
         "Resumo", "Contextualização do desafio", "Análise", 
         "Propostas de solução", "Conclusão reflexiva", "Referências", "Autoavaliação"
