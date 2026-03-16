@@ -12,7 +12,7 @@ import csv
 import zipfile  
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file, Response
-from flask_cors import CORS # <--- NOVA BIBLIOTECA PARA A EXTENSÃO DO CHROME!
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -22,7 +22,7 @@ import documentos
 import ia_core
 
 app = Flask(__name__)
-CORS(app) # <--- ABRE AS PORTAS DO SERVIDOR PARA A EXTENSÃO COMUNICAR
+CORS(app) 
 
 # =========================================================
 # SISTEMA DE LOGS SILENCIOSO & TRATAMENTO DE ERROS GLOBAL
@@ -107,6 +107,7 @@ class GabaritoSalvo(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     prova_texto = db.Column(db.Text, nullable=False)
     resultado_json = db.Column(db.Text, nullable=False)
+    hash_prova = db.Column(db.String(255), nullable=True) # <-- COLUNA DA MENTE COLETIVA
     data_geracao = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Aluno(db.Model):
@@ -186,6 +187,10 @@ Não use formatação em itálico (asterisco simples) para termos em inglês com
 with app.app_context():
     db.create_all()
     try: db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN creditos INTEGER DEFAULT 0')); db.session.commit()
+    except Exception: db.session.rollback()
+    
+    # MIGRAÇÃO FANTASMA DA MENTE COLETIVA
+    try: db.session.execute(db.text("ALTER TABLE gabarito_salvo ADD COLUMN hash_prova VARCHAR(255)")); db.session.commit()
     except Exception: db.session.rollback()
     
     try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Produção'")); db.session.commit()
@@ -332,14 +337,13 @@ def mudar_senha():
     return render_template('mudar_senha.html')
 
 # =========================================================
-# FERRAMENTA: GABARITO INTELIGENTE (COM EXTENSÃO DO CHROME)
+# O CÉREBRO DA EXTENSÃO FANTASMA: MENTE COLETIVA E GABARITO
 # =========================================================
 @app.route('/gabarito_inteligente')
 @login_required
 def gabarito_inteligente():
     return render_template('gabarito_inteligente.html')
 
-# ATENÇÃO: A trava @login_required foi removida apenas daqui para a Extensão conseguir comunicar!
 @app.route('/api/gerar_gabarito', methods=['POST', 'OPTIONS'])
 def api_gerar_gabarito():
     if request.method == 'OPTIONS':
@@ -348,6 +352,18 @@ def api_gerar_gabarito():
     texto_prova = request.form.get('prova', '')
     if not texto_prova: return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
 
+    # LÓGICA DA MENTE COLETIVA: Tira tudo que não for letra ou número para gerar o HASH perfeito
+    texto_limpo = re.sub(r'[\W_]+', '', texto_prova.lower())
+    hash_prova_atual = hashlib.md5(texto_limpo.encode('utf-8')).hexdigest()
+
+    # PESQUISA NO COFRE DO SERVIDOR ANTES DE GASTAR CRÉDITOS
+    gabarito_em_cache = GabaritoSalvo.query.filter_by(hash_prova=hash_prova_atual).first()
+    if gabarito_em_cache:
+        # DEVOLVE A RESPOSTA IMEDIATAMENTE! Custo: R$ 0,00
+        respostas_salvas = json.loads(gabarito_em_cache.resultado_json)
+        return jsonify({"sucesso": True, "gabarito": respostas_salvas, "modelo_utilizado": "🧠 Mente Coletiva (Zero Custo)"})
+
+    # SE A PROVA FOR NOVA, CHAMA A INTELIGÊNCIA ARTIFICIAL
     modelo_elite = "anthropic/claude-3.5-sonnet"
     prompt = f"Resolva a prova abaixo. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo.\"}}]\nPROVA:\n{texto_prova}"
     
@@ -360,7 +376,6 @@ def api_gerar_gabarito():
     if not resultado_ia: return jsonify({"sucesso": False, "erro": "A IA falhou ao processar o gabarito."})
 
     db.session.add(RegistroUso(modelo_usado=modelo_elite, custo=custo))
-    db.session.commit()
 
     gabarito_final = []
     for idx, q in enumerate(resultado_ia):
@@ -372,7 +387,36 @@ def api_gerar_gabarito():
             "justificativa": q.get('justificativa', 'Sem justificativa.')
         })
 
+    # SALVA A PROVA RESOLVIDA NO COFRE PARA AS PRÓXIMAS VEZES!
+    user_id_salvar = current_user.id if current_user and current_user.is_authenticated else 1
+    novo_gabarito = GabaritoSalvo(user_id=user_id_salvar, prova_texto=texto_prova, resultado_json=json.dumps(gabarito_final), hash_prova=hash_prova_atual)
+    db.session.add(novo_gabarito)
+    db.session.commit()
+
     return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": modelo_elite})
+
+# A TELA VISUAL DA MENTE COLETIVA
+@app.route('/banco_gabaritos')
+@login_required
+def banco_gabaritos():
+    if current_user.role not in ['admin', 'sub-admin']: abort(403)
+    gabaritos_salvos = GabaritoSalvo.query.order_by(GabaritoSalvo.id.desc()).all()
+    
+    for g in gabaritos_salvos:
+        try: g.respostas_parsed = json.loads(g.resultado_json)
+        except: g.respostas_parsed = []
+        
+    return render_template('banco_gabaritos.html', gabaritos=gabaritos_salvos)
+
+@app.route('/deletar_gabarito/<int:id>')
+@login_required
+def deletar_gabarito(id):
+    if current_user.role not in ['admin', 'sub-admin']: abort(403)
+    gabarito = GabaritoSalvo.query.get_or_404(id)
+    db.session.delete(gabarito)
+    db.session.commit()
+    flash('Memória da prova apagada com sucesso!', 'success')
+    return redirect(url_for('banco_gabaritos'))
 
 
 # =========================================================
@@ -530,7 +574,6 @@ def gerar_rascunho():
     config = PromptConfig.query.get(int(prompt_id)) if prompt_id and str(prompt_id).isdigit() else PromptConfig.query.filter_by(is_default=True).first()
     texto_prompt = config.texto if config else PROMPT_REGRAS_BASE
     
-    # PROTEÇÃO ANTI-META PARA TORNAR O ALUNO "CALADO"
     prompt_completo = f"""TEMA:
 {tema}
 
@@ -559,7 +602,6 @@ def humanizar_trabalho():
         contexto_atual = dados.get('dicionario', {}) 
         texto_contexto = "".join([f"[START_{k.replace('{{', '').replace('}}', '')}]\n{v}\n[END_{k.replace('{{', '').replace('}}', '')}]\n\n" for k, v in contexto_atual.items() if v and str(v).strip()])
 
-        # DEVOLVENDO O RIGOR ACADÊMICO À HUMANIZAÇÃO
         prompt_humanizador = f"""ATENÇÃO: O SEU ÚNICO PAPEL AGORA É SER UM REVISOR DE ESTILO E PARAFRASEADOR ACADÊMICO DE ELITE. 
 É ESTRITAMENTE PROIBIDO INVENTAR ASSUNTOS, PERSONAGENS OU CONCEITOS NOVOS.
 
@@ -611,7 +653,6 @@ def analisar_ia_trecho():
         trecho = str(request.json.get('trecho', '')).strip()
         if not trecho or len(trecho) < 25: return jsonify({"sucesso": True, "porcentagem": 0})
         
-        # PROMPT DE DETECÇÃO CORRIGIDO: ENTENDE LINGUAGEM TÉCNICA E MÉDICA
         prompt = f"""Você é um analista de textos acadêmicos. Avalie de 0 a 100 qual a probabilidade do texto abaixo ter sido gerado por uma Inteligência Artificial.
 ATENÇÃO: Textos universitários usam naturalmente linguagem técnica, formal e culta. NÃO confunda texto técnico bem escrito com Inteligência Artificial!
 
@@ -640,7 +681,6 @@ def humanizar_trecho_avulso():
     try:
         dados = request.json or {}
         modelo = dados.get('modelo', get_modelos_ativos()[0])
-        # RESTAURANDO A BLINDAGEM DE TRECHO COM RIGOR
         prompt = f"""Sua missão é reescrever o texto abaixo visando 0% de detecção por softwares Anti-IA (GPTZero, Turnitin).
 ATENÇÃO: Você DEVE manter o RIGOR ACADÊMICO e a FORMALIDADE TÉCNICA. Não seja informal, não use gírias. Escreva como um excelente pesquisador humano real.
 
