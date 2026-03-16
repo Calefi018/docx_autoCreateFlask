@@ -22,7 +22,7 @@ import documentos
 import ia_core
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app) # <--- PERMITE A COMUNICAÇÃO COM A EXTENSÃO DO CHROME
 
 # =========================================================
 # SISTEMA DE LOGS SILENCIOSO & TRATAMENTO DE ERROS GLOBAL
@@ -40,6 +40,10 @@ def handle_exception(e):
     from werkzeug.exceptions import HTTPException
     if isinstance(e, HTTPException): 
         return e
+    
+    # 🛡️ PROTEÇÃO PARA A EXTENSÃO: Se o erro for na API, devolve JSON em vez de HTML
+    if request.path.startswith('/api/'):
+        return jsonify({"sucesso": False, "erro": f"Erro interno do Servidor Koyeb: {str(e)}"}), 500
         
     return f"""
     <div style="font-family: sans-serif; padding: 20px; background: #262730; color: #E1E4E8; height: 100vh;">
@@ -189,7 +193,6 @@ with app.app_context():
     try: db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN creditos INTEGER DEFAULT 0')); db.session.commit()
     except Exception: db.session.rollback()
     
-    # MIGRAÇÃO FANTASMA DA MENTE COLETIVA
     try: db.session.execute(db.text("ALTER TABLE gabarito_salvo ADD COLUMN hash_prova VARCHAR(255)")); db.session.commit()
     except Exception: db.session.rollback()
     
@@ -350,20 +353,22 @@ def api_gerar_gabarito():
         return jsonify({"sucesso": True}), 200
 
     texto_prova = request.form.get('prova', '')
-    if not texto_prova: return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
+    if not texto_prova: 
+        return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
 
-    # LÓGICA DA MENTE COLETIVA: Tira tudo que não for letra ou número para gerar o HASH perfeito
+    # Cria o Hash matemático da prova para a Mente Coletiva
     texto_limpo = re.sub(r'[\W_]+', '', texto_prova.lower())
     hash_prova_atual = hashlib.md5(texto_limpo.encode('utf-8')).hexdigest()
 
-    # PESQUISA NO COFRE DO SERVIDOR ANTES DE GASTAR CRÉDITOS
-    gabarito_em_cache = GabaritoSalvo.query.filter_by(hash_prova=hash_prova_atual).first()
-    if gabarito_em_cache:
-        # DEVOLVE A RESPOSTA IMEDIATAMENTE! Custo: R$ 0,00
-        respostas_salvas = json.loads(gabarito_em_cache.resultado_json)
-        return jsonify({"sucesso": True, "gabarito": respostas_salvas, "modelo_utilizado": "🧠 Mente Coletiva (Zero Custo)"})
+    # 🛡️ Proteção DB: Se falhar a leitura, ignora a Mente Coletiva e chama a IA
+    try:
+        gabarito_em_cache = GabaritoSalvo.query.filter_by(hash_prova=hash_prova_atual).first()
+        if gabarito_em_cache:
+            respostas_salvas = json.loads(gabarito_em_cache.resultado_json)
+            return jsonify({"sucesso": True, "gabarito": respostas_salvas, "modelo_utilizado": "🧠 Mente Coletiva"})
+    except Exception as e:
+        db.session.rollback()
 
-    # SE A PROVA FOR NOVA, CHAMA A INTELIGÊNCIA ARTIFICIAL
     modelo_elite = "anthropic/claude-3.5-sonnet"
     prompt = f"Resolva a prova abaixo. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo.\"}}]\nPROVA:\n{texto_prova}"
     
@@ -373,9 +378,8 @@ def api_gerar_gabarito():
     except Exception as e:
         return jsonify({"sucesso": False, "erro": f"Falha na IA: {e}"})
 
-    if not resultado_ia: return jsonify({"sucesso": False, "erro": "A IA falhou ao processar o gabarito."})
-
-    db.session.add(RegistroUso(modelo_usado=modelo_elite, custo=custo))
+    if not resultado_ia: 
+        return jsonify({"sucesso": False, "erro": "A IA falhou ao processar o gabarito."})
 
     gabarito_final = []
     for idx, q in enumerate(resultado_ia):
@@ -387,11 +391,14 @@ def api_gerar_gabarito():
             "justificativa": q.get('justificativa', 'Sem justificativa.')
         })
 
-    # SALVA A PROVA RESOLVIDA NO COFRE PARA AS PRÓXIMAS VEZES!
-    user_id_salvar = current_user.id if current_user and current_user.is_authenticated else 1
-    novo_gabarito = GabaritoSalvo(user_id=user_id_salvar, prova_texto=texto_prova, resultado_json=json.dumps(gabarito_final), hash_prova=hash_prova_atual)
-    db.session.add(novo_gabarito)
-    db.session.commit()
+    # 🛡️ Proteção DB: Salva a memória sem crachar se houver erro
+    try:
+        user_id_salvar = current_user.id if current_user and current_user.is_authenticated else 1
+        db.session.add(RegistroUso(modelo_usado=modelo_elite, custo=custo))
+        db.session.add(GabaritoSalvo(user_id=user_id_salvar, prova_texto=texto_prova, resultado_json=json.dumps(gabarito_final), hash_prova=hash_prova_atual))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
 
     return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": modelo_elite})
 
