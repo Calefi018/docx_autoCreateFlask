@@ -12,6 +12,7 @@ import csv
 import zipfile  
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, abort, send_file, Response
+from flask_cors import CORS # <--- NOVA BIBLIOTECA PARA A EXTENSÃO DO CHROME!
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -21,6 +22,7 @@ import documentos
 import ia_core
 
 app = Flask(__name__)
+CORS(app) # <--- ABRE AS PORTAS DO SERVIDOR PARA A EXTENSÃO COMUNICAR
 
 # =========================================================
 # SISTEMA DE LOGS SILENCIOSO & TRATAMENTO DE ERROS GLOBAL
@@ -330,16 +332,19 @@ def mudar_senha():
     return render_template('mudar_senha.html')
 
 # =========================================================
-# FERRAMENTA: GABARITO INTELIGENTE
+# FERRAMENTA: GABARITO INTELIGENTE (COM EXTENSÃO DO CHROME)
 # =========================================================
 @app.route('/gabarito_inteligente')
 @login_required
 def gabarito_inteligente():
     return render_template('gabarito_inteligente.html')
 
-@app.route('/api/gerar_gabarito', methods=['POST'])
-@login_required
+# ATENÇÃO: A trava @login_required foi removida apenas daqui para a Extensão conseguir comunicar!
+@app.route('/api/gerar_gabarito', methods=['POST', 'OPTIONS'])
 def api_gerar_gabarito():
+    if request.method == 'OPTIONS':
+        return jsonify({"sucesso": True}), 200
+
     texto_prova = request.form.get('prova', '')
     if not texto_prova: return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
 
