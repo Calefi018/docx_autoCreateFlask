@@ -490,6 +490,12 @@ def banco_gabaritos():
             g.respostas_parsed = json.loads(g.resultado_json)
         except Exception: 
             g.respostas_parsed = []
+            
+        # 🕒 O TRUQUE DO FUSO HORÁRIO: Subtrai 3 horas do tempo do servidor (UTC -> UTC-3 Brasil)
+        if g.data_geracao:
+            g.data_local = g.data_geracao - timedelta(hours=3)
+        else:
+            g.data_local = datetime.utcnow() - timedelta(hours=3)
         
     return render_template('banco_gabaritos.html', gabaritos=gabaritos_salvos)
 
@@ -515,7 +521,6 @@ def corrigir_gabarito(id):
         for r in respostas:
             if int(r.get('questao')) == questao_num:
                 r['resposta'] = nova_letra
-                # Coloca uma tag na justificativa para você lembrar que o humano interveio!
                 if not "[CORRIGIDO" in r.get('justificativa', ''):
                     r['justificativa'] = f"🤖⚙️ [CORRIGIDO PELO ADMIN] " + r.get('justificativa', '')
                 modificado = True
@@ -531,6 +536,19 @@ def corrigir_gabarito(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"sucesso": False, "erro": str(e)})
+
+@app.route('/deletar_gabarito/<int:id>')
+@login_required
+def deletar_gabarito(id):
+    if current_user.role not in ['admin', 'sub-admin']: 
+        abort(403)
+        
+    gabarito = GabaritoSalvo.query.get_or_404(id)
+    db.session.delete(gabarito)
+    db.session.commit()
+    
+    flash('Memória da prova apagada com sucesso!', 'success')
+    return redirect(url_for('banco_gabaritos'))
 
 
 # =========================================================
