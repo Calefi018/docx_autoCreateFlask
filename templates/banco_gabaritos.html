@@ -24,18 +24,27 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
                 <div>
                     <h4 style="margin-top:0; color: var(--success);"><i class="ph-bold ph-check-circle"></i> Respostas Memorizadas</h4>
-                    <div style="background: #0f111a; padding: 15px; border-radius: 6px; font-size: 13px; max-height: 300px; overflow-y: auto;">
+                    <div style="background: #0f111a; padding: 15px; border-radius: 6px; font-size: 13px; max-height: 400px; overflow-y: auto;">
                         {% for r in g.respostas_parsed %}
                             <div style="margin-bottom: 12px; border-bottom: 1px dashed #334155; padding-bottom: 12px;">
-                                <strong style="color: #10b981; font-size: 14px;">Questão {{ r.questao }}: Alternativa {{ r.resposta }}</strong><br>
-                                <span style="color: #94a3b8; font-size: 12px; margin-top: 5px; display: block;">{{ r.justificativa }}</span>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <strong style="color: #10b981; font-size: 14px;">
+                                        Questão {{ r.questao }}: Alternativa <span id="resp_{{ g.id }}_{{ r.questao }}" style="font-size: 16px; background: rgba(16, 185, 129, 0.2); padding: 2px 8px; border-radius: 4px; margin-left: 5px;">{{ r.resposta }}</span>
+                                    </strong>
+                                    
+                                    <button class="btn btn-warning" style="padding: 4px 8px; font-size: 11px; background: #f59e0b; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" onclick="corrigirQuestao({{ g.id }}, {{ r.questao }}, '{{ r.resposta }}')">
+                                        <i class="ph-bold ph-pencil"></i> Corrigir Letra
+                                    </button>
+                                </div>
+                                
+                                <span id="just_{{ g.id }}_{{ r.questao }}" style="color: #94a3b8; font-size: 12px; margin-top: 8px; display: block;">{{ r.justificativa }}</span>
                             </div>
                         {% endfor %}
                     </div>
                 </div>
                 <div>
                     <h4 style="margin-top:0; color: var(--text-muted);"><i class="ph-bold ph-text-t"></i> Texto Identificador da Prova</h4>
-                    <div style="background: #0f111a; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 11px; color: #64748b; max-height: 300px; overflow-y: auto; white-space: pre-wrap; opacity: 0.8;">{{ g.prova_texto[:800] }}... [O texto continua no servidor]</div>
+                    <div style="background: #0f111a; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 11px; color: #64748b; max-height: 400px; overflow-y: auto; white-space: pre-wrap; opacity: 0.8;">{{ g.prova_texto[:1500] }}... [O texto continua no servidor]</div>
                 </div>
             </div>
         </div>
@@ -48,4 +57,70 @@
     </div>
     {% endfor %}
 </div>
+
+<script>
+function corrigirQuestao(gabaritoId, questaoNum, respostaAtual) {
+    Swal.fire({
+        title: 'Forçar Correção 🧠',
+        text: `Se a IA errou a Questão ${questaoNum}, qual é a alternativa correta?`,
+        input: 'select',
+        inputOptions: {
+            'A': 'Letra A',
+            'B': 'Letra B',
+            'C': 'Letra C',
+            'D': 'Letra D',
+            'E': 'Letra E'
+        },
+        inputValue: respostaAtual,
+        showCancelButton: true,
+        confirmButtonText: '<i class="ph-bold ph-check"></i> Injetar na Memória',
+        cancelButtonText: 'Cancelar',
+        background: '#1e2130',
+        color: '#e2e8f0',
+        confirmButtonColor: '#f59e0b'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            let novaLetra = result.value;
+            
+            // Bate na nova rota do servidor Koyeb
+            fetch(`/corrigir_gabarito/${gabaritoId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questao: questaoNum,
+                    nova_letra: novaLetra
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.sucesso) {
+                    // Atualiza a letra na tela na hora, sem precisar dar F5!
+                    let spanResposta = document.getElementById(`resp_${gabaritoId}_${questaoNum}`);
+                    spanResposta.innerText = novaLetra;
+                    
+                    // Adiciona a tag de "Corrigido pelo Admin" na tela também
+                    let spanJustificativa = document.getElementById(`just_${gabaritoId}_${questaoNum}`);
+                    if (!spanJustificativa.innerText.includes("[CORRIGIDO")) {
+                        spanJustificativa.innerText = "🤖⚙️ [CORRIGIDO PELO ADMIN] " + spanJustificativa.innerText;
+                    }
+
+                    Swal.fire({
+                        toast: true, position: 'top-end', showConfirmButton: false, timer: 3000,
+                        icon: 'success', title: `Questão ${questaoNum} atualizada para ${novaLetra}!`, background: '#1e2130', color: '#e2e8f0'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error', title: 'Falha', text: data.erro, background: '#1e2130', color: '#e2e8f0'
+                    });
+                }
+            })
+            .catch(err => {
+                Swal.fire({
+                    icon: 'error', title: 'Erro de Conexão', text: 'Não foi possível conectar ao servidor.', background: '#1e2130', color: '#e2e8f0'
+                });
+            });
+        }
+    });
+}
+</script>
 {% endblock %}
