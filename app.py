@@ -493,18 +493,44 @@ def banco_gabaritos():
         
     return render_template('banco_gabaritos.html', gabaritos=gabaritos_salvos)
 
-@app.route('/deletar_gabarito/<int:id>')
+@app.route('/corrigir_gabarito/<int:id>', methods=['POST'])
 @login_required
-def deletar_gabarito(id):
+def corrigir_gabarito(id):
     if current_user.role not in ['admin', 'sub-admin']: 
         abort(403)
         
     gabarito = GabaritoSalvo.query.get_or_404(id)
-    db.session.delete(gabarito)
-    db.session.commit()
+    dados = request.json
     
-    flash('Memória da prova apagada com sucesso!', 'success')
-    return redirect(url_for('banco_gabaritos'))
+    questao_num = int(dados.get('questao'))
+    nova_letra = str(dados.get('nova_letra')).upper().strip()
+    
+    if nova_letra not in ['A', 'B', 'C', 'D', 'E']:
+        return jsonify({"sucesso": False, "erro": "Letra inválida."})
+
+    try:
+        respostas = json.loads(gabarito.resultado_json)
+        modificado = False
+        
+        for r in respostas:
+            if int(r.get('questao')) == questao_num:
+                r['resposta'] = nova_letra
+                # Coloca uma tag na justificativa para você lembrar que o humano interveio!
+                if not "[CORRIGIDO" in r.get('justificativa', ''):
+                    r['justificativa'] = f"🤖⚙️ [CORRIGIDO PELO ADMIN] " + r.get('justificativa', '')
+                modificado = True
+                break
+
+        if modificado:
+            gabarito.resultado_json = json.dumps(respostas)
+            db.session.commit()
+            return jsonify({"sucesso": True})
+        else:
+            return jsonify({"sucesso": False, "erro": "Questão não encontrada na prova."})
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"sucesso": False, "erro": str(e)})
 
 
 # =========================================================
