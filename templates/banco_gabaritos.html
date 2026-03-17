@@ -1,22 +1,38 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 style="margin-top:0; color: #a855f7;"><i class="ph-bold ph-brain"></i> Mente Coletiva (Memória de Provas)</h1>
-<p style="color: var(--text-muted); margin-bottom: 30px;">
-    Todas as provas que a Inteligência Artificial já resolveu ficam guardadas neste cofre. Se a sua Extensão Fantasma encontrar uma prova idêntica no AVA, ela buscará as respostas aqui em vez de gastar os seus créditos de IA. Custo Zero e velocidade imediata!
-</p>
+<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px;">
+    <div>
+        <h1 style="margin-top:0; color: #a855f7;"><i class="ph-bold ph-brain"></i> Mente Coletiva (Memória de Provas)</h1>
+        <p style="color: var(--text-muted); margin: 0;">
+            Todas as provas que a Inteligência Artificial já resolveu ficam guardadas neste cofre.
+        </p>
+    </div>
+    
+    <a href="/recalcular_hashes" class="btn" style="background: #ef4444; color: white; border: none; font-size: 12px; font-weight: bold; padding: 8px 15px;" onclick="return confirm('Isso vai aplicar o novo filtro de higienização em todas as provas antigas para consertar os Hashes. Tem certeza?');">
+        <i class="ph-bold ph-arrows-clockwise"></i> Recalcular Hashes Antigos
+    </a>
+</div>
 
 <div style="display: flex; flex-direction: column; gap: 15px;">
     {% for g in gabaritos %}
     <div class="card" style="margin-bottom: 0; border-left: 4px solid #a855f7;">
         <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="document.getElementById('gab_{{ g.id }}').style.display = document.getElementById('gab_{{ g.id }}').style.display === 'none' ? 'block' : 'none'">
             <div>
-                <strong style="color: #e2e8f0; font-size: 1.1rem;">Prova Memorizada #{{ g.id }}</strong>
-                <span style="color: var(--text-muted); font-size: 12px; margin-left: 10px;"><i class="ph-bold ph-clock"></i> {{ g.data_local.strftime('%d/%m/%Y %H:%M') if g.data_local else g.data_geracao.strftime('%d/%m/%Y %H:%M') }}</span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <strong id="titulo_{{ g.id }}" style="color: #e2e8f0; font-size: 1.1rem;">
+                        {{ g.titulo if g.titulo else 'Prova Memorizada #' ~ g.id }}
+                    </strong>
+                    <button onclick="renomearTitulo(event, {{ g.id }}, '{{ g.titulo if g.titulo else 'Prova Memorizada #' ~ g.id }}')" style="background: none; border: none; color: #f59e0b; cursor: pointer; padding: 0; font-size: 16px;" title="Renomear Prova">
+                        <i class="ph-bold ph-pencil-simple"></i>
+                    </button>
+                </div>
+                
+                <span style="color: var(--text-muted); font-size: 12px;"><i class="ph-bold ph-clock"></i> {{ g.data_local.strftime('%d/%m/%Y %H:%M') if g.data_local else g.data_geracao.strftime('%d/%m/%Y %H:%M') }}</span>
                 <div style="font-size: 11px; color: #64748b; margin-top: 4px; font-family: monospace;">Hash: {{ g.hash_prova }}</div>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
                 <span style="background: rgba(168, 85, 247, 0.2); color: #a855f7; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold;">Ver Respostas ▼</span>
-                <a href="/deletar_gabarito/{{ g.id }}" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="event.stopPropagation(); return confirm('Tem a certeza? Se apagar, a IA terá que gastar créditos para resolver esta prova de novo se ela aparecer.');"><i class="ph-bold ph-trash"></i> Esquecer</a>
+                <a href="/deletar_gabarito/{{ g.id }}" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="event.stopPropagation(); return confirm('Tem a certeza?');"><i class="ph-bold ph-trash"></i> Esquecer</a>
             </div>
         </div>
 
@@ -36,7 +52,6 @@
                                         <i class="ph-bold ph-pencil"></i> Corrigir Letra
                                     </button>
                                 </div>
-                                
                                 <span id="just_{{ g.id }}_{{ r.questao }}" style="color: #94a3b8; font-size: 12px; margin-top: 8px; display: block;">{{ r.justificativa }}</span>
                             </div>
                         {% endfor %}
@@ -59,18 +74,50 @@
 </div>
 
 <script>
+// Função para Renomear o Título da Prova
+function renomearTitulo(event, gabaritoId, tituloAtual) {
+    event.stopPropagation(); // Impede de abrir/fechar a sanfona ao clicar no lápis
+    Swal.fire({
+        title: 'Renomear Prova 📝',
+        input: 'text',
+        inputValue: tituloAtual === `Prova Memorizada #${gabaritoId}` ? '' : tituloAtual,
+        inputPlaceholder: 'Ex: Prova de Matemática Financeira...',
+        showCancelButton: true,
+        confirmButtonText: 'Salvar Nome',
+        cancelButtonText: 'Cancelar',
+        background: '#1e2130',
+        color: '#e2e8f0',
+        confirmButtonColor: '#10b981'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            let novoTitulo = result.value.trim();
+            if (!novoTitulo) return;
+
+            fetch(`/renomear_gabarito/${gabaritoId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ titulo: novoTitulo })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.sucesso) {
+                    document.getElementById(`titulo_${gabaritoId}`).innerText = novoTitulo;
+                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Título atualizado!', background: '#1e2130', color: '#e2e8f0' });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Falha', text: data.erro, background: '#1e2130', color: '#e2e8f0' });
+                }
+            });
+        }
+    });
+}
+
+// Função para Corrigir a Letra (Já existia)
 function corrigirQuestao(gabaritoId, questaoNum, respostaAtual) {
     Swal.fire({
         title: 'Forçar Correção 🧠',
         text: `Se a IA errou a Questão ${questaoNum}, qual é a alternativa correta?`,
         input: 'select',
-        inputOptions: {
-            'A': 'Letra A',
-            'B': 'Letra B',
-            'C': 'Letra C',
-            'D': 'Letra D',
-            'E': 'Letra E'
-        },
+        inputOptions: { 'A': 'Letra A', 'B': 'Letra B', 'C': 'Letra C', 'D': 'Letra D', 'E': 'Letra E' },
         inputValue: respostaAtual,
         showCancelButton: true,
         confirmButtonText: '<i class="ph-bold ph-check"></i> Injetar na Memória',
@@ -81,43 +128,22 @@ function corrigirQuestao(gabaritoId, questaoNum, respostaAtual) {
     }).then((result) => {
         if (result.isConfirmed) {
             let novaLetra = result.value;
-            
-            // Bate na nova rota do servidor Koyeb para atualizar o banco
             fetch(`/corrigir_gabarito/${gabaritoId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    questao: questaoNum,
-                    nova_letra: novaLetra
-                })
+                body: JSON.stringify({ questao: questaoNum, nova_letra: novaLetra })
             })
             .then(res => res.json())
             .then(data => {
                 if(data.sucesso) {
-                    // Atualiza a letra na tela na hora, sem precisar dar F5!
                     let spanResposta = document.getElementById(`resp_${gabaritoId}_${questaoNum}`);
                     spanResposta.innerText = novaLetra;
-                    
-                    // Adiciona a tag de "Corrigido pelo Admin" na tela
                     let spanJustificativa = document.getElementById(`just_${gabaritoId}_${questaoNum}`);
                     if (!spanJustificativa.innerText.includes("[CORRIGIDO")) {
                         spanJustificativa.innerText = "🤖⚙️ [CORRIGIDO PELO ADMIN] " + spanJustificativa.innerText;
                     }
-
-                    Swal.fire({
-                        toast: true, position: 'top-end', showConfirmButton: false, timer: 3000,
-                        icon: 'success', title: `Questão ${questaoNum} atualizada para ${novaLetra}!`, background: '#1e2130', color: '#e2e8f0'
-                    });
-                } else {
-                    Swal.fire({
-                        icon: 'error', title: 'Falha', text: data.erro, background: '#1e2130', color: '#e2e8f0'
-                    });
+                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'success', title: `Questão ${questaoNum} atualizada para ${novaLetra}!`, background: '#1e2130', color: '#e2e8f0' });
                 }
-            })
-            .catch(err => {
-                Swal.fire({
-                    icon: 'error', title: 'Erro de Conexão', text: 'Não foi possível conectar ao servidor.', background: '#1e2130', color: '#e2e8f0'
-                });
             });
         }
     });
