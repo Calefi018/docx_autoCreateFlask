@@ -119,6 +119,7 @@ class GabaritoSalvo(db.Model):
     prova_texto = db.Column(db.Text, nullable=False)
     resultado_json = db.Column(db.Text, nullable=False)
     hash_prova = db.Column(db.String(255), nullable=True)
+    titulo = db.Column(db.String(255), nullable=True) # NOVA COLUNA: TÍTULO DA PROVA
     data_geracao = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Aluno(db.Model):
@@ -208,6 +209,12 @@ with app.app_context():
         
     try: 
         db.session.execute(db.text("ALTER TABLE gabarito_salvo ADD COLUMN hash_prova VARCHAR(255)"))
+        db.session.commit()
+    except Exception: 
+        db.session.rollback()
+
+    try: 
+        db.session.execute(db.text("ALTER TABLE gabarito_salvo ADD COLUMN titulo VARCHAR(255)"))
         db.session.commit()
     except Exception: 
         db.session.rollback()
@@ -402,7 +409,7 @@ def mudar_senha():
     return render_template('mudar_senha.html')
 
 # =========================================================
-# GABARITO INTELIGENTE & MENTE COLETIVA
+# GABARITO INTELIGENTE & MENTE COLETIVA (Filtro Anti-Sujeira)
 # =========================================================
 @app.route('/gabarito_inteligente')
 @login_required
@@ -414,7 +421,6 @@ def api_gerar_gabarito():
     if request.method == 'OPTIONS':
         return jsonify({"sucesso": True}), 200
 
-    # 🔒 A BLINDAGEM MÁXIMA DA EXTENSÃO: Bloqueia quem não estiver logado no HubMaster
     if not current_user.is_authenticated:
         return jsonify({"sucesso": False, "erro": "auth_required"}), 401
 
@@ -422,8 +428,36 @@ def api_gerar_gabarito():
     if not texto_prova: 
         return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
 
-    texto_limpo = re.sub(r'[\W_]+', '', texto_prova.lower())
+    # =========================================================
+    # 🧼 O FILTRO DE HIGIENIZAÇÃO DE HASH (Anti-Sujeira)
+    # =========================================================
+    linhas = texto_prova.split('\n')
+    linhas_uteis = []
+    
+    palavras_proibidas = [
+        'acadêmico', 'academico', 'aluno', 'matrícula', 'matricula', 
+        'polo', 'curso', 'cpf', 'avaliação', 'disciplina', 'data', 
+        'hora', 'voltar', 'imprimir', 'sair', 'hubmaster'
+    ]
+
+    for linha in linhas:
+        linha_min = linha.lower().strip()
+        if len(linha_min) < 3: 
+            continue
+        
+        tem_sujeira = False
+        for prob in palavras_proibidas:
+            if linha_min.startswith(prob) or f"{prob}:" in linha_min:
+                tem_sujeira = True
+                break
+        
+        if not tem_sujeira:
+            linhas_uteis.append(linha_min)
+
+    texto_para_hash = "".join(linhas_uteis)
+    texto_limpo = re.sub(r'[\W_]+', '', texto_para_hash)
     hash_prova_atual = hashlib.md5(texto_limpo.encode('utf-8')).hexdigest()
+    # =========================================================
 
     try:
         gabarito_em_cache = GabaritoSalvo.query.filter_by(hash_prova=hash_prova_atual).first()
@@ -460,13 +494,13 @@ def api_gerar_gabarito():
         })
 
     try:
-        # Grava a prova exatamente no nome do usuário atual
         novo_registro = RegistroUso(modelo_usado=modelo_elite, custo=custo)
         novo_gabarito = GabaritoSalvo(
             user_id=current_user.id, 
             prova_texto=texto_prova, 
             resultado_json=json.dumps(gabarito_final), 
-            hash_prova=hash_prova_atual
+            hash_prova=hash_prova_atual,
+            titulo=f"Prova Automática - {datetime.utcnow().strftime('%d/%m')}"
         )
         
         db.session.add(novo_registro)
@@ -477,6 +511,9 @@ def api_gerar_gabarito():
 
     return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": modelo_elite})
 
+# =========================================================
+# ROTAS DA MENTE COLETIVA (GERENCIAMENTO)
+# =========================================================
 @app.route('/banco_gabaritos')
 @login_required
 def banco_gabaritos():
@@ -491,13 +528,25 @@ def banco_gabaritos():
         except Exception: 
             g.respostas_parsed = []
             
-        # 🕒 O TRUQUE DO FUSO HORÁRIO: Subtrai 3 horas do tempo do servidor (UTC -> UTC-3 Brasil)
         if g.data_geracao:
             g.data_local = g.data_geracao - timedelta(hours=3)
         else:
             g.data_local = datetime.utcnow() - timedelta(hours=3)
         
     return render_template('banco_gabaritos.html', gabaritos=gabaritos_salvos)
+
+@app.route('/renomear_gabarito/<int:id>', methods=['POST'])
+@login_required
+def renomear_gabarito(id):
+    if current_user.role not in ['admin', 'sub-admin']: abort(403)
+    gabarito = GabaritoSalvo.query.get_or_404(id)
+    novo_titulo = request.json.get('titulo', '').strip()
+    
+    if novo_titulo:
+        gabarito.titulo = novo_titulo
+        db.session.commit()
+        return jsonify({"sucesso": True})
+    return jsonify({"sucesso": False, "erro": "Título inválido."})
 
 @app.route('/corrigir_gabarito/<int:id>', methods=['POST'])
 @login_required
@@ -540,16 +589,47 @@ def corrigir_gabarito(id):
 @app.route('/deletar_gabarito/<int:id>')
 @login_required
 def deletar_gabarito(id):
-    if current_user.role not in ['admin', 'sub-admin']: 
-        abort(403)
-        
+    if current_user.role not in ['admin', 'sub-admin']: abort(403)
     gabarito = GabaritoSalvo.query.get_or_404(id)
     db.session.delete(gabarito)
     db.session.commit()
-    
     flash('Memória da prova apagada com sucesso!', 'success')
     return redirect(url_for('banco_gabaritos'))
 
+@app.route('/recalcular_hashes')
+@login_required
+def recalcular_hashes():
+    """ ROTA DE MANUTENÇÃO: Conserta os hashes antigos com o novo filtro """
+    if current_user.role not in ['admin', 'sub-admin']: abort(403)
+    
+    gabaritos = GabaritoSalvo.query.all()
+    palavras_proibidas = [
+        'acadêmico', 'academico', 'aluno', 'matrícula', 'matricula', 
+        'polo', 'curso', 'cpf', 'avaliação', 'disciplina', 'data', 
+        'hora', 'voltar', 'imprimir', 'sair', 'hubmaster'
+    ]
+    
+    for g in gabaritos:
+        linhas = g.prova_texto.split('\n')
+        linhas_uteis = []
+        for linha in linhas:
+            linha_min = linha.lower().strip()
+            if len(linha_min) < 3: continue
+            tem_sujeira = False
+            for prob in palavras_proibidas:
+                if linha_min.startswith(prob) or f"{prob}:" in linha_min:
+                    tem_sujeira = True
+                    break
+            if not tem_sujeira:
+                linhas_uteis.append(linha_min)
+                
+        texto_limpo = re.sub(r'[\W_]+', '', "".join(linhas_uteis))
+        novo_hash = hashlib.md5(texto_limpo.encode('utf-8')).hexdigest()
+        g.hash_prova = novo_hash
+        
+    db.session.commit()
+    flash('Todos os Hashes antigos foram higienizados e recalculados com sucesso!', 'success')
+    return redirect(url_for('banco_gabaritos'))
 
 # =========================================================
 # FERRAMENTA: PROJETOS DE EXTENSÃO
