@@ -6,7 +6,7 @@
         <i class="ph-bold ph-terminal-window"></i> Engenharia de Prompts
     </h1>
     <p style="color: var(--text-muted); margin: 5px 0 0 0; font-size: 14px;">
-        Edite as regras da Inteligência Artificial. Qualquer alteração ou exclusão exige a Senha Master.
+        Edite as regras da Inteligência Artificial. Qualquer alteração exige a Senha Master.
     </p>
 </div>
 
@@ -16,15 +16,8 @@
     </h2>
     <form method="POST" action="/prompts/action" style="display: flex; flex-direction: column; gap: 15px;">
         <input type="hidden" name="acao" value="add">
-        
-        <div>
-            <input type="text" name="nome" placeholder="Nome do Prompt (Ex: Padrão Administração Unopar)" required style="font-weight: 600;">
-        </div>
-        
-        <div>
-            <textarea name="texto" rows="6" placeholder="Cole aqui todas as regras e restrições de comportamento da IA..." required style="resize: vertical; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6;"></textarea>
-        </div>
-        
+        <input type="text" name="nome" placeholder="Nome do Prompt" required style="font-weight: 600;">
+        <textarea name="texto" rows="6" placeholder="Cole aqui todas as regras..." required style="resize: vertical; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6;"></textarea>
         <button type="submit" class="btn btn-primary" style="padding: 14px; font-size: 15px; margin-top: 5px;">
             <i class="ph-bold ph-floppy-disk"></i> Salvar Novo Cérebro
         </button>
@@ -42,7 +35,6 @@
             <input type="hidden" name="prompt_id" value="{{ p.id }}">
             
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
-                
                 <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 250px;">
                     <input type="text" name="nome" value="{{ p.nome }}" required title="Clique para editar o nome" style="font-weight: 600; font-size: 16px; background: transparent; border: 1px solid transparent; padding: 6px 12px; transition: 0.2s;" onfocus="this.style.background='rgba(0,0,0,0.4)'; this.style.borderColor='var(--border)';">
                     {% if p.is_default %}
@@ -53,23 +45,15 @@
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
                     <i class="ph-bold ph-lock-key" style="color: var(--danger); margin-left: 8px;"></i>
                     <input type="password" name="senha_master" placeholder="Senha Master" required style="width: 140px; padding: 8px 12px; font-size: 13px;">
-                    
-                    <button type="submit" name="acao" value="edit" class="btn btn-neutral" style="padding: 8px 14px;" title="Salvar Alterações no Prompt">
-                        <i class="ph-bold ph-pencil-simple"></i> Atualizar
-                    </button>
-                    
+                    <button type="submit" name="acao" value="edit" class="btn btn-neutral" style="padding: 8px 14px;"><i class="ph-bold ph-pencil-simple"></i> Atualizar</button>
                     {% if not p.is_default %}
-                    <button type="submit" name="acao" value="delete" class="btn btn-danger" style="padding: 8px 14px;" onclick="return confirm('ATENÇÃO: Deseja apagar este prompt permanentemente?');" title="Apagar Prompt">
-                        <i class="ph-bold ph-trash"></i>
-                    </button>
+                    <button type="submit" name="acao" value="delete" class="btn btn-danger" style="padding: 8px 14px;" onclick="return confirm('ATENÇÃO: Deseja apagar este prompt permanentemente?');"><i class="ph-bold ph-trash"></i></button>
                     {% endif %}
                 </div>
             </div>
-
             <textarea name="texto" rows="10" required style="resize: vertical; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; background: rgba(0,0,0,0.3); border-color: var(--border);">{{ p.texto }}</textarea>
         </form>
     </div>
     {% endfor %}
 </div>
-
 {% endblock %}
