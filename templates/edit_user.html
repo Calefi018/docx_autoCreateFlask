@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Editar Usuário</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0E1117; color: #FAFAFA; padding: 2rem; display: flex; justify-content: center;}
+        .form-box { background-color: #262730; padding: 25px; border-radius: 8px; width: 100%; max-width: 400px; border: 1px solid #444C56;}
+        input, select { width: 100%; padding: 10px; margin: 10px 0 20px 0; border-radius: 4px; border: 1px solid #444C56; background: #0E1117; color: white; box-sizing: border-box;}
+        button { width: 100%; padding: 12px; background-color: #57D2A9; color: #0E1117; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;}
+        button:hover { background-color: #45a049; }
+        a { color: #2196F3; text-decoration: none; display: inline-block; margin-bottom: 20px;}
+        label { color: #9E9E9E; font-size: 0.9rem;}
+    </style>
+</head>
+<body>
+    <div>
+        <a href="/admin">&larr; Voltar para o Painel</a>
+        <div class="form-box">
+            <h2 style="margin-top: 0;">Editando: <span style="color: #2196F3;">{{ user.username }}</span></h2>
+            
+            <form method="POST">
+                <label>Nova Senha (deixe em branco para não alterar)</label>
+                <input type="password" name="password" placeholder="Digite uma nova senha">
+
+                <label>Data de Expiração (deixe em branco para vitalício)</label>
+                <input type="date" name="expiration_date" value="{{ user.expiration_date.strftime('%Y-%m-%d') if user.expiration_date else '' }}">
+
+                {% if current_user.role == 'admin' %}
+                <label>Nível de Acesso (Role)</label>
+                <select name="role">
+                    <option value="cliente" {% if user.role == 'cliente' %}selected{% endif %}>Cliente</option>
+                    <option value="sub-admin" {% if user.role == 'sub-admin' %}selected{% endif %}>Sub-Admin</option>
+                    <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin Master</option>
+                </select>
+                {% else %}
+                <p style="color: #FF4B4B; font-size: 0.85rem; margin-bottom: 20px;">*Como Sub-Admin, você não tem permissão para alterar o nível de acesso.</p>
+                {% endif %}
+
+                <button type="submit">Salvar Alterações</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

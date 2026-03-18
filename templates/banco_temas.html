@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="margin-top:0;">Banco de Temas Globais</h1>
+    <p style="color: var(--text-muted); margin-bottom: 25px;">
+        <i class="ph-fill ph-info"></i> Aqui ficam guardados todos os temas únicos já cadastrados no sistema. Use a busca para encontrar rapidamente o desafio que precisa e copie o texto original com um clique.
+    </p>
+
+    <input type="text" id="busca-tema" placeholder="🔍 Pesquisar por disciplina, título ou palavras do texto..." style="width: 100%; padding: 15px; margin-bottom: 30px; font-size: 1.05rem; border-radius: 8px;">
+
+    <div id="lista-temas" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+        {% for t in temas %}
+        <div class="card tema-card" style="margin-bottom: 0; display: flex; flex-direction: column;">
+            <h3 class="tema-titulo" style="margin-top: 0; color: var(--primary); font-size: 1.1rem; line-height: 1.4;">{{ t.titulo_exibicao }}</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 15px;">
+                <i class="ph-bold ph-calendar"></i> Cadastrado em: {{ t.data_cadastro.strftime('%d/%m/%Y') }}
+            </p>
+            
+            <div class="tema-texto" style="display: none;">{{ t.texto }}</div>
+            
+            <p style="color: #e2e8f0; font-size: 0.9rem; flex-grow: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;">
+                {{ t.texto }}
+            </p>
+            
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button class="btn btn-green" style="flex: 1; padding: 10px;" onclick="copiarTema(this)">
+                    <i class="ph-bold ph-copy"></i> Copiar
+                </button>
+                <button class="btn btn-blue" style="flex: 1; padding: 10px; background: var(--border);" onclick="lerTemaCompleto(this)">
+                    <i class="ph-bold ph-book-open"></i> Ler
+                </button>
+            </div>
+        </div>
+        {% else %}
+        <div style="grid-column: 1 / -1; text-align: center; padding: 50px; color: var(--text-muted);">
+            <i class="ph-fill ph-empty" style="font-size: 3rem; margin-bottom: 10px; display: block;"></i>
+            <p>Nenhum tema cadastrado ainda. O sistema irá extrair automaticamente os temas únicos à medida que você criar trabalhos.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        // Pesquisa em tempo real (Filtro instantâneo)
+        document.getElementById('busca-tema').addEventListener('input', function(e) {
+            let termo = e.target.value.toLowerCase();
+            let cards = document.querySelectorAll('.tema-card');
+            
+            cards.forEach(card => {
+                let titulo = card.querySelector('.tema-titulo').innerText.toLowerCase();
+                let texto = card.querySelector('.tema-texto').innerText.toLowerCase();
+                
+                if (titulo.includes(termo) || texto.includes(termo)) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+
+        // Função de copiar
+        function copiarTema(btn) {
+            let texto = btn.closest('.tema-card').querySelector('.tema-texto').innerText;
+            navigator.clipboard.writeText(texto).then(() => {
+                let iconeOriginal = btn.innerHTML;
+                btn.innerHTML = '<i class="ph-bold ph-check"></i> Copiado!';
+                
+                Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Texto pronto a colar!', background: '#1e2130', color: '#10b981' });
+                
+                setTimeout(() => {
+                    btn.innerHTML = iconeOriginal;
+                }, 2000);
+            });
+        }
+
+        // Função de leitura no ecrã inteiro
+        function lerTemaCompleto(btn) {
+            let titulo = btn.closest('.tema-card').querySelector('.tema-titulo').innerText;
+            let texto = btn.closest('.tema-card').querySelector('.tema-texto').innerText;
+            
+            Swal.fire({
+                title: titulo,
+                html: `<div style="text-align: left; max-height: 60vh; overflow-y: auto; padding: 10px; font-size: 0.95rem; white-space: pre-wrap; color: #cbd5e1;">${texto.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`,
+                width: '800px',
+                background: '#1e2130',
+                color: '#e2e8f0',
+                showCloseButton: true,
+                showCancelButton: true,
+                focusConfirm: false,
+                confirmButtonText: '<i class="ph-bold ph-copy"></i> Copiar Texto Inteiro',
+                confirmButtonColor: '#10b981',
+                cancelButtonText: 'Fechar',
+                cancelButtonColor: '#334155'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    navigator.clipboard.writeText(texto);
+                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Copiado!', background: '#1e2130', color: '#10b981' });
+                }
+            });
+        }
+    </script>
+{% endblock %}

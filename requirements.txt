@@ -1,0 +1,10 @@
+flask
+python-docx
+google-genai
+openai
+flask-sqlalchemy
+flask-login
+werkzeug
+psycopg2-binary
+gunicorn
+Flask-CORS

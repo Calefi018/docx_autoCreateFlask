@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1 style="margin-top:0;">Gabarito Inteligente (IA de Elite)</h1>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">Cole a prova abaixo. O sistema ativará o modelo de Inteligência Artificial mais avançado do mundo para analisar o contexto e entregar o gabarito comentado.</p>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
+        
+        <div class="card" style="flex: 1; min-width: 350px;">
+            <h3 style="margin-top: 0; color: var(--primary);"><i class="ph-fill ph-exam"></i> Prova / Questionário</h3>
+            <form id="formGabarito">
+                <textarea name="prova" id="texto-prova" rows="15" placeholder="Cole o texto da prova aqui (com as perguntas e alternativas)..." required style="font-size: 0.85rem; line-height: 1.5;"></textarea>
+                <button type="submit" class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem;" id="btn-gerar">
+                    <i class="ph-bold ph-brain"></i> Gerar Gabarito Perfeito
+                </button>
+            </form>
+
+            <div id="loading-gabarito" style="display:none; text-align: center; margin-top: 20px;">
+                <i class="ph-bold ph-spinner ph-spin" style="font-size: 2.5rem; color: var(--warning);"></i>
+                <p style="color: var(--warning); font-weight: bold; margin-top: 10px;">A IA de Elite está lendo a prova e a formular as respostas... <br>Aguarde uns instantes.</p>
+            </div>
+        </div>
+
+        <div class="card" style="flex: 1.5; min-width: 400px; display: none;" id="painel-resultado">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+                <h3 style="margin: 0; color: var(--success);"><i class="ph-fill ph-check-circle"></i> Gabarito Oficial</h3>
+                
+                <div style="display: flex; gap: 5px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 8px; border: 1px solid var(--border);">
+                    <button class="btn" id="tab-detalhado" onclick="mudarVisualizacao('detalhado')" style="padding: 8px 15px; background: var(--primary);">Com Justificativas</button>
+                    <button class="btn" id="tab-resumido" onclick="mudarVisualizacao('resumido')" style="padding: 8px 15px; background: transparent; color: var(--text-muted);">Apenas Letras</button>
+                </div>
+            </div>
+
+            <p id="info-consenso" style="font-size: 0.85rem; color: var(--text-muted); text-align: right; margin-top: -10px;"></p>
+
+            <div id="view-detalhado">
+                <div id="conteudo-detalhado" style="display: flex; flex-direction: column; gap: 15px;"></div>
+                <button class="btn btn-blue" style="width: 100%; margin-top: 20px; padding: 15px;" onclick="copiarTexto('conteudo-detalhado-raw')">
+                    <i class="ph-bold ph-copy"></i> Copiar Gabarito Comentado
+                </button>
+                <div id="conteudo-detalhado-raw" style="display:none;"></div>
+            </div>
+
+            <div id="view-resumido" style="display: none;">
+                <div style="background: rgba(15, 17, 26, 0.6); border: 1px solid var(--border); border-radius: 8px; padding: 20px; font-family: monospace; font-size: 1.2rem; line-height: 2;">
+                    <span id="conteudo-resumido"></span>
+                </div>
+                <button class="btn btn-warning" style="width: 100%; margin-top: 20px; padding: 15px;" onclick="copiarTexto('conteudo-resumido-raw')">
+                    <i class="ph-bold ph-copy"></i> Copiar Gabarito Simples
+                </button>
+                <div id="conteudo-resumido-raw" style="display:none;"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function mudarVisualizacao(tipo) {
+            if (tipo === 'detalhado') {
+                document.getElementById('view-detalhado').style.display = 'block';
+                document.getElementById('view-resumido').style.display = 'none';
+                document.getElementById('tab-detalhado').style.background = 'var(--primary)';
+                document.getElementById('tab-detalhado').style.color = 'white';
+                document.getElementById('tab-resumido').style.background = 'transparent';
+                document.getElementById('tab-resumido').style.color = 'var(--text-muted)';
+            } else {
+                document.getElementById('view-detalhado').style.display = 'none';
+                document.getElementById('view-resumido').style.display = 'block';
+                document.getElementById('tab-resumido').style.background = 'var(--primary)';
+                document.getElementById('tab-resumido').style.color = 'white';
+                document.getElementById('tab-detalhado').style.background = 'transparent';
+                document.getElementById('tab-detalhado').style.color = 'var(--text-muted)';
+            }
+        }
+
+        function copiarTexto(elementoId) {
+            let texto = document.getElementById(elementoId).innerText;
+            navigator.clipboard.writeText(texto).then(() => {
+                Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'success', title: 'Gabarito copiado!', background: '#1e2130', color: '#10b981' });
+            });
+        }
+
+        document.getElementById('formGabarito').onsubmit = function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-gerar');
+            const loading = document.getElementById('loading-gabarito');
+            const painel = document.getElementById('painel-resultado');
+
+            btn.style.display = 'none';
+            loading.style.display = 'block';
+            painel.style.display = 'none';
+
+            let formData = new FormData(this);
+
+            fetch('/api/gerar_gabarito', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                btn.style.display = 'block';
+                loading.style.display = 'none';
+
+                if(!data.sucesso) {
+                    Swal.fire('Erro', data.erro, 'error');
+                    return;
+                }
+
+                document.getElementById('info-consenso').innerHTML = `<i class="ph-fill ph-robot"></i> Resolvido por: ${data.modelo_utilizado}`;
+
+                let htmlDetalhado = '';
+                let rawDetalhado = 'GABARITO OFICIAL:\n\n';
+                let htmlResumido = '';
+                let rawResumido = '';
+
+                data.gabarito.forEach(item => {
+                    htmlDetalhado += `
+                        <div style="background: rgba(15, 17, 26, 0.5); border-left: 4px solid var(--primary); padding: 15px; border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h4 style="margin: 0; color: #fff;">Questão ${item.questao} - Resposta: <span style="color: var(--success); font-size: 1.2rem;">${item.resposta}</span></h4>
+                            </div>
+                            <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted); line-height: 1.4;"><b>Justificativa:</b> ${item.justificativa}</p>
+                        </div>
+                    `;
+
+                    rawDetalhado += `Questão ${item.questao} - Resposta Correta: ${item.resposta}\nJustificativa da IA: ${item.justificativa}\n\n`;
+
+                    htmlResumido += `<b>${item.questao})</b> <span style="color: var(--success);">${item.resposta}</span><br>`;
+                    
+                    rawResumido += `${item.questao}) ${item.resposta}\n`;
+                });
+
+                document.getElementById('conteudo-detalhado').innerHTML = htmlDetalhado;
+                document.getElementById('conteudo-detalhado-raw').innerText = rawDetalhado.trim();
+                
+                document.getElementById('conteudo-resumido').innerHTML = htmlResumido;
+                document.getElementById('conteudo-resumido-raw').innerText = rawResumido.trim();
+
+                painel.style.display = 'block';
+                mudarVisualizacao('detalhado');
+            })
+            .catch(err => {
+                btn.style.display = 'block';
+                loading.style.display = 'none';
+                Swal.fire('Falha Crítica', 'Erro ao conectar ao servidor. A prova pode ser longa demais para a rede.', 'error');
+            });
+        };
+    </script>
+{% endblock %}

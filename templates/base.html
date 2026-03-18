@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HubMaster - Painel</title>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --bg-dark: #0f111a;
+            --sidebar-bg: #161925;
+            --card-bg: #1e2130;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: #334155;
+        }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-dark); color: var(--text-main); display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 20px 0; display: flex; flex-direction: column; }
+        .sidebar-logo { padding: 0 20px 20px 20px; font-size: 1.5rem; font-weight: bold; color: #fff; border-bottom: 1px solid var(--border); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: var(--text-muted); text-decoration: none; transition: 0.3s; font-size: 0.95rem; border-right: 3px solid transparent;}
+        .nav-item:hover, .nav-item.active { background-color: rgba(99, 102, 241, 0.1); color: var(--primary); border-right: 3px solid var(--primary); }
+        .nav-item i { font-size: 1.2rem; }
+        .main-content { flex: 1; padding: 30px; overflow-y: auto; height: 100vh; box-sizing: border-box; }
+        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn { cursor: pointer; padding: 8px 16px; border-radius: 6px; border: none; font-weight: 600; font-size: 0.9rem; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: #fff; background-color: var(--primary); }
+        .btn-primary { background: var(--primary); } .btn-primary:hover { background: var(--primary-hover); }
+        .btn-success, .btn-green { background: var(--success); } .btn-success:hover { opacity: 0.9; }
+        .btn-warning { background: var(--warning); color: #000; } .btn-warning:hover { opacity: 0.9; }
+        .btn-danger { background: var(--danger); } .btn-danger:hover { opacity: 0.9; }
+        .btn-blue { background: #3b82f6; } .btn-blue:hover { opacity: 0.9; }
+        input, select, textarea { background: #0f111a; color: #fff; border: 1px solid var(--border); padding: 10px; border-radius: 6px; font-family: inherit; width: 100%; box-sizing: border-box;}
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+        label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 0.9rem; }
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 10px 0; }
+            .main-content { height: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <i class="ph-fill ph-student"></i> HubMaster
+        </div>
+        
+        {% if current_user.is_authenticated %}
+            {% if current_user.role != 'aluno' %}
+                <a href="/" class="nav-item"><i class="ph-bold ph-magic-wand"></i> Gerador de Trabalhos</a>
+                <a href="/clientes" class="nav-item"><i class="ph-bold ph-users"></i> CRM / Clientes</a>
+                <a href="/projetos_extensao" class="nav-item" style="color: var(--success);"><i class="ph-bold ph-hands-clapping"></i> Projetos de Extensão</a>
+                <a href="/banco_temas" class="nav-item"><i class="ph-bold ph-books"></i> Banco de Temas</a>
+                
+                <a href="/gabarito_inteligente" class="nav-item" style="color: var(--warning);"><i class="ph-bold ph-check-square-offset"></i> Gabarito Inteligente</a>
+                
+                <a href="/banco_gabaritos" class="nav-item" style="color: #a855f7;"><i class="ph-bold ph-brain"></i> Mente Coletiva</a>
+                
+                <a href="/dashboard" class="nav-item"><i class="ph-bold ph-chart-line-up"></i> Financeiro</a>
+                
+                <div style="margin: 20px 20px 10px 20px; font-size: 0.75rem; font-weight: bold; color: var(--border); text-transform: uppercase;">Sistema</div>
+                <a href="/configuracoes" class="nav-item"><i class="ph-bold ph-gear"></i> Configurações</a>
+                <a href="/prompts" class="nav-item"><i class="ph-bold ph-brain"></i> Cérebro IA</a>
+                <a href="/admin" class="nav-item"><i class="ph-bold ph-shield-check"></i> Controle de Acessos</a>
+            {% else %}
+                <a href="/area_aluno" class="nav-item"><i class="ph-bold ph-student"></i> Minha Área</a>
+            {% endif %}
+            
+            <div style="flex-grow: 1;"></div>
+            <a href="/mudar_senha" class="nav-item"><i class="ph-bold ph-lock-key"></i> Mudar Senha</a>
+            <a href="/logout" class="nav-item" style="color: var(--danger);"><i class="ph-bold ph-sign-out"></i> Sair do Sistema</a>
+        {% else %}
+            <a href="/login" class="nav-item"><i class="ph-bold ph-sign-in"></i> Fazer Login</a>
+        {% endif %}
+    </div>
+
+    <div class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <script>
+                        Swal.fire({
+                            toast: true, position: 'top-end', showConfirmButton: false, timer: 3000,
+                            icon: '{{ "success" if category == "success" else "error" }}',
+                            title: '{{ message }}', background: '#1e2130', color: '#e2e8f0'
+                        });
+                    </script>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
