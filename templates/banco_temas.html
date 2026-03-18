@@ -6,33 +6,29 @@
         <i class="ph-bold ph-books"></i> Log de Trabalhos
     </h1>
     <p style="color: var(--text-muted); margin: 5px 0 0 0; font-size: 14px;">
-        Aqui ficam guardados todos os temas únicos já cadastrados. Use a busca para encontrar e reciclar desafios passados.
+        Aqui ficam guardados todos os temas únicos já cadastrados.
     </p>
 </div>
 
 <div style="margin-bottom: 30px; position: relative;">
     <i class="ph-bold ph-magnifying-glass" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 18px;"></i>
-    <input type="text" id="searchInput" placeholder="Pesquisar por disciplina, título ou palavras-chave..." style="padding-left: 45px; padding-top: 16px; padding-bottom: 16px; font-size: 15px; border-radius: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+    <input type="text" id="searchInput" placeholder="Pesquisar por disciplina, título ou palavras..." style="width: 100%; padding: 16px 16px 16px 45px; font-size: 15px; border-radius: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text-main); outline: none;">
 </div>
 
 <div id="temasGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
     {% for t in temas %}
     <div class="card tema-card" style="margin-bottom: 0; display: flex; flex-direction: column; height: 100%; border-top: 3px solid var(--primary); padding: 20px;">
-        
         <div style="flex: 1;">
             <h3 class="tema-titulo" style="font-size: 15px; color: var(--text-main); margin-top: 0; margin-bottom: 12px; line-height: 1.4;">
                 {{ t.titulo_exibicao }}
             </h3>
-            
             <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px; display: flex; align-items: center; gap: 6px;">
                 <i class="ph-bold ph-calendar-blank"></i> Cadastrado em: {{ t.data_cadastro.strftime('%d/%m/%Y') }}
             </div>
-            
             <div class="tema-texto-preview" style="font-size: 13px; color: var(--text-muted); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 20px;">
                 {{ t.texto }}
             </div>
         </div>
-        
         <div style="display: flex; gap: 10px; margin-top: auto; border-top: 1px solid var(--border); padding-top: 15px;">
             <button onclick="copiarTexto(`{{ t.texto | replace('\n', '\\n') | replace('\"', '\\\"') | replace('\'', '\\\'') }}`)" class="btn btn-primary" style="flex: 1; font-size: 13px;">
                 <i class="ph-bold ph-copy"></i> Copiar
@@ -46,67 +42,43 @@
     <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-muted); background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border);">
         <i class="ph-bold ph-books" style="font-size: 48px; color: #27272a; margin-bottom: 15px;"></i>
         <h3 style="color: var(--text-main); font-weight: 600;">Nenhum tema registrado.</h3>
-        <p style="font-size: 14px; margin-top: 5px;">Os trabalhos que você gerar aparecerão automaticamente aqui.</p>
     </div>
     {% endfor %}
 </div>
 
 <div id="modalLer" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 1050; align-items: center; justify-content: center; padding: 20px;">
     <div class="card" style="width: 100%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; position: relative; margin: 0; padding: 30px;">
-        <button onclick="document.getElementById('modalLer').style.display='none'" style="position: absolute; right: 20px; top: 20px; background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; transition: 0.2s;">&times;</button>
-        
+        <button onclick="document.getElementById('modalLer').style.display='none'" style="position: absolute; right: 20px; top: 20px; background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer;">&times;</button>
         <h2 id="modalTitulo" style="margin-top: 0; font-size: 18px; color: var(--primary); padding-right: 30px; margin-bottom: 20px; line-height: 1.4;"></h2>
-        
-        <div class="texto-longo" id="modalTexto" style="flex: 1; overflow-y: auto; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid var(--border); font-size: 14px; white-space: pre-wrap; color: var(--text-main); line-height: 1.7;">
-        </div>
-        
+        <div class="texto-longo" id="modalTexto" style="flex: 1; overflow-y: auto; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid var(--border); font-size: 14px; white-space: pre-wrap; color: var(--text-main); line-height: 1.7;"></div>
         <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
-            <button id="btnCopiarModal" class="btn btn-primary" style="padding: 12px 24px;">
-                <i class="ph-bold ph-copy"></i> Copiar Todo o Texto
-            </button>
+            <button id="btnCopiarModal" class="btn btn-primary" style="padding: 12px 24px;"><i class="ph-bold ph-copy"></i> Copiar Tudo</button>
         </div>
     </div>
 </div>
 
 <script>
-    // SISTEMA DE PESQUISA EM TEMPO REAL
     document.getElementById('searchInput').addEventListener('input', function(e) {
         const termo = e.target.value.toLowerCase();
         const cards = document.querySelectorAll('.tema-card');
-        
         cards.forEach(card => {
             const titulo = card.querySelector('.tema-titulo').innerText.toLowerCase();
             const texto = card.querySelector('.tema-texto-preview').innerText.toLowerCase();
-            
-            if (titulo.includes(termo) || texto.includes(termo)) {
-                card.style.display = 'flex';
-            } else {
-                card.style.display = 'none';
-            }
+            card.style.display = (titulo.includes(termo) || texto.includes(termo)) ? 'flex' : 'none';
         });
     });
 
-    // SISTEMA DE CÓPIA COM AVISO
     function copiarTexto(texto) {
         navigator.clipboard.writeText(texto).then(() => {
-            Swal.fire({
-                toast: true, position: 'top-end', showConfirmButton: false, timer: 3000,
-                icon: 'success', title: 'Texto copiado para a área de transferência!', 
-                background: '#18181b', color: '#fafafa'
-            });
+            Swal.fire({toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'success', title: 'Copiado!', background: '#18181b', color: '#fafafa'});
         });
     }
 
-    // ABRIR MODAL COM TEXTO COMPLETO
     function lerCompleto(titulo, texto) {
         document.getElementById('modalTitulo').innerText = titulo;
         document.getElementById('modalTexto').innerText = texto;
-        
-        const btnCopiar = document.getElementById('btnCopiarModal');
-        btnCopiar.onclick = () => copiarTexto(texto);
-        
+        document.getElementById('btnCopiarModal').onclick = () => copiarTexto(texto);
         document.getElementById('modalLer').style.display = 'flex';
     }
 </script>
-
 {% endblock %}
