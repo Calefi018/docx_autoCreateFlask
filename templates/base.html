@@ -3,98 +3,273 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HubMaster - Painel</title>
+    <title>HubMaster Workspace</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <style>
+        /* =======================================================
+           PALETA SAAS PREMIUM (Slate & Blue)
+           ======================================================= */
         :root {
-            --bg-dark: #0f111a;
-            --sidebar-bg: #161925;
-            --card-bg: #1e2130;
-            --text-main: #e2e8f0;
-            --text-muted: #94a3b8;
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --border: #334155;
+            --bg-body: #0f172a;       /* Slate 900 */
+            --bg-sidebar: #0b1120;    /* Slate 950 */
+            --bg-card: #1e293b;       /* Slate 800 */
+            --border: #334155;        /* Slate 700 */
+            --text-main: #f8fafc;     /* Slate 50 */
+            --text-muted: #94a3b8;    /* Slate 400 */
+            
+            --primary: #3b82f6;       /* Blue 500 */
+            --primary-hover: #2563eb; /* Blue 600 */
+            --success: #10b981;       /* Emerald 500 */
+            --warning: #f59e0b;       /* Amber 500 */
+            --danger: #ef4444;        /* Red 500 */
+            --radius: 8px;
         }
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-dark); color: var(--text-main); display: flex; min-height: 100vh; }
-        .sidebar { width: 260px; background-color: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 20px 0; display: flex; flex-direction: column; }
-        .sidebar-logo { padding: 0 20px 20px 20px; font-size: 1.5rem; font-weight: bold; color: #fff; border-bottom: 1px solid var(--border); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-        .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: var(--text-muted); text-decoration: none; transition: 0.3s; font-size: 0.95rem; border-right: 3px solid transparent;}
-        .nav-item:hover, .nav-item.active { background-color: rgba(99, 102, 241, 0.1); color: var(--primary); border-right: 3px solid var(--primary); }
-        .nav-item i { font-size: 1.2rem; }
-        .main-content { flex: 1; padding: 30px; overflow-y: auto; height: 100vh; box-sizing: border-box; }
-        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .btn { cursor: pointer; padding: 8px 16px; border-radius: 6px; border: none; font-weight: 600; font-size: 0.9rem; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: #fff; background-color: var(--primary); }
-        .btn-primary { background: var(--primary); } .btn-primary:hover { background: var(--primary-hover); }
-        .btn-success, .btn-green { background: var(--success); } .btn-success:hover { opacity: 0.9; }
-        .btn-warning { background: var(--warning); color: #000; } .btn-warning:hover { opacity: 0.9; }
-        .btn-danger { background: var(--danger); } .btn-danger:hover { opacity: 0.9; }
-        .btn-blue { background: #3b82f6; } .btn-blue:hover { opacity: 0.9; }
-        input, select, textarea { background: #0f111a; color: #fff; border: 1px solid var(--border); padding: 10px; border-radius: 6px; font-family: inherit; width: 100%; box-sizing: border-box;}
-        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
-        label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 0.9rem; }
-        @media (max-width: 768px) {
-            body { flex-direction: column; }
-            .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 10px 0; }
-            .main-content { height: auto; }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
         }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* =======================================================
+           SIDEBAR CORPORATIVA
+           ======================================================= */
+        .sidebar {
+            width: 260px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo-container {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #ffffff;
+        }
+
+        .nav-menu {
+            padding: 20px 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: var(--radius);
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link i { font-size: 18px; }
+
+        .nav-link:hover, .nav-link.active {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+        }
+
+        .user-widget {
+            padding: 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 32px; height: 32px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; color: var(--primary);
+        }
+
+        /* =======================================================
+           CONTEÚDO PRINCIPAL & CARDS
+           ======================================================= */
+        .main-content {
+            flex: 1;
+            margin-left: 260px;
+            padding: 40px;
+            max-width: 1200px;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* =======================================================
+           BOTÕES E INPUTS PREMIUM
+           ======================================================= */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500;
+            cursor: pointer; text-decoration: none; border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        
+        .btn-outline { background-color: transparent; border-color: var(--border); color: var(--text-main); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+
+        .btn-danger { background-color: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.2); }
+        .btn-danger:hover { background-color: var(--danger); color: white; }
+
+        input, select, textarea {
+            width: 100%; padding: 10px 14px; border-radius: 6px;
+            background-color: #0f172a; border: 1px solid var(--border);
+            color: var(--text-main); font-size: 14px;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+        th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:hover td { background-color: rgba(255, 255, 255, 0.02); }
+
+        .badge {
+            padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+        }
+        .badge-success { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+        .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-logo">
-            <i class="ph-fill ph-student"></i> HubMaster
+
+    <nav class="sidebar">
+        <div class="logo-container">
+            <div class="logo-icon"><i class="ph-bold ph-cube"></i></div>
+            <div class="logo-text">HubMaster</div>
         </div>
         
-        {% if current_user.is_authenticated %}
-            {% if current_user.role != 'aluno' %}
-                <a href="/" class="nav-item"><i class="ph-bold ph-magic-wand"></i> Gerador de Trabalhos</a>
-                <a href="/clientes" class="nav-item"><i class="ph-bold ph-users"></i> CRM / Clientes</a>
-                <a href="/projetos_extensao" class="nav-item" style="color: var(--success);"><i class="ph-bold ph-hands-clapping"></i> Projetos de Extensão</a>
-                <a href="/banco_temas" class="nav-item"><i class="ph-bold ph-books"></i> Banco de Temas</a>
-                
-                <a href="/gabarito_inteligente" class="nav-item" style="color: var(--warning);"><i class="ph-bold ph-check-square-offset"></i> Gabarito Inteligente</a>
-                
-                <a href="/banco_gabaritos" class="nav-item" style="color: #a855f7;"><i class="ph-bold ph-brain"></i> Mente Coletiva</a>
-                
-                <a href="/dashboard" class="nav-item"><i class="ph-bold ph-chart-line-up"></i> Financeiro</a>
-                
-                <div style="margin: 20px 20px 10px 20px; font-size: 0.75rem; font-weight: bold; color: var(--border); text-transform: uppercase;">Sistema</div>
-                <a href="/configuracoes" class="nav-item"><i class="ph-bold ph-gear"></i> Configurações</a>
-                <a href="/prompts" class="nav-item"><i class="ph-bold ph-brain"></i> Cérebro IA</a>
-                <a href="/admin" class="nav-item"><i class="ph-bold ph-shield-check"></i> Controle de Acessos</a>
-            {% else %}
-                <a href="/area_aluno" class="nav-item"><i class="ph-bold ph-student"></i> Minha Área</a>
-            {% endif %}
+        <div class="nav-menu">
+            <a href="/dashboard" class="nav-link"><i class="ph-bold ph-squares-four"></i> Dashboard</a>
+            <a href="/clientes" class="nav-link"><i class="ph-bold ph-users"></i> CRM Clientes</a>
+            <a href="/projetos_extensao" class="nav-link"><i class="ph-bold ph-file-text"></i> Projetos Extensão</a>
+            <a href="/banco_temas" class="nav-link"><i class="ph-bold ph-books"></i> Banco de Trabalhos</a>
             
-            <div style="flex-grow: 1;"></div>
-            <a href="/mudar_senha" class="nav-item"><i class="ph-bold ph-lock-key"></i> Mudar Senha</a>
-            <a href="/logout" class="nav-item" style="color: var(--danger);"><i class="ph-bold ph-sign-out"></i> Sair do Sistema</a>
-        {% else %}
-            <a href="/login" class="nav-item"><i class="ph-bold ph-sign-in"></i> Fazer Login</a>
-        {% endif %}
-    </div>
+            <div style="margin: 15px 0 5px 15px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 1px;">Automação</div>
+            
+            <a href="/banco_gabaritos" class="nav-link"><i class="ph-bold ph-brain"></i> Mente Coletiva</a>
+            <a href="/" class="nav-link"><i class="ph-bold ph-robot"></i> Gerador IA</a>
+            
+            {% if current_user.role in ['admin', 'sub-admin'] %}
+            <div style="margin: 15px 0 5px 15px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 1px;">Sistema</div>
+            <a href="/prompts" class="nav-link"><i class="ph-bold ph-code"></i> Eng. de Prompts</a>
+            <a href="/configuracoes" class="nav-link"><i class="ph-bold ph-gear"></i> Configurações</a>
+            {% endif %}
+        </div>
 
-    <div class="main-content">
+        <div class="user-widget">
+            <div class="user-info">
+                <div class="user-avatar">{{ current_user.username[0]|upper }}</div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 13px; font-weight: 600;">{{ current_user.username }}</span>
+                    <span style="font-size: 11px; color: var(--text-muted);">{{ current_user.role|capitalize }}</span>
+                </div>
+            </div>
+            <a href="/logout" style="color: var(--text-muted); text-decoration: none;" title="Sair"><i class="ph-bold ph-sign-out"></i></a>
+        </div>
+    </nav>
+
+    <main class="main-content">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
                     <script>
                         Swal.fire({
-                            toast: true, position: 'top-end', showConfirmButton: false, timer: 3000,
-                            icon: '{{ "success" if category == "success" else "error" }}',
-                            title: '{{ message }}', background: '#1e2130', color: '#e2e8f0'
+                            toast: true,
+                            position: 'top-end',
+                            icon: '{{ "success" if category == "success" else "error" if category == "error" else "info" }}',
+                            title: '{{ message }}',
+                            showConfirmButton: false,
+                            timer: 4000,
+                            background: '#1e293b',
+                            color: '#f8fafc'
                         });
                     </script>
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        
+
         {% block content %}{% endblock %}
-    </div>
+    </main>
+
+    <script>
+        // Script simples para marcar o menu lateral como Ativo baseado na URL
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentPath = window.location.pathname;
+            const links = document.querySelectorAll('.nav-link');
+            links.forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
