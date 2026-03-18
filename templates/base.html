@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HubMaster Admin</title>
+    <title>HubMaster Core</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -12,19 +12,21 @@
     
     <style>
         /* =======================================================
-           DESIGN UTILITÁRIO & DENSO (Zero "Vibe-Coding")
+           DESIGN PREMIUM SAAS (Midnight Blue & Slate)
            ======================================================= */
         :root {
-            --bg-body: #0a0a0a;       /* Fundo super escuro */
-            --bg-sidebar: #121212;    /* Menu um tom acima */
-            --bg-card: #171717;       /* Cards sólidos */
-            --border: #262626;        /* Bordas secas */
-            --text-main: #e5e5e5;     /* Texto claro */
-            --text-muted: #a3a3a3;
-            --primary: #2563eb;       /* Azul técnico */
-            --primary-hover: #1d4ed8;
-            --success: #16a34a;
-            --danger: #dc2626;
+            --bg-body: #0f172a;       /* Azul Escuro Profundo (Elegante) */
+            --bg-sidebar: #1e293b;    /* Menu lateral com destaque sutil */
+            --bg-card: #1e293b;       /* Cards combinando com o menu */
+            --bg-input: #0b1120;      /* Inputs mais escuros para contraste */
+            --border: #334155;        /* Bordas suaves e visíveis */
+            --text-main: #f8fafc;     /* Branco Gelo */
+            --text-muted: #94a3b8;    /* Cinza Claro */
+            --primary: #3b82f6;       /* Azul Vivo SaaS */
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
         }
 
         * {
@@ -43,9 +45,9 @@
             overflow-x: hidden;
         }
 
-        /* SIDEBAR DIRETA E FINA */
+        /* SIDEBAR PROFISSIONAL */
         .sidebar {
-            width: 240px;
+            width: 250px;
             background-color: var(--bg-sidebar);
             border-right: 1px solid var(--border);
             display: flex;
@@ -55,152 +57,168 @@
             left: 0;
             top: 0;
             z-index: 1000;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.1);
         }
 
         .logo-container {
-            padding: 20px;
+            padding: 24px 20px;
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             font-weight: 600;
-            font-size: 15px;
+            font-size: 16px;
             color: #fff;
             letter-spacing: 0.5px;
         }
 
         .nav-menu {
-            padding: 15px 10px;
+            padding: 20px 12px;
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 4px;
         }
 
         .nav-link {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
+            gap: 12px;
+            padding: 10px 14px;
             color: var(--text-muted);
             text-decoration: none;
-            border-radius: 4px;
-            font-size: 13px;
+            border-radius: 6px;
+            font-size: 14px;
             font-weight: 500;
-            transition: 0.1s;
+            transition: all 0.2s;
         }
 
-        .nav-link i { font-size: 16px; }
+        .nav-link i { font-size: 18px; }
 
         .nav-link:hover, .nav-link.active {
-            background-color: #262626;
-            color: #fff;
+            background-color: rgba(59, 130, 246, 0.15);
+            color: var(--primary);
         }
 
         .section-title {
-            font-size: 10px;
-            color: #525252;
+            font-size: 11px;
+            color: #64748b;
             text-transform: uppercase;
-            margin: 15px 0 5px 12px;
+            margin: 20px 0 8px 14px;
             font-weight: 600;
             letter-spacing: 1px;
         }
 
         .user-widget {
-            padding: 15px;
+            padding: 20px;
             border-top: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 12px;
-            color: var(--text-muted);
+            font-size: 13px;
+            color: var(--text-main);
+            background: rgba(0,0,0,0.1);
         }
 
-        /* CONTEÚDO TELA CHEIA (O FIM DO DESCENTRALIZADO) */
+        /* CONTEÚDO TELA CHEIA E ORGANIZADO */
         .main-content {
-            margin-left: 240px;
-            padding: 30px 40px;
-            width: calc(100% - 240px); /* Usa 100% da largura restante do monitor */
+            margin-left: 250px;
+            padding: 35px 45px;
+            width: calc(100% - 250px);
             min-height: 100vh;
         }
 
         .card {
             background-color: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 20px;
-            margin-bottom: 20px;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
 
-        /* COMPONENTES TÉCNICOS */
+        /* COMPONENTES */
         .btn {
-            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-            padding: 6px 12px; border-radius: 4px; font-size: 13px; font-weight: 500;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500;
             cursor: pointer; text-decoration: none; border: 1px solid transparent;
-            transition: background 0.1s;
+            transition: all 0.2s;
         }
 
-        .btn-primary { background-color: var(--primary); color: white; }
-        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-primary { background-color: var(--primary); color: white; box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3); }
+        .btn-primary:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
         
         .btn-outline { background-color: transparent; border-color: var(--border); color: var(--text-main); }
-        .btn-outline:hover { border-color: var(--primary); color: var(--text-main); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
 
-        .btn-danger { background-color: transparent; border-color: var(--danger); color: var(--danger); }
+        .btn-danger { background-color: rgba(239, 68, 68, 0.1); border-color: transparent; color: var(--danger); }
         .btn-danger:hover { background-color: var(--danger); color: white; }
 
         input, select, textarea {
-            width: 100%; padding: 8px 12px; border-radius: 4px;
-            background-color: #000; border: 1px solid var(--border);
-            color: var(--text-main); font-size: 13px;
-            outline: none;
+            width: 100%; padding: 10px 14px; border-radius: 6px;
+            background-color: var(--bg-input); border: 1px solid var(--border);
+            color: var(--text-main); font-size: 14px;
+            outline: none; transition: 0.2s;
         }
 
-        input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+        input:focus, select:focus, textarea:focus { 
+            border-color: var(--primary); 
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
 
-        /* TABELAS DENSAS */
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
-        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
-        th { color: var(--text-muted); font-weight: 500; font-size: 12px; border-bottom: 2px solid var(--border); }
-        tr:hover td { background-color: #1a1a1a; }
+        /* TABELAS ELEGANTES */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background-color: rgba(255, 255, 255, 0.03); }
 
-        .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; border: 1px solid var(--border); }
-        .badge-success { color: var(--success); border-color: rgba(22, 163, 74, 0.3); background: rgba(22, 163, 74, 0.1); }
-        .badge-warning { color: var(--warning); border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.1); }
+        .badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .badge-success { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+        .badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
     </style>
 </head>
 <body>
 
     <nav class="sidebar">
         <div class="logo-container">
-            <i class="ph-bold ph-terminal-window" style="font-size: 18px; color: var(--primary);"></i>
+            <div style="background: linear-gradient(135deg, var(--primary), #8b5cf6); padding: 6px; border-radius: 6px; display: flex;">
+                <i class="ph-bold ph-asterisk" style="font-size: 18px; color: white;"></i>
+            </div>
             HubMaster Core
         </div>
         
         <div class="nav-menu">
-            <a href="/dashboard" class="nav-link"><i class="ph-bold ph-chart-bar"></i> Dashboard</a>
-            <a href="/clientes" class="nav-link"><i class="ph-bold ph-users"></i> Base de Clientes</a>
-            <a href="/projetos_extensao" class="nav-link"><i class="ph-bold ph-file-pdf"></i> Arquivos PARANÁ</a>
-            <a href="/banco_temas" class="nav-link"><i class="ph-bold ph-database"></i> Log de Trabalhos</a>
+            <a href="/dashboard" class="nav-link"><i class="ph-bold ph-chart-line-up"></i> Visão Geral</a>
+            <a href="/clientes" class="nav-link"><i class="ph-bold ph-users-three"></i> Base de Clientes</a>
+            <a href="/projetos_extensao" class="nav-link"><i class="ph-bold ph-folders"></i> Projetos de Extensão</a>
+            <a href="/banco_temas" class="nav-link"><i class="ph-bold ph-books"></i> Log de Trabalhos</a>
             
             <div class="section-title">Motores de IA</div>
             
-            <a href="/banco_gabaritos" class="nav-link"><i class="ph-bold ph-cpu"></i> Memória de Provas</a>
-            <a href="/" class="nav-link"><i class="ph-bold ph-lightning"></i> Processador de Textos</a>
+            <a href="/banco_gabaritos" class="nav-link"><i class="ph-bold ph-brain"></i> Mente Coletiva</a>
+            <a href="/" class="nav-link"><i class="ph-bold ph-sparkle"></i> Gerador de Textos</a>
             
             {% if current_user.role in ['admin', 'sub-admin'] %}
             <div class="section-title">Infraestrutura</div>
-            <a href="/prompts" class="nav-link"><i class="ph-bold ph-code"></i> Modelos de Prompt</a>
-            <a href="/configuracoes" class="nav-link"><i class="ph-bold ph-sliders"></i> Variáveis de Sistema</a>
+            <a href="/prompts" class="nav-link"><i class="ph-bold ph-terminal-window"></i> Modelos de Prompt</a>
+            <a href="/configuracoes" class="nav-link"><i class="ph-bold ph-sliders"></i> Configurações</a>
             {% endif %}
         </div>
 
         <div class="user-widget">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></div>
-                <span>{{ current_user.username }} ({{ current_user.role }})</span>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 32px; height: 32px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: bold;">
+                    {{ current_user.username[0]|upper }}
+                </div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-weight: 600;">{{ current_user.username }}</span>
+                    <span style="font-size: 11px; color: var(--text-muted);">{{ current_user.role|capitalize }}</span>
+                </div>
             </div>
-            <a href="/logout" style="color: var(--text-muted); text-decoration: none;" title="Encerrar Sessão"><i class="ph-bold ph-power"></i></a>
+            <a href="/logout" style="color: var(--text-muted); text-decoration: none; padding: 5px;" title="Encerrar Sessão">
+                <i class="ph-bold ph-sign-out" style="font-size: 18px;"></i>
+            </a>
         </div>
     </nav>
 
@@ -212,7 +230,7 @@
                         Swal.fire({
                             toast: true, position: 'top-end', showConfirmButton: false, timer: 4000,
                             icon: '{{ "success" if category == "success" else "error" if category == "error" else "info" }}',
-                            title: '{{ message }}', background: '#171717', color: '#e5e5e5'
+                            title: '{{ message }}', background: '#1e293b', color: '#f8fafc'
                         });
                     </script>
                 {% endfor %}
