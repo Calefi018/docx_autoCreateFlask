@@ -1,44 +1,107 @@
 {% extends "base.html" %}
 {% block content %}
-    <h1 style="margin-top:0;">Painel Admin - Utilizadores</h1>
-    <div class="card">
-        <h3>Criar Novo Acesso</h3>
-        <form method="POST" style="display:flex; gap:10px; flex-wrap:wrap;">
-            <input type="text" name="username" placeholder="Nome de Login" required style="flex:1;">
-            <input type="password" name="password" placeholder="Senha" required style="flex:1;">
-            <select name="role" style="flex:1;">
+
+<div style="margin-bottom: 30px;">
+    <h1 style="margin-top:0; color: var(--primary); font-size: 24px; display: flex; align-items: center; gap: 10px;">
+        <i class="ph-bold ph-shield-star"></i> Painel de Administração
+    </h1>
+    <p style="color: var(--text-muted); margin: 5px 0 0 0; font-size: 14px;">
+        Gestão de utilizadores, equipas e níveis de acesso ao sistema.
+    </p>
+</div>
+
+<div class="card" style="border-top: 3px solid var(--primary);">
+    <h2 style="font-size: 16px; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+        <i class="ph-bold ph-user-plus" style="color: var(--primary);"></i> Criar Novo Acesso
+    </h2>
+    <form method="POST" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
+        <div>
+            <label style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Nome de Usuário</label>
+            <input type="text" name="username" placeholder="Login" required>
+        </div>
+        <div>
+            <label style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Senha</label>
+            <input type="password" name="password" placeholder="••••••••" required>
+        </div>
+        <div>
+            <label style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Nível de Acesso</label>
+            <select name="role">
                 <option value="cliente">Cliente VIP</option>
-                <option value="sub-admin">Sub-Admin (Equipa/Sócio)</option>
+                <option value="sub-admin">Sub-Admin (Sócio)</option>
                 <option value="admin">Administrador Geral</option>
             </select>
-            <input type="date" name="expiration_date" title="Deixe vazio para acesso vitalício" style="flex:1;">
-            <button type="submit" class="btn btn-green"><i class="ph-bold ph-plus"></i> Criar</button>
-        </form>
-    </div>
+        </div>
+        <div>
+            <label style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Data de Validade</label>
+            <input type="date" name="expiration_date" title="Deixe vazio para acesso vitalício">
+        </div>
+        <div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">
+                <i class="ph-bold ph-plus"></i> Criar Conta
+            </button>
+        </div>
+    </form>
+</div>
 
-    <table style="width: 100%; text-align: left; background: var(--card-bg); border-radius: 8px; overflow: hidden;">
-        <tr style="background: rgba(0,0,0,0.2);">
-            <th style="padding: 15px;">Usuário</th>
-            <th>Nível de Acesso</th>
-            <th>Validade</th>
-            <th>Ações</th>
-        </tr>
-        {% for user in users %}
-        <tr style="border-bottom: 1px solid var(--border);">
-            <td style="padding: 15px; font-weight: bold;">{{ user.username }}</td>
-            <td>
-                <span style="background: rgba(99,102,241,0.1); color: var(--primary); padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">
-                    {{ user.role }}
-                </span>
-            </td>
-            <td style="color: var(--text-muted); font-size: 0.9rem;">
-                {{ user.expiration_date.strftime('%d/%m/%Y') if user.expiration_date else 'Vitalício' }}
-            </td>
-            <td>
-                <a href="/edit_user/{{ user.id }}" class="btn btn-blue" style="padding: 6px 12px; font-size: 0.8rem;">Editar</a>
-                <a href="/delete_user/{{ user.id }}" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8rem;" onclick="return confirm('ATENÇÃO: Apagar este utilizador permanentemente?')">Apagar</a>
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: 20px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.2);">
+        <h3 style="margin: 0; font-size: 15px; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+            <i class="ph-bold ph-users"></i> Utilizadores Ativos
+        </h3>
+    </div>
+    
+    <div class="table-responsive" style="border: none; border-radius: 0;">
+        <table style="margin-top: 0;">
+            <thead>
+                <tr>
+                    <th style="background: transparent;">Usuário</th>
+                    <th style="background: transparent;">Nível de Acesso</th>
+                    <th style="background: transparent;">Validade</th>
+                    <th style="background: transparent; text-align: right;">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td style="font-weight: 600; color: var(--text-main);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 28px; height: 28px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text-muted);">
+                                {{ user.username[0]|upper }}
+                            </div>
+                            {{ user.username }}
+                        </div>
+                    </td>
+                    <td>
+                        {% if user.role == 'admin' %}
+                            <span class="badge badge-success">Admin</span>
+                        {% elif user.role == 'sub-admin' %}
+                            <span class="badge badge-warning">Sub-Admin</span>
+                        {% else %}
+                            <span class="badge" style="background: rgba(255,255,255,0.1); border: 1px solid var(--border); color: var(--text-muted);">Cliente</span>
+                        {% endif %}
+                    </td>
+                    <td style="color: var(--text-muted); font-size: 13px;">
+                        {% if user.expiration_date %}
+                            <i class="ph-bold ph-calendar-blank"></i> {{ user.expiration_date.strftime('%d/%m/%Y') }}
+                        {% else %}
+                            <span style="color: var(--primary);"><i class="ph-bold ph-infinity"></i> Vitalício</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                            <a href="/edit_user/{{ user.id }}" class="btn btn-neutral" style="padding: 6px 12px; font-size: 12px;">
+                                <i class="ph-bold ph-pencil-simple"></i> Editar
+                            </a>
+                            <a href="/delete_user/{{ user.id }}" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="return confirm('ATENÇÃO: Apagar este utilizador permanentemente?')">
+                                <i class="ph-bold ph-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 {% endblock %}
