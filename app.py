@@ -119,7 +119,7 @@ class GabaritoSalvo(db.Model):
     prova_texto = db.Column(db.Text, nullable=False)
     resultado_json = db.Column(db.Text, nullable=False)
     hash_prova = db.Column(db.String(255), nullable=True)
-    titulo = db.Column(db.String(255), nullable=True) # NOVA COLUNA: TÍTULO DA PROVA
+    titulo = db.Column(db.String(255), nullable=True)
     data_geracao = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Aluno(db.Model):
@@ -407,6 +407,32 @@ def mudar_senha():
             flash('A senha atual está incorreta.', 'error')
             
     return render_template('mudar_senha.html')
+
+# =========================================================
+# API DA CHAVE MESTRA (AUTO-LOGIN NA EXTENSÃO)
+# =========================================================
+@app.route('/api/clientes_login', methods=['GET', 'OPTIONS'])
+def api_clientes_login():
+    if request.method == 'OPTIONS':
+        return jsonify({"sucesso": True}), 200
+
+    if not current_user.is_authenticated:
+        return jsonify({"sucesso": False, "erro": "auth_required"}), 401
+
+    try:
+        alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.nome).all()
+        lista_clientes = []
+        for a in alunos:
+            # Envia apenas clientes com as credenciais salvas no CRM
+            if a.ava_login and a.ava_senha:
+                lista_clientes.append({
+                    "nome": a.nome,
+                    "login": a.ava_login,
+                    "senha": a.ava_senha
+                })
+        return jsonify({"sucesso": True, "clientes": lista_clientes})
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": str(e)})
 
 # =========================================================
 # GABARITO INTELIGENTE & MENTE COLETIVA (Filtro Anti-Sujeira)
