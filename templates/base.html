@@ -3,53 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HubMaster Workspace</title>
+    <title>HubMaster Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <style>
         /* =======================================================
-           PALETA SAAS PREMIUM (Slate & Blue)
+           DESIGN UTILITÁRIO & DENSO (Zero "Vibe-Coding")
            ======================================================= */
         :root {
-            --bg-body: #0f172a;       /* Slate 900 */
-            --bg-sidebar: #0b1120;    /* Slate 950 */
-            --bg-card: #1e293b;       /* Slate 800 */
-            --border: #334155;        /* Slate 700 */
-            --text-main: #f8fafc;     /* Slate 50 */
-            --text-muted: #94a3b8;    /* Slate 400 */
-            
-            --primary: #3b82f6;       /* Blue 500 */
-            --primary-hover: #2563eb; /* Blue 600 */
-            --success: #10b981;       /* Emerald 500 */
-            --warning: #f59e0b;       /* Amber 500 */
-            --danger: #ef4444;        /* Red 500 */
-            --radius: 8px;
+            --bg-body: #0a0a0a;       /* Fundo super escuro */
+            --bg-sidebar: #121212;    /* Menu um tom acima */
+            --bg-card: #171717;       /* Cards sólidos */
+            --border: #262626;        /* Bordas secas */
+            --text-main: #e5e5e5;     /* Texto claro */
+            --text-muted: #a3a3a3;
+            --primary: #2563eb;       /* Azul técnico */
+            --primary-hover: #1d4ed8;
+            --success: #16a34a;
+            --danger: #dc2626;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', -apple-system, sans-serif;
         }
 
         body {
             background-color: var(--bg-body);
             color: var(--text-main);
             display: flex;
+            width: 100vw;
             min-height: 100vh;
             overflow-x: hidden;
         }
 
-        /* =======================================================
-           SIDEBAR CORPORATIVA
-           ======================================================= */
+        /* SIDEBAR DIRETA E FINA */
         .sidebar {
-            width: 260px;
+            width: 240px;
             background-color: var(--bg-sidebar);
             border-right: 1px solid var(--border);
             display: flex;
@@ -62,177 +58,149 @@
         }
 
         .logo-container {
-            padding: 24px 20px;
+            padding: 20px;
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 12px;
-        }
-
-        .logo-icon {
-            background: linear-gradient(135deg, var(--primary), #8b5cf6);
-            color: white;
-            padding: 8px;
-            border-radius: 8px;
-            font-size: 20px;
-        }
-
-        .logo-text {
-            font-size: 18px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            color: #ffffff;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 15px;
+            color: #fff;
+            letter-spacing: 0.5px;
         }
 
         .nav-menu {
-            padding: 20px 12px;
+            padding: 15px 10px;
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
         }
 
         .nav-link {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 10px 14px;
+            gap: 10px;
+            padding: 8px 12px;
             color: var(--text-muted);
             text-decoration: none;
-            border-radius: var(--radius);
-            font-size: 14px;
+            border-radius: 4px;
+            font-size: 13px;
             font-weight: 500;
-            transition: all 0.2s ease;
+            transition: 0.1s;
         }
 
-        .nav-link i { font-size: 18px; }
+        .nav-link i { font-size: 16px; }
 
         .nav-link:hover, .nav-link.active {
-            background-color: rgba(59, 130, 246, 0.1);
-            color: var(--primary);
+            background-color: #262626;
+            color: #fff;
+        }
+
+        .section-title {
+            font-size: 10px;
+            color: #525252;
+            text-transform: uppercase;
+            margin: 15px 0 5px 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
         }
 
         .user-widget {
-            padding: 20px;
+            padding: 15px;
             border-top: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-muted);
         }
 
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .user-avatar {
-            width: 32px; height: 32px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 50%;
-            display: flex; justify-content: center; align-items: center;
-            font-weight: bold; color: var(--primary);
-        }
-
-        /* =======================================================
-           CONTEÚDO PRINCIPAL & CARDS
-           ======================================================= */
+        /* CONTEÚDO TELA CHEIA (O FIM DO DESCENTRALIZADO) */
         .main-content {
-            flex: 1;
-            margin-left: 260px;
-            padding: 40px;
-            max-width: 1200px;
+            margin-left: 240px;
+            padding: 30px 40px;
+            width: calc(100% - 240px); /* Usa 100% da largura restante do monitor */
+            min-height: 100vh;
         }
 
         .card {
             background-color: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
         }
 
-        /* =======================================================
-           BOTÕES E INPUTS PREMIUM
-           ======================================================= */
+        /* COMPONENTES TÉCNICOS */
         .btn {
-            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-            padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 6px 12px; border-radius: 4px; font-size: 13px; font-weight: 500;
             cursor: pointer; text-decoration: none; border: 1px solid transparent;
-            transition: all 0.2s;
+            transition: background 0.1s;
         }
 
         .btn-primary { background-color: var(--primary); color: white; }
         .btn-primary:hover { background-color: var(--primary-hover); }
         
         .btn-outline { background-color: transparent; border-color: var(--border); color: var(--text-main); }
-        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--text-main); }
 
-        .btn-danger { background-color: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.2); }
+        .btn-danger { background-color: transparent; border-color: var(--danger); color: var(--danger); }
         .btn-danger:hover { background-color: var(--danger); color: white; }
 
         input, select, textarea {
-            width: 100%; padding: 10px 14px; border-radius: 6px;
-            background-color: #0f172a; border: 1px solid var(--border);
-            color: var(--text-main); font-size: 14px;
-            transition: border-color 0.2s;
+            width: 100%; padding: 8px 12px; border-radius: 4px;
+            background-color: #000; border: 1px solid var(--border);
+            color: var(--text-main); font-size: 13px;
             outline: none;
         }
 
-        input:focus, select:focus, textarea:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-        }
+        input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
-        th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-        tr:hover td { background-color: rgba(255, 255, 255, 0.02); }
+        /* TABELAS DENSAS */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-muted); font-weight: 500; font-size: 12px; border-bottom: 2px solid var(--border); }
+        tr:hover td { background-color: #1a1a1a; }
 
-        .badge {
-            padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
-        }
-        .badge-success { background: rgba(16, 185, 129, 0.1); color: var(--success); }
-        .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; border: 1px solid var(--border); }
+        .badge-success { color: var(--success); border-color: rgba(22, 163, 74, 0.3); background: rgba(22, 163, 74, 0.1); }
+        .badge-warning { color: var(--warning); border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.1); }
     </style>
 </head>
 <body>
 
     <nav class="sidebar">
         <div class="logo-container">
-            <div class="logo-icon"><i class="ph-bold ph-cube"></i></div>
-            <div class="logo-text">HubMaster</div>
+            <i class="ph-bold ph-terminal-window" style="font-size: 18px; color: var(--primary);"></i>
+            HubMaster Core
         </div>
         
         <div class="nav-menu">
-            <a href="/dashboard" class="nav-link"><i class="ph-bold ph-squares-four"></i> Dashboard</a>
-            <a href="/clientes" class="nav-link"><i class="ph-bold ph-users"></i> CRM Clientes</a>
-            <a href="/projetos_extensao" class="nav-link"><i class="ph-bold ph-file-text"></i> Projetos Extensão</a>
-            <a href="/banco_temas" class="nav-link"><i class="ph-bold ph-books"></i> Banco de Trabalhos</a>
+            <a href="/dashboard" class="nav-link"><i class="ph-bold ph-chart-bar"></i> Dashboard</a>
+            <a href="/clientes" class="nav-link"><i class="ph-bold ph-users"></i> Base de Clientes</a>
+            <a href="/projetos_extensao" class="nav-link"><i class="ph-bold ph-file-pdf"></i> Arquivos PARANÁ</a>
+            <a href="/banco_temas" class="nav-link"><i class="ph-bold ph-database"></i> Log de Trabalhos</a>
             
-            <div style="margin: 15px 0 5px 15px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 1px;">Automação</div>
+            <div class="section-title">Motores de IA</div>
             
-            <a href="/banco_gabaritos" class="nav-link"><i class="ph-bold ph-brain"></i> Mente Coletiva</a>
-            <a href="/" class="nav-link"><i class="ph-bold ph-robot"></i> Gerador IA</a>
+            <a href="/banco_gabaritos" class="nav-link"><i class="ph-bold ph-cpu"></i> Memória de Provas</a>
+            <a href="/" class="nav-link"><i class="ph-bold ph-lightning"></i> Processador de Textos</a>
             
             {% if current_user.role in ['admin', 'sub-admin'] %}
-            <div style="margin: 15px 0 5px 15px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 1px;">Sistema</div>
-            <a href="/prompts" class="nav-link"><i class="ph-bold ph-code"></i> Eng. de Prompts</a>
-            <a href="/configuracoes" class="nav-link"><i class="ph-bold ph-gear"></i> Configurações</a>
+            <div class="section-title">Infraestrutura</div>
+            <a href="/prompts" class="nav-link"><i class="ph-bold ph-code"></i> Modelos de Prompt</a>
+            <a href="/configuracoes" class="nav-link"><i class="ph-bold ph-sliders"></i> Variáveis de Sistema</a>
             {% endif %}
         </div>
 
         <div class="user-widget">
-            <div class="user-info">
-                <div class="user-avatar">{{ current_user.username[0]|upper }}</div>
-                <div style="display: flex; flex-direction: column;">
-                    <span style="font-size: 13px; font-weight: 600;">{{ current_user.username }}</span>
-                    <span style="font-size: 11px; color: var(--text-muted);">{{ current_user.role|capitalize }}</span>
-                </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></div>
+                <span>{{ current_user.username }} ({{ current_user.role }})</span>
             </div>
-            <a href="/logout" style="color: var(--text-muted); text-decoration: none;" title="Sair"><i class="ph-bold ph-sign-out"></i></a>
+            <a href="/logout" style="color: var(--text-muted); text-decoration: none;" title="Encerrar Sessão"><i class="ph-bold ph-power"></i></a>
         </div>
     </nav>
 
@@ -242,14 +210,9 @@
                 {% for category, message in messages %}
                     <script>
                         Swal.fire({
-                            toast: true,
-                            position: 'top-end',
+                            toast: true, position: 'top-end', showConfirmButton: false, timer: 4000,
                             icon: '{{ "success" if category == "success" else "error" if category == "error" else "info" }}',
-                            title: '{{ message }}',
-                            showConfirmButton: false,
-                            timer: 4000,
-                            background: '#1e293b',
-                            color: '#f8fafc'
+                            title: '{{ message }}', background: '#171717', color: '#e5e5e5'
                         });
                     </script>
                 {% endfor %}
@@ -260,14 +223,11 @@
     </main>
 
     <script>
-        // Script simples para marcar o menu lateral como Ativo baseado na URL
         document.addEventListener('DOMContentLoaded', () => {
             const currentPath = window.location.pathname;
             const links = document.querySelectorAll('.nav-link');
             links.forEach(link => {
-                if (link.getAttribute('href') === currentPath) {
-                    link.classList.add('active');
-                }
+                if (link.getAttribute('href') === currentPath) link.classList.add('active');
             });
         });
     </script>
