@@ -1,93 +1,75 @@
 {% extends "base.html" %}
 {% block content %}
-    <h1 style="margin-top:0;">Engenharia de Prompts</h1>
-    <p style="color: var(--text-muted); margin-bottom: 30px;">Edite as regras da Inteligência Artificial. Ação protegida por Senha Master.</p>
 
-    <div class="card" style="border-top: 4px solid var(--primary);">
-        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-plus-circle"></i> Criar Novo Padrão</h3>
-        <form id="formAddPrompt">
-            <input type="hidden" name="acao" value="add">
-            <input type="text" name="nome" id="add-nome" placeholder="Nome (Ex: Padrão Administração)" required style="width: 100%; margin-bottom: 10px;">
-            <textarea name="texto" id="add-texto" rows="8" placeholder="Cole aqui todas as regras..." required></textarea>
-            <button type="button" class="btn" style="width: 100%; padding: 15px;" onclick="enviarPromptAcao('formAddPrompt', 'Criar Cérebro')">
-                <i class="ph-bold ph-floppy-disk"></i> Salvar Novo Cérebro
-            </button>
-        </form>
-    </div>
+<div style="margin-bottom: 30px;">
+    <h1 style="margin-top:0; color: var(--primary); font-size: 24px; display: flex; align-items: center; gap: 10px;">
+        <i class="ph-bold ph-terminal-window"></i> Engenharia de Prompts
+    </h1>
+    <p style="color: var(--text-muted); margin: 5px 0 0 0; font-size: 14px;">
+        Edite as regras da Inteligência Artificial. Qualquer alteração ou exclusão exige a Senha Master.
+    </p>
+</div>
 
-    <h3 style="margin-top: 40px;"><i class="ph-fill ph-brain"></i> Cérebros Ativos</h3>
+<div class="card" style="border-top: 3px solid var(--primary); padding: 25px;">
+    <h2 style="font-size: 16px; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+        <i class="ph-bold ph-plus-circle" style="color: var(--primary);"></i> Criar Novo Padrão
+    </h2>
+    <form method="POST" action="/prompts/action" style="display: flex; flex-direction: column; gap: 15px;">
+        <input type="hidden" name="acao" value="add">
+        
+        <div>
+            <input type="text" name="nome" placeholder="Nome do Prompt (Ex: Padrão Administração Unopar)" required style="font-weight: 600;">
+        </div>
+        
+        <div>
+            <textarea name="texto" rows="6" placeholder="Cole aqui todas as regras e restrições de comportamento da IA..." required style="resize: vertical; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6;"></textarea>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="padding: 14px; font-size: 15px; margin-top: 5px;">
+            <i class="ph-bold ph-floppy-disk"></i> Salvar Novo Cérebro
+        </button>
+    </form>
+</div>
+
+<h3 style="color: var(--text-main); font-size: 16px; margin-bottom: 20px; margin-top: 40px; display: flex; align-items: center; gap: 8px;">
+    <i class="ph-bold ph-brain"></i> Cérebros Ativos no Sistema
+</h3>
+
+<div style="display: flex; flex-direction: column; gap: 25px;">
     {% for p in prompts %}
-        <div class="card" style="{% if p.is_default %}border-left: 4px solid #f59e0b;{% endif %}">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                <h3 style="margin: 0; color: #fff;">
-                    {{ p.nome }} {% if p.is_default %}<span style="color: #f59e0b; font-size: 0.7rem; background: rgba(245, 158, 11, 0.1); padding: 4px; border-radius: 4px;">PADRÃO BASE</span>{% endif %}
-                </h3>
-                <div style="display: flex; gap: 10px;">
-                    <button type="button" class="btn btn-blue" onclick="abrirEdicaoPrompt({{ p.id }}, '{{ p.nome|replace('\'', '\\\'') }}', `{{ p.texto|replace('`', '\\`') }}`)">
-                        <i class="ph-bold ph-pencil-simple"></i> Editar
+    <div class="card" style="margin-bottom: 0; padding: 25px; border-left: 4px solid {% if p.is_default %}var(--warning){% else %}var(--primary){% endif %};">
+        <form method="POST" action="/prompts/action">
+            <input type="hidden" name="prompt_id" value="{{ p.id }}">
+            
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
+                
+                <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 250px;">
+                    <input type="text" name="nome" value="{{ p.nome }}" required title="Clique para editar o nome" style="font-weight: 600; font-size: 16px; background: transparent; border: 1px solid transparent; padding: 6px 12px; transition: 0.2s;" onfocus="this.style.background='rgba(0,0,0,0.4)'; this.style.borderColor='var(--border)';">
+                    {% if p.is_default %}
+                        <span class="badge badge-warning" style="font-size: 11px;">Padrão Base</span>
+                    {% endif %}
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+                    <i class="ph-bold ph-lock-key" style="color: var(--danger); margin-left: 8px;"></i>
+                    <input type="password" name="senha_master" placeholder="Senha Master" required style="width: 140px; padding: 8px 12px; font-size: 13px;">
+                    
+                    <button type="submit" name="acao" value="edit" class="btn btn-neutral" style="padding: 8px 14px;" title="Salvar Alterações no Prompt">
+                        <i class="ph-bold ph-pencil-simple"></i> Atualizar
                     </button>
-                    <button type="button" class="btn btn-danger" onclick="deletarPrompt({{ p.id }})">
-                        <i class="ph-bold ph-trash"></i> Apagar
+                    
+                    {% if not p.is_default %}
+                    <button type="submit" name="acao" value="delete" class="btn btn-danger" style="padding: 8px 14px;" onclick="return confirm('ATENÇÃO: Deseja apagar este prompt permanentemente?');" title="Apagar Prompt">
+                        <i class="ph-bold ph-trash"></i>
                     </button>
+                    {% endif %}
                 </div>
             </div>
-            <pre style="background: rgba(15, 17, 26, 0.5); padding: 20px; border-radius: 8px; margin-top: 20px; max-height: 150px; overflow-y: auto; color: var(--text-muted); font-size: 0.85rem; white-space: pre-wrap;">{{ p.texto }}</pre>
-        </div>
+
+            <textarea name="texto" rows="10" required style="resize: vertical; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; background: rgba(0,0,0,0.3); border-color: var(--border);">{{ p.texto }}</textarea>
+        </form>
+    </div>
     {% endfor %}
+</div>
 
-    <form id="formAcaoReal" method="POST" action="/prompts/action" style="display:none;">
-        <input type="hidden" name="senha_master" id="real-senha">
-        <input type="hidden" name="acao" id="real-acao">
-        <input type="hidden" name="prompt_id" id="real-id">
-        <input type="hidden" name="nome" id="real-nome">
-        <input type="hidden" name="texto" id="real-texto">
-    </form>
-
-    <script>
-        function pedirSenhaESubmeter(acao, id, nome, texto, tituloSwal) {
-            Swal.fire({
-                title: tituloSwal,
-                input: 'password',
-                inputLabel: 'Digite a Senha Master de Prompts',
-                inputPlaceholder: 'Senha...',
-                background: '#1e2130', color: '#e2e8f0', confirmButtonColor: '#6366f1', showCancelButton: true
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    document.getElementById('real-senha').value = result.value;
-                    document.getElementById('real-acao').value = acao;
-                    document.getElementById('real-id').value = id || '';
-                    document.getElementById('real-nome').value = nome || '';
-                    document.getElementById('real-texto').value = texto || '';
-                    document.getElementById('formAcaoReal').submit();
-                }
-            });
-        }
-
-        function enviarPromptAcao(formId, titulo) {
-            let nome = document.getElementById('add-nome').value;
-            let texto = document.getElementById('add-texto').value;
-            if(!nome || !texto) return alert("Preencha todos os campos.");
-            pedirSenhaESubmeter('add', null, nome, texto, titulo);
-        }
-
-        function abrirEdicaoPrompt(id, nomeAtual, textoAtual) {
-            Swal.fire({
-                title: 'Editar Cérebro',
-                html: `
-                    <input id="edit-nome" class="swal2-input" value="${nomeAtual}" style="width:90%;">
-                    <textarea id="edit-texto" class="swal2-textarea" style="width:90%; height:250px; font-size:0.8rem;">${textoAtual}</textarea>
-                `,
-                background: '#1e2130', color: '#e2e8f0', confirmButtonText: 'Salvar e Pedir Senha', confirmButtonColor: '#6366f1', width: '800px',
-                preConfirm: () => {
-                    let newNome = document.getElementById('edit-nome').value;
-                    let newTexto = document.getElementById('edit-texto').value;
-                    pedirSenhaESubmeter('edit', id, newNome, newTexto, 'Confirmar Edição');
-                }
-            });
-        }
-
-        function deletarPrompt(id) {
-            pedirSenhaESubmeter('delete', id, null, null, 'Apagar Cérebro (Digite a senha)');
-        }
-    </script>
 {% endblock %}
