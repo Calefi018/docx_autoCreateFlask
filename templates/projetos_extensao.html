@@ -11,19 +11,17 @@
 </div>
 
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
-    
     <div class="card">
         <h2 style="font-size: 16px; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
             <i class="ph-bold ph-user-focus" style="color: var(--primary);"></i> Dados do Acadêmico
         </h2>
         
         <form method="POST" action="/gerar_extensao" style="display: flex; flex-direction: column; gap: 15px;">
-            
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px;">
                 <div>
-                    <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Vincular a um cliente existente</label>
+                    <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Vincular a cliente existente</label>
                     <select name="aluno_id">
-                        <option value="">-- Preencher dados manualmente (Avulso) --</option>
+                        <option value="">-- Preencher manualmente (Avulso) --</option>
                         {% for a in alunos %}
                             <option value="{{ a.id }}">{{ a.nome }} - {{ a.curso }}</option>
                         {% endfor %}
@@ -37,7 +35,7 @@
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                 <div>
-                    <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Nome Completo (Se avulso)</label>
+                    <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Nome (Se avulso)</label>
                     <input type="text" name="nome_avulso" placeholder="Nome do aluno">
                 </div>
                 <div>
@@ -47,7 +45,7 @@
             </div>
 
             <div style="background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); padding: 15px; border-radius: 8px; margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-                <input type="checkbox" name="gerar_pdf" value="sim" id="pdf_check" style="width: auto; accent-color: var(--primary); cursor: pointer; transform: scale(1.2);">
+                <input type="checkbox" name="gerar_pdf" value="sim" id="pdf_check" style="width: auto; cursor: pointer; transform: scale(1.2);">
                 <label for="pdf_check" style="font-size: 13px; color: var(--text-main); cursor: pointer;">
                     Gerar também as versões em PDF <span style="color: var(--text-muted); font-size: 11px;">(Consome créditos da ConvertAPI)</span>
                 </label>
@@ -64,9 +62,8 @@
             <i class="ph-bold ph-info"></i> Como Funciona?
         </h3>
         <ul style="color: var(--text-muted); font-size: 13px; line-height: 1.6; padding-left: 15px;">
-            <li style="margin-bottom: 8px;">Os templates base (Evidências e Ficha) já estão salvos e blindados no sistema.</li>
-            <li style="margin-bottom: 8px;">A <b>Data Final</b> da ação social será considerada como sendo o dia de hoje.</li>
-            <li style="margin-bottom: 8px;">O robô volta no tempo dia após dia, gerando 30 datas exatas e pulando os domingos.</li>
+            <li style="margin-bottom: 8px;">Os templates base (Evidências e Ficha) já estão salvos.</li>
+            <li style="margin-bottom: 8px;">A <b>Data Final</b> da ação será considerada o dia de hoje.</li>
             <li>Se vincular a um cliente, os ficheiros vão direto para a pasta dele no CRM.</li>
         </ul>
     </div>
@@ -87,10 +84,5 @@
 </div>
 {% endif %}
 
-<style>
-    @media (max-width: 768px) {
-        div[style*="display: grid"] { grid-template-columns: 1fr !important; }
-    }
-</style>
-
+<style>@media (max-width: 768px) { div[style*="display: grid"] { grid-template-columns: 1fr !important; } }</style>
 {% endblock %}
