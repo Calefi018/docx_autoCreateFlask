@@ -1,75 +1,119 @@
 {% extends "base.html" %}
 {% block content %}
-    <h1 style="margin-top:0;"><i class="ph-fill ph-gear"></i> Configurações do Sistema</h1>
-    <p style="color: var(--text-muted); margin-bottom: 30px;">
-        Gerencie os modelos de Inteligência Artificial, mensagens padrão e integrações do seu sistema.
+
+<div style="margin-bottom: 30px;">
+    <h1 style="margin-top:0; color: var(--primary); font-size: 24px; display: flex; align-items: center; gap: 10px;">
+        <i class="ph-bold ph-sliders"></i> Configurações do Sistema
+    </h1>
+    <p style="color: var(--text-muted); margin: 5px 0 0 0; font-size: 14px;">
+        Gerencie os motores de Inteligência Artificial, chaves de API e mensagens padrão do CRM.
     </p>
+</div>
+
+<form method="POST" action="/configuracoes" style="display: flex; flex-direction: column; gap: 20px;">
     
-    <div class="card">
-        <form method="POST">
-            
-            {% if current_user.role == 'admin' %}
-            <h3 style="color: var(--secondary); margin-top: 0;"><i class="ph-fill ph-robot"></i> Gestão de Inteligências (IAs)</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">
-                Selecione quais modelos de IA estarão disponíveis na tela de geração de trabalhos. 
-                Isso afetará o que aparece na lista para todos os usuários do sistema.
-            </p>
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; background: rgba(30,33,48,0.4); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
-                {% for modelo in todos_modelos %}
-                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; background: #1e2130; padding: 12px 15px; border-radius: 6px; border: 1px solid var(--border); transition: all 0.2s ease;">
-                    <input type="checkbox" name="modelos_ativos" value="{{ modelo }}" 
-                           {% if modelo in modelos_ativos %}checked{% endif %}
-                           style="width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; margin: 0;">
-                    <span style="color: #e2e8f0; font-family: monospace; font-size: 0.95rem;">{{ modelo }}</span>
-                </label>
-                {% endfor %}
-            </div>
-
-            <div style="margin-bottom: 30px; background: rgba(30,33,48,0.4); padding: 20px; border-radius: 8px; border: 1px dashed var(--primary);">
-                <label style="color: var(--primary);"><b><i class="ph-bold ph-plus-circle"></i> Adicionar Nova IA (OpenRouter ou Google)</b></label>
-                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 10px;">
-                    Lançaram um modelo novo? Cole o ID dele aqui (Ex: <code>google/gemini-2.5-pro</code> ou <code>anthropic/claude-3-opus</code>) e clique em Salvar para adicioná-lo e ativá-lo!
-                </p>
-                <input type="text" name="novo_modelo" placeholder="Cole o ID exato da IA aqui..." style="width: 100%; border: 1px solid var(--primary); background: #1e2130; color: #fff;">
-            </div>
-            {% endif %}
-
-            <h3 style="color: var(--secondary); border-top: 1px solid var(--border); padding-top: 30px; margin-top: 10px;">
-                <i class="ph-fill ph-whatsapp-logo"></i> Mensagem Padrão de Entrega (WhatsApp)
-            </h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 10px;">
-                Variáveis mágicas que você pode usar: <b>{nome}</b>, <b>{curso}</b>, <b>{valor}</b>
-            </p>
-            <textarea name="whatsapp_template" rows="6" style="width: 100%; margin-bottom: 30px; font-size: 1rem;" required>{{ config.whatsapp_template if config else '' }}</textarea>
-
-            {% if current_user.role == 'admin' %}
-            <h3 style="color: var(--danger); border-top: 1px solid var(--border); padding-top: 30px; margin-top: 10px;">
-                <i class="ph-fill ph-lock-key"></i> Segurança e APIs (Apenas Admin)
-            </h3>
-            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
-                <div style="flex: 1; min-width: 250px;">
-                    <label><b>Senha Master (Para Apagar/Editar Prompts)</b></label>
-                    <input type="text" name="prompt_password" value="{{ config.prompt_password if config and config.prompt_password else '' }}" placeholder="Deixe em branco para desativar a senha master">
+    <div class="card" style="margin-bottom: 0; border-top: 3px solid var(--primary);">
+        <h2 style="font-size: 16px; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+            <i class="ph-bold ph-cpu" style="color: var(--primary);"></i> Motores de IA (Cérebros)
+        </h2>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">Selecione quais modelos aparecerão na lista do Gerador de Textos.</p>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 25px;">
+            {% for m in todos_modelos %}
+            <label class="toggle-wrapper" style="cursor: pointer; display: block;">
+                <input type="checkbox" name="modelos_ativos" value="{{ m }}" {% if m in modelos_ativos %}checked{% endif %} style="display: none;">
+                <div class="toggle-card">
+                    <i class="ph-bold ph-check-circle check-icon"></i>
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; word-break: break-all;">{{ m }}</span>
                 </div>
-                <div style="flex: 1; min-width: 250px;">
-                    <label><b>ConvertAPI Secret Key (Para conversão PDF)</b></label>
-                    <input type="text" name="convert_api_key" value="{{ config.convert_api_key if config and config.convert_api_key else '' }}" placeholder="Cole a sua Secret Key do ConvertAPI aqui">
-                </div>
-            </div>
-            {% endif %}
+            </label>
+            {% endfor %}
+        </div>
 
-            <button type="submit" class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top: 20px;">
-                <i class="ph-bold ph-floppy-disk"></i> Salvar Todas as Configurações
-            </button>
-        </form>
+        <div style="background: rgba(59, 130, 246, 0.05); padding: 20px; border-radius: 8px; border: 1px dashed rgba(59, 130, 246, 0.3);">
+            <label style="font-size: 13px; color: var(--primary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; font-weight: 600;">
+                <i class="ph-bold ph-plus-circle"></i> Adicionar Nova IA (OpenRouter ou Google)
+            </label>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">Lançaram um modelo novo? Cole o ID exato dele aqui e salve para ativá-lo.</p>
+            <input type="text" name="novo_modelo" placeholder="Ex: google/gemini-pro-1.5" style="background: rgba(0,0,0,0.4); border-color: rgba(59, 130, 246, 0.2);">
+        </div>
     </div>
 
-    <style>
-        /* Efeito de hover suave nos botões das IAs */
-        label:hover {
-            border-color: var(--primary) !important;
-            box-shadow: 0 0 8px rgba(168, 85, 247, 0.2);
-        }
-    </style>
+    <div class="card" style="margin-bottom: 0;">
+        <h2 style="font-size: 16px; color: var(--success); margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+            <i class="ph-bold ph-whatsapp-logo"></i> Mensagem Padrão de Entrega
+        </h2>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">
+            Configure o texto que será enviado automaticamente pelo CRM. <br>
+            <strong>Variáveis mágicas permitidas:</strong> <code style="color: var(--primary);">{nome}</code>, <code style="color: var(--primary);">{curso}</code>, <code style="color: var(--primary);">{valor}</code>
+        </p>
+        <textarea name="whatsapp_template" rows="5" required style="resize: vertical; font-size: 13px; line-height: 1.5; color: #d4d4d8;">{{ config.whatsapp_template }}</textarea>
+    </div>
+
+    <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--danger); background: rgba(220, 38, 38, 0.02);">
+        <h2 style="font-size: 16px; color: var(--danger); margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+            <i class="ph-bold ph-lock-key"></i> Segurança e APIs de Terceiros
+        </h2>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <div>
+                <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px; display: block; font-weight: 600;">
+                    Senha Master (Para apagar/editar Prompts)
+                </label>
+                <input type="text" name="prompt_password" value="{{ config.prompt_password or '' }}" placeholder="Ex: admin123" style="font-family: monospace;">
+            </div>
+            <div>
+                <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px; display: block; font-weight: 600;">
+                    ConvertAPI Secret Key (Gerador de PDF)
+                </label>
+                <input type="text" name="convert_api_key" value="{{ config.convert_api_key or '' }}" placeholder="Cole a Secret Key da ConvertAPI" style="font-family: monospace;">
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="padding: 16px; font-size: 16px; font-weight: 700; width: 100%; box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);">
+        <i class="ph-bold ph-floppy-disk"></i> Salvar Todas as Configurações
+    </button>
+
+</form>
+
+<style>
+    /* CSS MÁGICO PARA OS CARDS DE CHECKBOX */
+    .toggle-card {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.2s;
+        color: var(--text-muted);
+    }
+    
+    .toggle-wrapper input:checked + .toggle-card {
+        background: rgba(59, 130, 246, 0.1);
+        border-color: var(--primary);
+        color: var(--text-main);
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.15);
+    }
+    
+    .toggle-card .check-icon {
+        font-size: 20px;
+        color: var(--border);
+        transition: all 0.2s;
+    }
+    
+    .toggle-wrapper input:checked + .toggle-card .check-icon {
+        color: var(--primary);
+    }
+
+    .toggle-wrapper:hover .toggle-card {
+        border-color: #52525b;
+    }
+    .toggle-wrapper input:checked:hover + .toggle-card {
+        border-color: #60a5fa;
+    }
+</style>
+
 {% endblock %}
