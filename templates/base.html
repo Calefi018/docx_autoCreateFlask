@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>HubMaster Core</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,17 +12,17 @@
     
     <style>
         /* =======================================================
-           DESIGN PREMIUM SAAS (Midnight Blue & Slate)
+           DESIGN PREMIUM SAAS (Responsivo)
            ======================================================= */
         :root {
-            --bg-body: #0f172a;       /* Azul Escuro Profundo (Elegante) */
-            --bg-sidebar: #1e293b;    /* Menu lateral com destaque sutil */
-            --bg-card: #1e293b;       /* Cards combinando com o menu */
-            --bg-input: #0b1120;      /* Inputs mais escuros para contraste */
-            --border: #334155;        /* Bordas suaves e visíveis */
-            --text-main: #f8fafc;     /* Branco Gelo */
-            --text-muted: #94a3b8;    /* Cinza Claro */
-            --primary: #3b82f6;       /* Azul Vivo SaaS */
+            --bg-body: #0f172a;       
+            --bg-sidebar: #1e293b;    
+            --bg-card: #1e293b;       
+            --bg-input: #0b1120;      
+            --border: #334155;        
+            --text-main: #f8fafc;     
+            --text-muted: #94a3b8;    
+            --primary: #3b82f6;       
             --primary-hover: #2563eb;
             --success: #10b981;
             --danger: #ef4444;
@@ -40,12 +40,60 @@
             background-color: var(--bg-body);
             color: var(--text-main);
             display: flex;
-            width: 100vw;
+            width: 100%;
             min-height: 100vh;
             overflow-x: hidden;
         }
 
-        /* SIDEBAR PROFISSIONAL */
+        /* ==========================================
+           HEADER MOBILE (Invisível no PC)
+           ========================================== */
+        .mobile-header {
+            display: none;
+            width: 100%;
+            height: 60px;
+            background-color: var(--bg-sidebar);
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 998;
+        }
+
+        .mobile-header-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .menu-toggle {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        /* OVERLAY ESCURO PARA O MENU MOBILE */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(2px);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        /* ==========================================
+           SIDEBAR PROFISSIONAL
+           ========================================== */
         .sidebar {
             width: 250px;
             background-color: var(--bg-sidebar);
@@ -58,6 +106,7 @@
             top: 0;
             z-index: 1000;
             box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
         }
 
         .logo-container {
@@ -65,11 +114,20 @@
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 12px;
+            justify-content: space-between;
             font-weight: 600;
             font-size: 16px;
             color: #fff;
             letter-spacing: 0.5px;
+        }
+
+        .close-sidebar {
+            display: none; /* Só aparece no mobile */
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 20px;
+            cursor: pointer;
         }
 
         .nav-menu {
@@ -78,6 +136,7 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
+            overflow-y: auto; /* Evita que o menu quebre em telas muito pequenas */
         }
 
         .nav-link {
@@ -94,7 +153,6 @@
         }
 
         .nav-link i { font-size: 18px; }
-
         .nav-link:hover, .nav-link.active {
             background-color: rgba(59, 130, 246, 0.15);
             color: var(--primary);
@@ -120,12 +178,15 @@
             background: rgba(0,0,0,0.1);
         }
 
-        /* CONTEÚDO TELA CHEIA E ORGANIZADO */
+        /* ==========================================
+           CONTEÚDO E CARDS
+           ========================================== */
         .main-content {
             margin-left: 250px;
             padding: 35px 45px;
             width: calc(100% - 250px);
             min-height: 100vh;
+            transition: all 0.3s ease;
         }
 
         .card {
@@ -135,6 +196,8 @@
             padding: 24px;
             margin-bottom: 24px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 100%;
+            overflow-x: hidden;
         }
 
         /* COMPONENTES */
@@ -143,6 +206,7 @@
             padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500;
             cursor: pointer; text-decoration: none; border: 1px solid transparent;
             transition: all 0.2s;
+            text-align: center;
         }
 
         .btn-primary { background-color: var(--primary); color: white; box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3); }
@@ -166,26 +230,81 @@
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         }
 
-        /* TABELAS ELEGANTES */
-        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; font-size: 14px; }
+        /* ==========================================
+           TABELAS RESPONSIVAS
+           ========================================== */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; font-size: 14px; min-width: 600px; }
         th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); }
         th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background-color: rgba(255, 255, 255, 0.03); }
 
-        .badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-        .badge-success { background: rgba(16, 185, 129, 0.15); color: var(--success); }
-        .badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+        /* ==========================================
+           MEDIA QUERIES (A MÁGICA DO MOBILE)
+           ========================================== */
+        @media (max-width: 768px) {
+            .mobile-header {
+                display: flex;
+            }
+
+            .sidebar {
+                transform: translateX(-100%); /* Esconde fora da tela */
+            }
+
+            .sidebar.active {
+                transform: translateX(0); /* Aparece ao clicar no menu */
+            }
+
+            .close-sidebar {
+                display: block; /* Mostra o "X" para fechar no mobile */
+            }
+
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+                padding: 80px 15px 20px 15px; /* Empurra pra baixo por causa do header fixo */
+            }
+
+            .card {
+                padding: 15px;
+            }
+            
+            .btn {
+                width: 100%; /* Botões ocupam 100% da largura em celulares */
+                margin-bottom: 8px;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <nav class="sidebar">
-        <div class="logo-container">
-            <div style="background: linear-gradient(135deg, var(--primary), #8b5cf6); padding: 6px; border-radius: 6px; display: flex;">
-                <i class="ph-bold ph-asterisk" style="font-size: 18px; color: white;"></i>
+    <div class="mobile-header">
+        <div class="mobile-header-logo">
+            <div style="background: linear-gradient(135deg, var(--primary), #8b5cf6); padding: 4px; border-radius: 4px; display: flex;">
+                <i class="ph-bold ph-asterisk" style="font-size: 14px; color: white;"></i>
             </div>
-            HubMaster Core
+            HubMaster
+        </div>
+        <button class="menu-toggle" onclick="toggleSidebar()"><i class="ph-bold ph-list"></i></button>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <nav class="sidebar" id="sidebar">
+        <div class="logo-container">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="background: linear-gradient(135deg, var(--primary), #8b5cf6); padding: 6px; border-radius: 6px; display: flex;">
+                    <i class="ph-bold ph-asterisk" style="font-size: 18px; color: white;"></i>
+                </div>
+                HubMaster Core
+            </div>
+            <button class="close-sidebar" onclick="toggleSidebar()"><i class="ph-bold ph-x"></i></button>
         </div>
         
         <div class="nav-menu">
@@ -237,17 +356,47 @@
             {% endif %}
         {% endwith %}
 
-        {% block content %}{% endblock %}
+        <div id="dynamic-content-wrapper">
+            {% block content %}{% endblock %}
+        </div>
     </main>
 
     <script>
+        // MARCAR MENU ATIVO
         document.addEventListener('DOMContentLoaded', () => {
             const currentPath = window.location.pathname;
             const links = document.querySelectorAll('.nav-link');
             links.forEach(link => {
                 if (link.getAttribute('href') === currentPath) link.classList.add('active');
             });
+
+            // ENVOLVER TABELAS COM SCROLL HORIZONTAL
+            const tables = document.querySelectorAll('table');
+            tables.forEach(table => {
+                if (!table.parentElement.classList.contains('table-responsive')) {
+                    const wrapper = document.createElement('div');
+                    wrapper.classList.add('table-responsive');
+                    table.parentNode.insertBefore(wrapper, table);
+                    wrapper.appendChild(table);
+                }
+            });
         });
+
+        // TOGGLE DO MENU MOBILE
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            sidebar.classList.toggle('active');
+            
+            if (sidebar.classList.contains('active')) {
+                overlay.style.display = 'block';
+                setTimeout(() => overlay.style.opacity = '1', 10);
+            } else {
+                overlay.style.opacity = '0';
+                setTimeout(() => overlay.style.display = 'none', 300);
+            }
+        }
     </script>
 </body>
 </html>
