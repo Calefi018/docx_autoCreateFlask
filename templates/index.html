@@ -45,15 +45,21 @@
         </button>
         
         <div id="loading" style="display:none; margin-top: 30px; text-align: center; padding: 30px; border: 1px solid var(--border); border-radius: 12px; background: rgba(30,33,48,0.8); box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
-            <div style="font-size: 3.5rem; color: var(--primary); margin-bottom: 15px;">
+            <div style="font-size: 3.5rem; color: var(--primary); margin-bottom: 15px;" id="loading-icon">
                 <i class="ph-bold ph-brain" style="animation: pulse-brain 1.5s infinite;"></i>
             </div>
-            <h3 style="color: var(--primary); margin-top: 0; font-size: 1.3rem;">A Inteligência Artificial está a escrever...</h3>
-            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 25px;">A elaboração das respostas demora em média 15 a 40 segundos.<br>Por favor, não feche nem atualize a página.</p>
+            <h3 style="color: var(--primary); margin-top: 0; font-size: 1.3rem;" id="loading-title">A Inteligência Artificial está a escrever...</h3>
+            <p style="color: var(--warning); font-size: 0.95rem; margin-bottom: 25px; font-weight: bold;">
+                <i class="ph-fill ph-info"></i> Processando em Segundo Plano.<br>Você pode mudar de aba ou usar outro app, basta voltar nesta tela depois.
+            </p>
             
-            <div style="width: 100%; height: 12px; background: rgba(0,0,0,0.5); border-radius: 6px; overflow: hidden; position: relative;">
+            <div style="width: 100%; height: 12px; background: rgba(0,0,0,0.5); border-radius: 6px; overflow: hidden; position: relative; margin-bottom: 20px;">
                 <div style="position: absolute; top: 0; left: -50%; height: 100%; width: 50%; background: linear-gradient(90deg, transparent, var(--primary), #a855f7, transparent); border-radius: 6px; animation: slide-bar 1.5s infinite linear;"></div>
             </div>
+            
+            <button type="button" class="btn btn-danger" style="padding: 10px 20px; font-size: 0.9rem;" onclick="cancelarGeracao()">
+                <i class="ph-bold ph-x-circle"></i> Cancelar Tarefa
+            </button>
             
             <style>
                 @keyframes pulse-brain { 
@@ -70,16 +76,43 @@
     </form>
 
     <div id="area-edicao" class="card" style="display:none; margin-top: 30px;">
-        <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição Contextual</h2>
+        <h2 style="color: var(--secondary); margin-top:0;"><i class="ph-fill ph-pencil-simple"></i> Edição e Blindagem Contextual</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">O Radar de IA analisa trecho a trecho. Se um crachá ficar Vermelho (Risco), clique em "Blindar Trecho" para reescrevê-lo humanamente.</p>
+        
         <div id="caixas-texto"></div>
-        <button class="btn btn-green" style="width: 100%; padding: 15px; margin-top:20px;" onclick="salvarEDocx()" id="btn-docx">
-            <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final
+        
+        <button class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; margin-top: 30px;" onclick="salvarEDocx()" id="btn-docx">
+            <i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Salvar DOCX Final
         </button>
     </div>
 
     <script>
-        // Variável global para armazenar os temas sem quebrar o HTML com aspas ou caracteres especiais
+        let pollInterval;
+        let dicionarioEditavel = {};
         let temasCarregados = [];
+
+        // ==========================================
+        // FILA DE ESPERA PARA O RADAR DE IA (ANTI-BLOQUEIO)
+        // ==========================================
+        let filaAnaliseIA = [];
+        let analisandoIA = false;
+
+        window.onload = function() {
+            let estadoStr = localStorage.getItem('geracao_estado');
+            if(estadoStr) {
+                let estado = JSON.parse(estadoStr);
+                if(estado.task_id) {
+                    if(document.getElementById('aluno_id')) document.getElementById('aluno_id').value = estado.aluno_id;
+                    if(document.getElementById('tema')) document.getElementById('tema').value = estado.tema;
+
+                    document.getElementById('btn-submit').style.display = 'none';
+                    document.getElementById('area-edicao').style.display = 'none';
+                    document.getElementById('loading').style.display = 'block';
+
+                    pollInterval = setInterval(() => verificarStatusTask(estado.task_id), 3000);
+                }
+            }
+        };
 
         document.getElementById('aluno_id').addEventListener('change', function() {
             let aluno_id = this.value;
@@ -94,11 +127,10 @@
             fetch('/api/temas/' + aluno_id)
             .then(r => r.json())
             .then(temas => {
-                temasCarregados = temas; // Guarda os temas na memória do navegador
+                temasCarregados = temas;
                 if(temas.length > 0) {
                     select.innerHTML = '<option value="">Selecione para preencher automaticamente...</option>';
                     temas.forEach(t => { 
-                        // Usamos o ID do tema no value, protegendo contra aspas no texto
                         select.innerHTML += `<option value="${t.id}">${t.titulo || 'Tema sem Título'}</option>`; 
                     });
                     container.style.display = 'block';
@@ -111,7 +143,6 @@
         document.getElementById('select_tema_salvo').addEventListener('change', function() {
             let temaIdSelecionado = this.value;
             if(temaIdSelecionado) {
-                // Procura o texto completo na memória baseado no ID selecionado
                 let temaEncontrado = temasCarregados.find(t => t.id == temaIdSelecionado);
                 if(temaEncontrado) {
                     document.getElementById('tema').value = temaEncontrado.texto;
@@ -119,7 +150,6 @@
             }
         });
 
-        let dicionarioEditavel = {};
         const ordemOficial = [
             "RESUMO_MEMORIAL", "CONTEXTO_MEMORIAL", "ANALISE_MEMORIAL", 
             "ASPECTO_1", "POR_QUE_1", "ASPECTO_2", "POR_QUE_2", "ASPECTO_3", "POR_QUE_3", 
@@ -132,30 +162,38 @@
             const area = document.getElementById('area-edicao');
             const loading = document.getElementById('loading');
 
+            document.getElementById('loading-icon').innerHTML = '<i class="ph-bold ph-brain" style="animation: pulse-brain 1.5s infinite;"></i>';
+            document.getElementById('loading-title').innerText = "A Inteligência Artificial está a escrever...";
+            
             btn.style.display = 'none';
             area.style.display = 'none';
             loading.style.display = 'block';
 
+            let formData = new FormData(document.getElementById('formGerar'));
+
             fetch('/gerar_rascunho', { 
                 method: 'POST', 
-                body: new FormData(document.getElementById('formGerar')) 
+                body: formData 
             })
             .then(res => {
                 if(!res.ok) throw new Error("Falha ao comunicar com o servidor.");
                 return res.json();
             })
             .then(data => {
-                loading.style.display = 'none';
-                btn.style.display = 'block';
-                
                 if(!data.sucesso) { 
+                    loading.style.display = 'none';
+                    btn.style.display = 'block';
                     Swal.fire('Erro da Inteligência', data.erro, 'error'); 
                     return; 
                 }
                 
-                dicionarioEditavel = data.dicionario;
-                montarEditor(dicionarioEditavel);
-                area.style.display = 'block';
+                localStorage.setItem('geracao_estado', JSON.stringify({
+                    task_id: data.task_id,
+                    aluno_id: document.getElementById('aluno_id').value,
+                    tema: document.getElementById('tema').value
+                }));
+
+                pollInterval = setInterval(() => verificarStatusTask(data.task_id), 3000);
             })
             .catch(err => {
                 loading.style.display = 'none';
@@ -164,8 +202,137 @@
             });
         }
 
-        function regerarTrechoEspecifico(tag, txtElement, btn, wrapper, lbl, tit) {
-            btn.innerText = "Lendo..."; 
+        function cancelarGeracao() {
+            let estadoStr = localStorage.getItem('geracao_estado');
+            if(estadoStr) {
+                let estado = JSON.parse(estadoStr);
+                
+                fetch('/cancelar_geracao/' + estado.task_id, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    clearInterval(pollInterval);
+                    localStorage.removeItem('geracao_estado');
+                    
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('btn-submit').style.display = 'block';
+                    document.getElementById('loading-title').style.color = "var(--primary)";
+                    
+                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, icon: 'info', title: 'Tarefa cancelada.', background: '#1e2130', color: '#e2e8f0' });
+                })
+                .catch(err => {
+                    Swal.fire('Aviso', 'A tarefa já pode ter concluído ou houve falha na rede.', 'info');
+                });
+            } else {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('btn-submit').style.display = 'block';
+            }
+        }
+
+        function verificarStatusTask(taskId) {
+            fetch('/status_geracao/' + taskId)
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'Pendente') return;
+                
+                clearInterval(pollInterval);
+                localStorage.removeItem('geracao_estado'); 
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('btn-submit').style.display = 'block';
+                document.getElementById('loading-title').style.color = "var(--primary)";
+
+                if(data.status === 'Erro') {
+                    Swal.fire('Erro da Inteligência', data.erro, 'error');
+                } else if(data.status === 'Cancelado') {
+                    // Silencioso
+                } else if(data.status === 'Concluido') {
+                    dicionarioEditavel = data.dicionario;
+                    montarEditor(dicionarioEditavel);
+                    document.getElementById('area-edicao').style.display = 'block';
+                    
+                    Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 4000, icon: 'success', title: 'Trabalho gerado! Analisando IA...', background: '#1e2130', color: '#10b981' });
+                }
+            })
+            .catch(err => console.error(err));
+        }
+
+        // =======================================================
+        // MOTOR VISUAL DO RADAR
+        // =======================================================
+        function atualizarBadgeIA(badge, porcentagem) {
+            if (porcentagem <= 35) {
+                badge.style.background = "rgba(16, 185, 129, 0.2)";
+                badge.style.color = "#10b981";
+                badge.style.border = "1px solid rgba(16, 185, 129, 0.3)";
+                badge.innerHTML = `<i class="ph-bold ph-shield-check"></i> IA: ${porcentagem}% (Seguro)`;
+            } else if (porcentagem <= 70) {
+                badge.style.background = "rgba(245, 158, 11, 0.2)";
+                badge.style.color = "#f59e0b";
+                badge.style.border = "1px solid rgba(245, 158, 11, 0.3)";
+                badge.innerHTML = `<i class="ph-bold ph-warning"></i> IA: ${porcentagem}% (Atenção)`;
+            } else {
+                badge.style.background = "rgba(239, 68, 68, 0.2)";
+                badge.style.color = "#ef4444";
+                badge.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+                badge.innerHTML = `<i class="ph-bold ph-warning-octagon"></i> IA: ${porcentagem}% (Risco)`;
+            }
+        }
+
+        function enfileirarAnaliseIA(texto, badgeElement) {
+            if(!texto || texto.trim().length < 25) {
+                atualizarBadgeIA(badgeElement, 0);
+                return;
+            }
+            
+            badgeElement.style.display = 'inline-flex';
+            badgeElement.innerHTML = "<i class='ph-bold ph-hourglass'></i> Aguardando...";
+            badgeElement.style.background = "rgba(51, 65, 85, 0.5)";
+            badgeElement.style.color = "var(--text-muted)";
+            badgeElement.style.border = "1px solid var(--border)";
+
+            filaAnaliseIA.push({ texto: texto, badge: badgeElement });
+            processarFilaAnalise();
+        }
+
+        async function processarFilaAnalise() {
+            if (analisandoIA || filaAnaliseIA.length === 0) return;
+            analisandoIA = true;
+            
+            const item = filaAnaliseIA.shift(); 
+            item.badge.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Avaliando...";
+            
+            try {
+                const response = await fetch('/analisar_ia_trecho', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ trecho: item.texto })
+                });
+                
+                if (!response.ok) throw new Error("Erro HTTP");
+                
+                const data = await response.json();
+                
+                if(data.sucesso) {
+                    atualizarBadgeIA(item.badge, data.porcentagem);
+                } else {
+                    item.badge.innerHTML = "<i class='ph-bold ph-check'></i> Seguro";
+                    item.badge.style.color = "#10b981";
+                }
+            } catch (err) {
+                item.badge.innerHTML = "<i class='ph-bold ph-shield'></i> Seguro";
+                item.badge.style.color = "#10b981";
+                item.badge.style.background = "rgba(16, 185, 129, 0.1)";
+                item.badge.style.border = "1px solid rgba(16, 185, 129, 0.2)";
+            }
+            
+            setTimeout(() => {
+                analisandoIA = false;
+                processarFilaAnalise();
+            }, 1500); // 1.5s de pausa entre análises para a API respirar
+        }
+
+        function regerarTrechoEspecifico(tag, txtElement, btn, wrapper, lbl, tit, badgeIA) {
+            btn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Lendo..."; 
             btn.disabled = true;
             
             fetch('/regerar_trecho', {
@@ -179,31 +346,25 @@
                     dicionario: dicionarioEditavel
                 })
             })
-            .then(r => {
-                if(!r.ok) throw new Error("Erro de rede");
-                return r.json();
-            })
+            .then(r => r.json())
             .then(data => {
-                btn.innerText = "Regerar"; 
+                btn.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar"; 
                 btn.disabled = false;
                 
-                if(!data.sucesso) {
-                    Swal.fire('Erro', data.erro, 'error');
-                    return;
-                }
+                if(!data.sucesso) { Swal.fire('Erro', data.erro, 'error'); return; }
                 
                 txtElement.value = data.novo_texto;
-                
-                // Fugindo do motor Jinja2 do Flask com separação de string
                 let chaveSegura = "{" + "{" + tag + "}" + "}"; 
                 dicionarioEditavel[chaveSegura] = data.novo_texto;
                 
                 wrapper.style.border = '1px solid var(--border)';
                 lbl.innerHTML = `<b>${tit}</b>`; 
                 lbl.style.color = "var(--secondary)";
+                
+                enfileirarAnaliseIA(data.novo_texto, badgeIA);
             })
             .catch(err => {
-                btn.innerText = "Regerar"; 
+                btn.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar"; 
                 btn.disabled = false;
                 Swal.fire('Falha', 'Não foi possível regerar: ' + err.message, 'error');
             });
@@ -213,52 +374,213 @@
             const container = document.getElementById('caixas-texto'); 
             container.innerHTML = ''; 
             
-            ordemOficial.forEach(chave => {
-                // Truque cirúrgico: Impede o Flask (Jinja2) de destruir o JS ao avaliar as chaves
+            filaAnaliseIA = [];
+            analisandoIA = false;
+            
+            ordemOficial.forEach((chave) => {
                 let chaveSegura = "{" + "{" + chave + "}" + "}"; 
-                
                 let txt = dic[chaveSegura] ? dic[chaveSegura].trim() : "";
                 let is_vazio = (txt === "");
                 
                 let wrap = document.createElement('div');
-                wrap.style.cssText = `margin-bottom:20px; padding:15px; border-radius:8px; border: 1px solid ${is_vazio ? '#ef4444' : 'var(--border)'}; background: rgba(30,33,48,0.3);`;
+                wrap.style.cssText = `margin-bottom:20px; padding:20px; border-radius:10px; border: 1px solid ${is_vazio ? '#ef4444' : 'var(--border)'}; background: rgba(30,33,48,0.4);`;
                 
                 let head = document.createElement('div'); 
-                head.style.cssText = "display:flex; justify-content:space-between; margin-bottom:10px;";
+                head.style.cssText = "display:flex; justify-content:space-between; margin-bottom:12px; align-items:center; flex-wrap: wrap; gap: 10px;";
+                
+                let titleArea = document.createElement('div');
+                titleArea.style.display = 'flex';
+                titleArea.style.alignItems = 'center';
+                titleArea.style.gap = '15px';
                 
                 let lbl = document.createElement('label'); 
                 lbl.innerHTML = `<b>${chave.replace(/_/g,' ')}</b>`; 
                 lbl.style.color = is_vazio ? "#ef4444" : "var(--secondary)";
+                lbl.style.margin = "0";
                 
-                let btn = document.createElement('button'); 
-                btn.className = 'btn'; 
-                btn.innerText = "Regerar";
+                let badgeIA = document.createElement('div');
+                badgeIA.style.cssText = "padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; align-items: center; gap: 5px; display: none;";
+                
+                titleArea.appendChild(lbl);
+                titleArea.appendChild(badgeIA);
+                
+                let btnRegerar = document.createElement('button'); 
+                btnRegerar.className = 'btn'; 
+                btnRegerar.innerHTML = "<i class='ph-bold ph-arrows-clockwise'></i> Regerar Tudo";
+                btnRegerar.style.padding = "8px 15px";
+                btnRegerar.style.fontSize = "0.85rem";
+                btnRegerar.style.background = "transparent";
+                btnRegerar.style.border = "1px solid var(--border)";
+                btnRegerar.style.color = "var(--text-muted)";
+                btnRegerar.onmouseover = () => { btnRegerar.style.color = "#fff"; btnRegerar.style.borderColor = "var(--primary)"; };
+                btnRegerar.onmouseout = () => { btnRegerar.style.color = "var(--text-muted)"; btnRegerar.style.borderColor = "var(--border)"; };
                 
                 let ta = document.createElement('textarea'); 
-                ta.value = txt; 
-                ta.rows = is_vazio ? 2 : 4;
-                ta.dataset.chave = chave; // Crucial para a função de salvar conseguir resgatar o valor depois
+                ta.value = txt; ta.rows = is_vazio ? 2 : 5; ta.dataset.chave = chave; 
+                ta.style.width = "100%"; ta.style.marginBottom = "15px"; ta.style.lineHeight = "1.5";
                 
                 ta.onchange = (e) => { 
                     dicionarioEditavel[chaveSegura] = e.target.value; 
+                    enfileirarAnaliseIA(e.target.value, badgeIA);
                 };
                 
-                btn.onclick = () => regerarTrechoEspecifico(chave, ta, btn, wrap, lbl, chave.replace(/_/g,' '));
+                btnRegerar.onclick = () => regerarTrechoEspecifico(chave, ta, btnRegerar, wrap, lbl, chave.replace(/_/g,' '), badgeIA);
                 
-                head.appendChild(lbl); 
-                head.appendChild(btn); 
+                head.appendChild(titleArea); 
+                head.appendChild(btnRegerar); 
                 wrap.appendChild(head); 
                 wrap.appendChild(ta); 
+
+                // ==== DIV DE BOTÕES DE AJUSTE RÁPIDO ====
+                let chatDiv = document.createElement('div');
+                chatDiv.style.cssText = "display:flex; gap:10px; margin-top:5px; align-items: stretch; flex-wrap: wrap;";
+                
+                let chatInput = document.createElement('input');
+                chatInput.placeholder = "IA de Ajuste: Ex: 'Deixe mais formal' ou 'Resuma'...";
+                chatInput.style.margin = "0"; chatInput.style.flex = "1";
+                chatInput.style.minWidth = "200px";
+                
+                let chatBtn = document.createElement('button');
+                chatBtn.className = "btn btn-blue";
+                chatBtn.style.margin = "0";
+                chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Aplicar";
+                
+                let limparBtn = document.createElement('button');
+                limparBtn.className = "btn";
+                limparBtn.style.backgroundColor = "#8b5cf6"; 
+                limparBtn.style.margin = "0";
+                limparBtn.title = "Limpa palavras complexas como locus, momentum, etc.";
+                limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês";
+                
+                let humanizarBtn = document.createElement('button');
+                humanizarBtn.className = "btn btn-warning";
+                humanizarBtn.style.margin = "0";
+                humanizarBtn.title = "Reescreve o texto com imperfeições humanas para zerar o Radar de IA";
+                humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar Trecho";
+                
+                chatBtn.onclick = () => {
+                    let comando = chatInput.value; 
+                    if(!comando) return;
+                    chatBtn.disabled = true; chatBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i>";
+                    
+                    fetch('/assistente_pontual', {
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ trecho: ta.value, comando: comando, modelo: document.getElementById('select_modelo').value })
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        chatBtn.disabled = false; chatBtn.innerHTML = "<i class='ph-bold ph-magic-wand'></i> Aplicar";
+                        if(d.sucesso) { 
+                            ta.value = d.novo_texto; 
+                            dicionarioEditavel[chaveSegura] = d.novo_texto; 
+                            chatInput.value = ""; 
+                            enfileirarAnaliseIA(d.novo_texto, badgeIA); 
+                        } else Swal.fire('Erro', d.erro, 'error');
+                    }).catch(e => { chatBtn.disabled=false; chatBtn.innerHTML="<i class='ph-bold ph-magic-wand'></i> Aplicar"; });
+                };
+                
+                limparBtn.onclick = () => {
+                    if(!ta.value.trim()) return;
+                    limparBtn.disabled = true; limparBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i>";
+                    
+                    fetch('/exterminar_cliches', {
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ trecho: ta.value })
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês";
+                        if(d.sucesso) { 
+                            ta.value = d.novo_texto; 
+                            dicionarioEditavel[chaveSegura] = d.novo_texto; 
+                            enfileirarAnaliseIA(d.novo_texto, badgeIA); 
+                            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'Clichês removidos!' });
+                        } else Swal.fire('Erro', d.erro, 'error');
+                    }).catch(e => { limparBtn.disabled = false; limparBtn.innerHTML = "<i class='ph-bold ph-sparkle'></i> Limpar Clichês"; });
+                };
+                
+                humanizarBtn.onclick = () => {
+                    if(!ta.value.trim()) return;
+                    humanizarBtn.disabled = true; humanizarBtn.innerHTML = "<i class='ph-bold ph-spinner ph-spin'></i> Blindando...";
+                    
+                    fetch('/humanizar_trecho_avulso', {
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ trecho: ta.value, modelo: document.getElementById('select_modelo').value })
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        humanizarBtn.disabled = false; humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar Trecho";
+                        if(d.sucesso) { 
+                            ta.value = d.novo_texto; 
+                            dicionarioEditavel[chaveSegura] = d.novo_texto; 
+                            enfileirarAnaliseIA(d.novo_texto, badgeIA); 
+                            Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, icon: 'success', title: 'Trecho Blindado com Sucesso!' });
+                        } else Swal.fire('Erro', d.erro, 'error');
+                    }).catch(e => { humanizarBtn.disabled = false; humanizarBtn.innerHTML = "<i class='ph-bold ph-shield-check'></i> Blindar Trecho"; });
+                };
+                
+                chatDiv.appendChild(chatInput); 
+                chatDiv.appendChild(chatBtn);
+                chatDiv.appendChild(limparBtn); 
+                chatDiv.appendChild(humanizarBtn); 
+                wrap.appendChild(chatDiv);
+                
                 container.appendChild(wrap);
+                
+                // Manda para a fila inicial de processamento
+                if (!is_vazio) enfileirarAnaliseIA(ta.value, badgeIA);
             });
         }
 
+        setInterval(() => {
+            if(Object.keys(dicionarioEditavel).length > 0) {
+                localStorage.setItem('hubmaster_autosave', JSON.stringify({
+                    aluno: document.getElementById('aluno_id').value,
+                    dic: dicionarioEditavel
+                }));
+            }
+        }, 10000); 
+
         function salvarEDocx() {
+            Swal.fire({
+                title: 'Opções de Salvamento',
+                html: `
+                    <div style="text-align: left;">
+                        <label style="color: var(--text-muted); font-size: 0.9rem;">Nome do arquivo (Opcional, sem .docx):</label>
+                        <input id="sw-doc-name" class="swal2-input" placeholder="Ex: Trabalho_Final_Matematica" style="width: 100%; margin: 5px 0 15px 0;">
+                        
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-muted); font-size: 0.95rem; margin-top: 10px;">
+                            <input type="checkbox" id="sw-doc-download" checked style="width: 20px; height: 20px; margin: 0; cursor: pointer;">
+                            Quero baixar o arquivo no meu computador agora
+                        </label>
+                    </div>
+                `,
+                background: '#1e2130',
+                color: '#e2e8f0',
+                showCancelButton: true,
+                confirmButtonText: '<i class="ph-bold ph-check-circle"></i> Confirmar e Salvar',
+                confirmButtonColor: '#10b981',
+                cancelButtonText: 'Cancelar',
+                preConfirm: () => {
+                    let nome = document.getElementById('sw-doc-name').value.trim();
+                    let querBaixar = document.getElementById('sw-doc-download').checked;
+                    return { nome: nome, download: querBaixar };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    processarSalvamento(result.value.nome, result.value.download);
+                }
+            });
+        }
+
+        function processarSalvamento(nomeArquivo, querBaixar) {
             const btn = document.getElementById('btn-docx');
             btn.disabled = true;
             btn.innerHTML = `<i class="ph-bold ph-spinner ph-spin"></i> Gerando Documento...`;
             
-            // Grava as edições manuais feitas no browser antes de enviar
             document.querySelectorAll('#caixas-texto textarea').forEach(t => {
                 let chaveSegura = "{" + "{" + t.dataset.chave + "}" + "}";
                 dicionarioEditavel[chaveSegura] = t.value;
@@ -269,7 +591,8 @@
                 headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify({ 
                     dicionario: dicionarioEditavel, 
-                    aluno_id: document.getElementById('aluno_id').value 
+                    aluno_id: document.getElementById('aluno_id').value,
+                    nome_arquivo: nomeArquivo 
                 }) 
             })
             .then(r => {
@@ -278,25 +601,31 @@
             })
             .then(d => {
                 btn.disabled = false;
-                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final`;
+                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Salvar DOCX Final`;
                 
                 if(!d.sucesso) {
                     Swal.fire('Erro', d.erro, 'error');
                     return;
                 }
                 
-                // Força o Download automático
-                let a = document.createElement('a'); 
-                a.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_base64;
-                a.download = "Trabalho_IA.docx"; 
-                a.click();
+                if (querBaixar) {
+                    let a = document.createElement('a'); 
+                    a.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + d.arquivo_base64;
+                    a.download = d.nome_arquivo || "Trabalho_IA.docx"; 
+                    a.click();
+                    
+                    Swal.fire('Sucesso!', 'Documento gerado, baixado e salvo na pasta do Cliente.', 'success');
+                } else {
+                    Swal.fire('Sucesso!', 'Documento final guardado em segurança na pasta do Cliente.', 'success');
+                }
                 
-                Swal.fire('Sucesso!', 'Documento final gerado e salvo na pasta Downloads e na pasta do Cliente.', 'success');
+                localStorage.removeItem('hubmaster_autosave');
                 document.getElementById('area-edicao').style.display = 'none';
+                document.getElementById('tema').value = '';
             })
             .catch(err => {
                 btn.disabled = false;
-                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Baixar DOCX Final`;
+                btn.innerHTML = `<i class="ph-bold ph-check-circle"></i> Aprovar Tudo e Salvar DOCX Final`;
                 Swal.fire('Falha Crítica', err.message, 'error');
             });
         }

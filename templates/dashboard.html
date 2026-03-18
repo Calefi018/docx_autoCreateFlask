@@ -1,144 +1,90 @@
 {% extends "base.html" %}
 {% block content %}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<h1 style="margin-top:0;"><i class="ph-bold ph-chart-line-up"></i> Financeiro e Desempenho</h1>
 
-    <h1 style="margin-top:0;">Dashboard Financeiro</h1>
-    <p style="color: var(--text-muted); margin-bottom: 30px;">
-        Visão geral dos seus lucros e da produtividade do seu sistema.
-    </p>
-
-    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--danger); margin-bottom: 0;">
-            <i class="ph-fill ph-wallet" style="font-size: 2.5rem; color: var(--danger); margin-bottom: 10px;"></i>
-            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">A Receber</h3>
-            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(a_receber) }}</h2>
-        </div>
-        
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--success); margin-bottom: 0;">
-            <i class="ph-fill ph-chart-line-up" style="font-size: 2.5rem; color: var(--success); margin-bottom: 10px;"></i>
-            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Receita Paga</h3>
-            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">R$ {{ "%.2f"|format(receita_realizada) }}</h2>
-        </div>
-        
-        <div class="card" style="flex: 1; min-width: 200px; padding: 30px 20px; text-align: center; border-bottom: 4px solid var(--primary); margin-bottom: 0;">
-            <i class="ph-fill ph-files" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 10px;"></i>
-            <h3 style="color: var(--text-muted); margin:0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Total de Trabalhos</h3>
-            <h2 style="color: #fff; font-size: 2.5rem; margin: 10px 0;">{{ total_trabalhos }}</h2>
-        </div>
+<form method="GET" action="/dashboard" style="margin-bottom: 20px; display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+    <div>
+        <label>Data Início</label>
+        <input type="date" name="data_inicio" value="{{ data_inicio }}" style="color-scheme: dark; padding: 8px;">
     </div>
-
-    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
-        
-        <div class="card" style="flex: 2; min-width: 300px; margin-bottom: 0;">
-            <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: #fff;">
-                <i class="ph-fill ph-trend-up" style="color: var(--success);"></i> Faturamento Realizado (Últimos 6 Meses)
-            </h3>
-            <div style="position: relative; height: 300px; width: 100%;">
-                <canvas id="graficoMeses"></canvas>
-            </div>
-        </div>
-
-        <div class="card" style="flex: 1; min-width: 300px; margin-bottom: 0;">
-            <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: #fff;">
-                <i class="ph-fill ph-calendar-check" style="color: var(--primary);"></i> Produtividade Semanal
-            </h3>
-            <div style="position: relative; height: 300px; width: 100%;">
-                <canvas id="graficoDias"></canvas>
-            </div>
-        </div>
+    <div>
+        <label>Data Fim</label>
+        <input type="date" name="data_fim" value="{{ data_fim }}" style="color-scheme: dark; padding: 8px;">
     </div>
+    <button type="submit" class="btn btn-primary" style="padding: 10px 16px;"><i class="ph-bold ph-funnel"></i> Filtrar</button>
+    {% if filtrado %}
+        <a href="/dashboard" class="btn btn-danger" style="padding: 10px 16px;"><i class="ph-bold ph-x"></i> Limpar</a>
+    {% endif %}
+</form>
 
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+    <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--success);">
+        <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px;">Receita Hoje (Pagos)</div>
+        <div style="font-size: 1.8rem; font-weight: bold; color: #fff;">R$ {{ "%.2f"|format(receita_hoje) }}</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--primary);">
+        <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px;">Receita do Período (Pagos)</div>
+        <div style="font-size: 1.8rem; font-weight: bold; color: #fff;">R$ {{ "%.2f"|format(receita_periodo) }}</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--warning);">
+        <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px;">A Receber (Pendentes)</div>
+        <div style="font-size: 1.8rem; font-weight: bold; color: #fff;">R$ {{ "%.2f"|format(a_receber_periodo) }}</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; border-left: 4px solid #3b82f6;">
+        <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px;">Trabalhos no Período</div>
+        <div style="font-size: 1.8rem; font-weight: bold; color: #fff;">{{ trabalhos_periodo }}</div>
+    </div>
+    <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--danger);">
+        <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px;">Saldo na OpenRouter</div>
+        <div style="font-size: 1.8rem; font-weight: bold; color: #fff;">$ {{ "%.4f"|format(saldo_real_openrouter) }}</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
     <div class="card">
-        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-fill ph-cpu"></i> Inteligências Utilizadas
-        </h3>
-        <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">Monitorização de rotas ativas da API.</p>
-        
-        <table style="width: 100%; text-align: left; border-collapse: collapse;">
-            <tr style="border-bottom: 1px solid var(--border);">
-                <th style="padding: 15px 10px; color: var(--text-muted);">Modelo de IA</th>
-                <th style="padding: 15px 10px; text-align: right; color: var(--text-muted);">Trabalhos Processados</th>
-            </tr>
-            
-            {% for uso in uso_modelos %}
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <td style="padding: 15px 10px; color: #fff; font-weight: 500;">{{ uso[0] }}</td>
-                <td style="padding: 15px 10px; text-align: right; color: var(--primary); font-weight: bold;">{{ uso[1] }}x</td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="2" style="padding: 20px; text-align: center; color: var(--text-muted);">Nenhum trabalho gerado ainda.</td>
-            </tr>
-            {% endfor %}
-        </table>
+        <h3 style="margin-top: 0; color: #fff;"><i class="ph-bold ph-trend-up"></i> Faturamento (Últimos 6 meses)</h3>
+        <canvas id="graficoMeses" height="200"></canvas>
     </div>
+    <div class="card">
+        <h3 style="margin-top: 0; color: #fff;"><i class="ph-bold ph-calendar-check"></i> Pedidos por Dia da Semana</h3>
+        <canvas id="graficoDias" height="200"></canvas>
+    </div>
+</div>
 
-    <script>
-        Chart.defaults.color = '#94a3b8';
-        Chart.defaults.font.family = "'Inter', sans-serif";
-        
-        // Gráfico 1: Linha de Faturamento
-        const ctxMeses = document.getElementById('graficoMeses').getContext('2d');
-        new Chart(ctxMeses, {
-            type: 'line',
-            data: {
-                labels: {{ graf_meses_lbl | safe }},
-                datasets: [{
-                    label: 'Receita (R$)',
-                    data: {{ graf_meses_val | safe }},
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    borderWidth: 3, 
-                    pointBackgroundColor: '#10b981', 
-                    pointBorderColor: '#1e2130',
-                    pointBorderWidth: 2, 
-                    pointRadius: 5, 
-                    fill: true, 
-                    tension: 0.4 
-                }]
-            },
-            options: {
-                responsive: true, 
-                maintainAspectRatio: false, 
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { 
-                        beginAtZero: true, 
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' }, 
-                        ticks: { callback: function(value) { return 'R$ ' + value; } } 
-                    },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = '#334155';
 
-        // Gráfico 2: Barras de Dias da Semana
-        const ctxDias = document.getElementById('graficoDias').getContext('2d');
-        new Chart(ctxDias, {
-            type: 'bar',
-            data: {
-                labels: {{ graf_dias_lbl | safe }},
-                datasets: [{
-                    label: 'Trabalhos Cadastrados',
-                    data: {{ graf_dias_val | safe }},
-                    backgroundColor: '#6366f1', 
-                    borderRadius: 6, 
-                    borderSkipped: false
-                }]
-            },
-            options: {
-                responsive: true, 
-                maintainAspectRatio: false, 
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { 
-                        beginAtZero: true, 
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' }, 
-                        ticks: { stepSize: 1 } 
-                    },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
-    </script>
+    new Chart(document.getElementById('graficoMeses'), {
+        type: 'bar',
+        data: {
+            labels: {{ graf_meses_lbl | safe }},
+            datasets: [{
+                label: 'Faturamento R$',
+                data: {{ graf_meses_val | safe }},
+                backgroundColor: '#6366f1',
+                borderRadius: 4
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+    });
+
+    new Chart(document.getElementById('graficoDias'), {
+        type: 'line',
+        data: {
+            labels: {{ graf_dias_lbl | safe }},
+            datasets: [{
+                label: 'Novos Trabalhos',
+                data: {{ graf_dias_val | safe }},
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+</script>
 {% endblock %}
