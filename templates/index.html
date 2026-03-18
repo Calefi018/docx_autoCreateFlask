@@ -58,9 +58,7 @@
     </div>
 </div>
 
-<style>
-    @keyframes spin { 100% { transform: rotate(360deg); } }
-</style>
+<style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
 
 <script>
     let taskIdAtual = null;
@@ -72,8 +70,7 @@
         const painel = document.getElementById('painel-status');
         const txtStatus = document.getElementById('texto-status');
         
-        btn.disabled = true;
-        btn.style.opacity = '0.5';
+        btn.disabled = true; btn.style.opacity = '0.5';
         painel.style.display = 'block';
         txtStatus.innerText = 'Iniciando arquitetura de texto...';
 
@@ -94,41 +91,32 @@
     });
 
     function verificarStatus() {
-        fetch('/status_geracao/' + taskIdAtual)
-        .then(r => r.json())
-        .then(data => {
+        fetch('/status_geracao/' + taskIdAtual).then(r => r.json()).then(data => {
             if (data.status === 'Concluido') {
                 clearInterval(intervalStatus);
                 document.getElementById('texto-status').innerText = 'Documento Finalizado! Gerando Word...';
                 
-                // Envia para gerar o Word
                 fetch('/gerar_docx_final', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         dicionario: data.dicionario,
                         aluno_id: document.getElementById('cliente_id').value,
                         nome_arquivo: 'Trabalho_IA.docx'
                     })
-                })
-                .then(r => r.json())
-                .then(res => {
+                }).then(r => r.json()).then(res => {
                     resetUI();
                     if(res.sucesso) {
-                        Swal.fire({icon: 'success', title: 'Pronto!', text: 'Trabalho salvo na pasta do cliente.', background: '#18181b', color: '#fafafa'});
-                        
-                        // Baixa o arquivo automaticamente
+                        Swal.fire({icon: 'success', title: 'Pronto!', text: 'Trabalho salvo.', background: '#18181b', color: '#fafafa'});
                         const link = document.createElement('a');
                         link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + res.arquivo_base64;
-                        link.download = res.nome_arquivo;
-                        link.click();
+                        link.download = res.nome_arquivo; link.click();
                     } else {
-                        Swal.fire({icon: 'error', title: 'Erro no Word', text: res.erro, background: '#18181b', color: '#fafafa'});
+                        Swal.fire({icon: 'error', title: 'Erro', text: res.erro, background: '#18181b', color: '#fafafa'});
                     }
                 });
             } else if (data.status === 'Erro') {
                 clearInterval(intervalStatus);
-                Swal.fire({icon: 'error', title: 'Falha na IA', text: data.erro, background: '#18181b', color: '#fafafa'});
+                Swal.fire({icon: 'error', title: 'Falha', text: data.erro, background: '#18181b', color: '#fafafa'});
                 resetUI();
             }
         });
