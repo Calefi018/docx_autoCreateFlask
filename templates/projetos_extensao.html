@@ -1,88 +1,122 @@
 {% extends "base.html" %}
 {% block content %}
-
-<div style="margin-bottom: 30px;">
-    <h1 style="margin-top:0; color: var(--primary); font-size: 24px; display: flex; align-items: center; gap: 10px;">
-        <i class="ph-bold ph-folders"></i> Projetos de Extensão
-    </h1>
-    <p style="color: var(--text-muted); margin: 5px 0 0 0; font-size: 14px;">
-        Preencha os dados do aluno. O sistema criará as 30 datas retroativas e preencherá a Evidência e a Ficha de Frequência.
+    <h1 style="margin-top:0; color: var(--success);"><i class="ph-fill ph-hands-clapping"></i> Automação de Projetos de Extensão</h1>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">
+        Preencha os dados do aluno. O sistema criará as datas automaticamente de trás para a frente a partir de hoje.
     </p>
-</div>
 
-<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
-    <div class="card">
-        <h2 style="font-size: 16px; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
-            <i class="ph-bold ph-user-focus" style="color: var(--primary);"></i> Dados do Acadêmico
-        </h2>
-        
-        <form method="POST" action="/gerar_extensao" style="display: flex; flex-direction: column; gap: 15px;">
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px;">
-                <div>
-                    <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Vincular a cliente existente</label>
-                    <select name="aluno_id">
-                        <option value="">-- Preencher manualmente (Avulso) --</option>
-                        {% for a in alunos %}
-                            <option value="{{ a.id }}">{{ a.nome }} - {{ a.curso }}</option>
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        <div style="flex: 1.5; min-width: 300px;">
+            <div class="card" style="border-top: 4px solid var(--success);">
+                <form action="/gerar_extensao" method="POST">
+                    
+                    <h3 style="margin-top: 0;"><i class="ph-bold ph-user"></i> 1. Dados do Aluno</h3>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label>Vincular a um cliente existente (Recomendado)</label>
+                            <select name="aluno_id" id="aluno_id" onchange="toggleAvulso()">
+                                <option value="">-- Preencher dados manualmente (Avulso) --</option>
+                                {% for aluno in alunos %}
+                                    <option value="{{ aluno.id }}">{{ aluno.nome }} ({{ aluno.curso }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <label>Matrícula do Acadêmico</label>
+                            <input type="text" name="matricula" placeholder="Ex: 8689599" required>
+                        </div>
+                    </div>
+
+                    <div id="dados_avulsos" style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 25px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label>Nome do Aluno</label>
+                            <input type="text" name="nome_avulso" id="nome_avulso" placeholder="Nome Completo">
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label>Curso</label>
+                            <input type="text" name="curso_avulso" id="curso_avulso" placeholder="Ex: Engenharia Ambiental">
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 25px; background: rgba(239, 68, 68, 0.1); padding: 15px; border-left: 3px solid var(--danger); border-radius: 4px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0; color: #fff;">
+                            <input type="checkbox" name="gerar_pdf" value="sim" style="width: 18px; height: 18px; accent-color: var(--danger);">
+                            <span><b>Gerar também as versões em PDF</b> <small style="color: var(--text-muted);">(Consome 2 créditos da ConvertAPI)</small></span>
+                        </label>
+                    </div>
+
+                    <button type="submit" onclick="mostrarCarregando()" class="btn btn-green" style="width: 100%; height: 50px; font-size: 1.1rem; margin-top: 10px;">
+                        <i class="ph-bold ph-magic-wand"></i> Gerar Documentos (Evidências + Ficha)
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div style="flex: 1; min-width: 300px;">
+            <div class="card" style="background: rgba(30, 33, 48, 0.4);">
+                <h3 style="margin-top: 0; color: var(--primary);"><i class="ph-bold ph-info"></i> Como Funciona?</h3>
+                <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">
+                    Os seus templates (<b>Evidências Paraná</b> e <b>Ficha de Frequência</b>) já estão salvos permanentemente no sistema.
+                </p>
+                <ul style="font-size: 0.9rem; color: var(--text-muted); padding-left: 20px;">
+                    <li style="margin-bottom: 10px;">Basta inserir o cliente e a matrícula. Não é mais necessário enviar nenhum arquivo.</li>
+                    <li style="margin-bottom: 10px;">A <b>Data Final</b> da ação social será considerada como sendo <b>o dia de hoje</b>.</li>
+                    <li>O sistema volta no tempo dia após dia, gerando 30 datas (pulando os domingos) para fechar a carga horária.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    {% if avulsos %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            Swal.fire({
+                title: 'Arquivos Gerados com Sucesso!',
+                html: `
+                    <p style="font-size:0.95rem; color:var(--text-muted); margin-bottom: 20px;">Clique nos botões abaixo para descarregar os seus ficheiros:</p>
+                    <div style="display:flex; flex-direction:column; gap:12px; margin-bottom: 10px;">
+                        {% for doc in avulsos %}
+                            <a download="{{ doc.nome }}" href="data:application/octet-stream;base64,{{ doc.b64 }}" class="btn {{ 'btn-danger' if '.pdf' in doc.nome.lower() else 'btn-primary' }}" style="display: flex; justify-content: center; height: 45px; font-size: 1rem;">
+                                <i class="ph-bold {{ 'ph-file-pdf' if '.pdf' in doc.nome.lower() else 'ph-file-doc' }}"></i> Baixar {{ doc.nome }}
+                            </a>
                         {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Matrícula</label>
-                    <input type="text" name="matricula" placeholder="Ex: 8689599" required>
-                </div>
-            </div>
+                    </div>
+                `,
+                icon: 'success',
+                background: '#1e2130',
+                color: '#e2e8f0',
+                showConfirmButton: false,
+                showCancelButton: true,
+                cancelButtonText: 'Fechar Tela'
+            });
+        });
+    </script>
+    {% endif %}
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div>
-                    <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Nome (Se avulso)</label>
-                    <input type="text" name="nome_avulso" placeholder="Nome do aluno">
-                </div>
-                <div>
-                    <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 600;">Curso (Se avulso)</label>
-                    <input type="text" name="curso_avulso" placeholder="Ex: Engenharia">
-                </div>
-            </div>
-
-            <div style="background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); padding: 15px; border-radius: 8px; margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-                <input type="checkbox" name="gerar_pdf" value="sim" id="pdf_check" style="width: auto; cursor: pointer; transform: scale(1.2);">
-                <label for="pdf_check" style="font-size: 13px; color: var(--text-main); cursor: pointer;">
-                    Gerar também as versões em PDF <span style="color: var(--text-muted); font-size: 11px;">(Consome créditos da ConvertAPI)</span>
-                </label>
-            </div>
-
-            <button type="submit" class="btn btn-primary" style="padding: 14px; font-size: 15px; margin-top: 10px;">
-                <i class="ph-bold ph-file-word"></i> Gerar Documentos (Evidências + Ficha)
-            </button>
-        </form>
-    </div>
-
-    <div class="card" style="background: rgba(14, 165, 233, 0.05); border-color: rgba(14, 165, 233, 0.2);">
-        <h3 style="color: #38bdf8; font-size: 15px; display: flex; align-items: center; gap: 6px; margin-bottom: 15px; margin-top: 0;">
-            <i class="ph-bold ph-info"></i> Como Funciona?
-        </h3>
-        <ul style="color: var(--text-muted); font-size: 13px; line-height: 1.6; padding-left: 15px;">
-            <li style="margin-bottom: 8px;">Os templates base (Evidências e Ficha) já estão salvos.</li>
-            <li style="margin-bottom: 8px;">A <b>Data Final</b> da ação será considerada o dia de hoje.</li>
-            <li>Se vincular a um cliente, os ficheiros vão direto para a pasta dele no CRM.</li>
-        </ul>
-    </div>
-</div>
-
-{% if avulsos %}
-<div class="card" style="margin-top: 20px; border-left: 4px solid var(--success);">
-    <h3 style="color: var(--success); font-size: 15px; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
-        <i class="ph-bold ph-check-circle"></i> Documentos Gerados (Download Avulso)
-    </h3>
-    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-        {% for arq in avulsos %}
-            <a href="data:application/octet-stream;base64,{{ arq.b64 }}" download="{{ arq.nome }}" class="btn btn-neutral" style="border-color: var(--success); color: var(--success) !important;">
-                <i class="ph-bold ph-download-simple"></i> Baixar {{ arq.nome }}
-            </a>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
-
-<style>@media (max-width: 768px) { div[style*="display: grid"] { grid-template-columns: 1fr !important; } }</style>
+    <script>
+        function toggleAvulso() {
+            var select = document.getElementById('aluno_id');
+            var avulsos = document.getElementById('dados_avulsos');
+            var nome = document.getElementById('nome_avulso');
+            var curso = document.getElementById('curso_avulso');
+            if (select.value !== "") {
+                avulsos.style.opacity = '0.3';
+                nome.removeAttribute('required');
+                curso.removeAttribute('required');
+            } else {
+                avulsos.style.opacity = '1';
+                nome.setAttribute('required', 'required');
+                curso.setAttribute('required', 'required');
+            }
+        }
+        function mostrarCarregando() {
+            Swal.fire({
+                title: 'Gerando Documentos...',
+                text: 'Isso pode demorar alguns segundos, especialmente se você solicitou PDFs.',
+                background: '#1e2130', color: '#e2e8f0', allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+        }
+        toggleAvulso();
+    </script>
 {% endblock %}

@@ -2,233 +2,274 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>HubMaster Core</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HubMaster Workspace</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <style>
         /* =======================================================
-           PALETA DE ALTO CONTRASTE (UX SÊNIOR)
+           PALETA SAAS PREMIUM (Slate & Blue)
            ======================================================= */
         :root {
-            --bg-base: #09090b;       
-            --bg-card: #18181b;       
-            --border: #27272a;        
-            --text-main: #fafafa;     
-            --text-muted: #a1a1aa;    
-            --primary: #3b82f6;       
-            --success: #10b981;
-            --danger: #ef4444;
+            --bg-body: #0f172a;       /* Slate 900 */
+            --bg-sidebar: #0b1120;    /* Slate 950 */
+            --bg-card: #1e293b;       /* Slate 800 */
+            --border: #334155;        /* Slate 700 */
+            --text-main: #f8fafc;     /* Slate 50 */
+            --text-muted: #94a3b8;    /* Slate 400 */
+            
+            --primary: #3b82f6;       /* Blue 500 */
+            --primary-hover: #2563eb; /* Blue 600 */
+            --success: #10b981;       /* Emerald 500 */
+            --warning: #f59e0b;       /* Amber 500 */
+            --danger: #ef4444;        /* Red 500 */
+            --radius: 8px;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-
-        /* Fim dos links azuis invisíveis por padrão */
-        a { color: var(--primary); text-decoration: none; }
-        a:hover { color: #60a5fa; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
 
         body {
-            background-color: var(--bg-base);
+            background-color: var(--bg-body);
             color: var(--text-main);
             display: flex;
-            width: 100%;
             min-height: 100vh;
-            overflow-x: hidden; /* Trava o scroll horizontal vazado */
+            overflow-x: hidden;
         }
 
-        /* CARD SÓLIDO SEM QUEBRAR TELA */
+        /* =======================================================
+           SIDEBAR CORPORATIVA
+           ======================================================= */
+        .sidebar {
+            width: 260px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo-container {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #ffffff;
+        }
+
+        .nav-menu {
+            padding: 20px 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: var(--radius);
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link i { font-size: 18px; }
+
+        .nav-link:hover, .nav-link.active {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+        }
+
+        .user-widget {
+            padding: 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 32px; height: 32px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; color: var(--primary);
+        }
+
+        /* =======================================================
+           CONTEÚDO PRINCIPAL & CARDS
+           ======================================================= */
+        .main-content {
+            flex: 1;
+            margin-left: 260px;
+            padding: 40px;
+            max-width: 1200px;
+        }
+
         .card {
             background-color: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px; 
-            margin-bottom: 20px;
-            width: 100%;
-            max-width: 100%;
-            overflow-wrap: break-word; /* Força quebras de linha em links gigantes */
-            word-wrap: break-word;
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
 
-        /* ==========================================
-           COMPONENTES DE BOTÃO UX (PADRONIZADOS)
-           ========================================== */
+        /* =======================================================
+           BOTÕES E INPUTS PREMIUM
+           ======================================================= */
         .btn {
             display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-            padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
-            cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
-            text-decoration: none !important;
+            padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500;
+            cursor: pointer; text-decoration: none; border: 1px solid transparent;
+            transition: all 0.2s;
         }
 
-        /* Botão Ação Principal (Azul) */
-        .btn-primary { background-color: var(--primary); color: white !important; }
-        .btn-primary:hover { background-color: #2563eb; }
-
-        /* Botão WhatsApp / Sucesso (Verde limpo) */
-        .btn-whatsapp { background-color: #16a34a; color: white !important; border: 1px solid #15803d; }
-        .btn-whatsapp:hover { background-color: #15803d; }
-
-        /* Botão Neutro (Para as Pastas e Editar, fundo escuro com borda clara) */
-        .btn-neutral { background-color: #27272a; color: #e4e4e7 !important; border: 1px solid #3f3f46; }
-        .btn-neutral:hover { background-color: #3f3f46; color: #fff !important; }
-
-        /* Botão Perigo (Esquecer / Excluir) */
-        .btn-danger { background-color: rgba(220, 38, 38, 0.15); color: #f87171 !important; border: 1px solid rgba(220, 38, 38, 0.3); }
-        .btn-danger:hover { background-color: #dc2626; color: white !important; }
-
-        /* ==========================================
-           MENUS (SÓ APARECEM SE LOGADO)
-           ========================================== */
-        .mobile-header {
-            display: none; width: 100%; height: 65px;
-            background: rgba(24, 24, 27, 0.95); border-bottom: 1px solid var(--border);
-            align-items: center; justify-content: space-between;
-            padding: 0 20px; position: fixed; top: 0; left: 0; z-index: 998;
-        }
-        .menu-toggle { background: transparent; border: none; color: var(--text-main); font-size: 24px; cursor: pointer; }
-
-        .sidebar-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0,0,0,0.6); z-index: 999; opacity: 0; transition: opacity 0.3s;
-        }
-
-        .sidebar {
-            width: 260px; background-color: #09090b; border-right: 1px solid var(--border);
-            display: flex; flex-direction: column; position: fixed; height: 100vh; left: 0; top: 0; z-index: 1000;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .logo-container { padding: 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 18px; color: #fff; }
-        .close-sidebar { display: none; background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
-        .nav-menu { padding: 20px 12px; flex: 1; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
-        .nav-link { display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: var(--text-muted); border-radius: 8px; font-size: 14px; font-weight: 500; transition: all 0.2s; }
-        .nav-link i { font-size: 20px; }
-        .nav-link:hover { background-color: var(--bg-card); color: var(--text-main); }
-        .nav-link.active { background-color: rgba(59, 130, 246, 0.1); color: var(--primary); font-weight: 600; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
         
-        .section-title { font-size: 11px; color: #52525b; text-transform: uppercase; margin: 24px 0 8px 16px; font-weight: 700; letter-spacing: 1px; }
+        .btn-outline { background-color: transparent; border-color: var(--border); color: var(--text-main); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
 
-        .main-content {
-            margin-left: 260px; padding: 40px;
-            width: calc(100% - 260px); min-height: 100vh;
-            transition: all 0.3s ease;
+        .btn-danger { background-color: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.2); }
+        .btn-danger:hover { background-color: var(--danger); color: white; }
+
+        input, select, textarea {
+            width: 100%; padding: 10px 14px; border-radius: 6px;
+            background-color: #0f172a; border: 1px solid var(--border);
+            color: var(--text-main); font-size: 14px;
+            transition: border-color 0.2s;
+            outline: none;
         }
 
-        /* O truque para quando não está logado (Tela de Login) */
-        .main-content.no-sidebar {
-            margin-left: 0 !important; width: 100% !important; padding: 0 !important;
-            display: flex; justify-content: center; align-items: center;
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
 
-        @media (max-width: 768px) {
-            .mobile-header { display: flex; }
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.active { transform: translateX(0); }
-            .close-sidebar { display: block; }
-            .main-content { margin-left: 0; width: 100%; padding: 85px 15px 20px 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+        th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:hover td { background-color: rgba(255, 255, 255, 0.02); }
+
+        .badge {
+            padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
         }
+        .badge-success { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+        .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
     </style>
 </head>
 <body>
 
-    {% if current_user.is_authenticated %}
-        <div class="mobile-header">
-            <div style="font-weight: 700; color: white; display: flex; align-items: center; gap: 10px;">
-                <i class="ph-bold ph-asterisk" style="color: var(--primary);"></i> HubMaster
-            </div>
-            <button class="menu-toggle" onclick="toggleSidebar()"><i class="ph-bold ph-list"></i></button>
+    <nav class="sidebar">
+        <div class="logo-container">
+            <div class="logo-icon"><i class="ph-bold ph-cube"></i></div>
+            <div class="logo-text">HubMaster</div>
+        </div>
+        
+        <div class="nav-menu">
+            <a href="/dashboard" class="nav-link"><i class="ph-bold ph-squares-four"></i> Dashboard</a>
+            <a href="/clientes" class="nav-link"><i class="ph-bold ph-users"></i> CRM Clientes</a>
+            <a href="/projetos_extensao" class="nav-link"><i class="ph-bold ph-file-text"></i> Projetos Extensão</a>
+            <a href="/banco_temas" class="nav-link"><i class="ph-bold ph-books"></i> Banco de Trabalhos</a>
+            
+            <div style="margin: 15px 0 5px 15px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 1px;">Automação</div>
+            
+            <a href="/banco_gabaritos" class="nav-link"><i class="ph-bold ph-brain"></i> Mente Coletiva</a>
+            <a href="/" class="nav-link"><i class="ph-bold ph-robot"></i> Gerador IA</a>
+            
+            {% if current_user.role in ['admin', 'sub-admin'] %}
+            <div style="margin: 15px 0 5px 15px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 1px;">Sistema</div>
+            <a href="/prompts" class="nav-link"><i class="ph-bold ph-code"></i> Eng. de Prompts</a>
+            <a href="/configuracoes" class="nav-link"><i class="ph-bold ph-gear"></i> Configurações</a>
+            {% endif %}
         </div>
 
-        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
-
-        <nav class="sidebar" id="sidebar">
-            <div class="logo-container">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <i class="ph-bold ph-asterisk" style="font-size: 20px; color: var(--primary);"></i> HubMaster Core
+        <div class="user-widget">
+            <div class="user-info">
+                <div class="user-avatar">{{ current_user.username[0]|upper }}</div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 13px; font-weight: 600;">{{ current_user.username }}</span>
+                    <span style="font-size: 11px; color: var(--text-muted);">{{ current_user.role|capitalize }}</span>
                 </div>
-                <button class="close-sidebar" onclick="toggleSidebar()"><i class="ph-bold ph-x"></i></button>
             </div>
-            
-            <div class="nav-menu">
-                <a href="/dashboard" class="nav-link"><i class="ph-bold ph-chart-line-up"></i> Visão Geral</a>
-                <a href="/clientes" class="nav-link"><i class="ph-bold ph-users-three"></i> Base de Clientes</a>
-                <a href="/projetos_extensao" class="nav-link"><i class="ph-bold ph-folders"></i> Projetos de Extensão</a>
-                <a href="/banco_temas" class="nav-link"><i class="ph-bold ph-books"></i> Log de Trabalhos</a>
-                
-                <div class="section-title">Motores de IA</div>
-                <a href="/banco_gabaritos" class="nav-link"><i class="ph-bold ph-brain"></i> Mente Coletiva</a>
-                <a href="/" class="nav-link"><i class="ph-bold ph-sparkle"></i> Gerador de Textos</a>
-                
-                {% if current_user.role in ['admin', 'sub-admin'] %}
-                <div class="section-title">Infraestrutura</div>
-                <a href="/prompts" class="nav-link"><i class="ph-bold ph-terminal-window"></i> Modelos de Prompt</a>
-                <a href="/configuracoes" class="nav-link"><i class="ph-bold ph-sliders"></i> Configurações</a>
-                {% endif %}
-            </div>
+            <a href="/logout" style="color: var(--text-muted); text-decoration: none;" title="Sair"><i class="ph-bold ph-sign-out"></i></a>
+        </div>
+    </nav>
 
-            <div style="padding: 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="width: 32px; height: 32px; background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: 700;">
-                        {{ current_user.username[0]|upper }}
-                    </div>
-                    <div style="display: flex; flex-direction: column;">
-                        <span style="font-weight: 600; font-size: 13px;">{{ current_user.username }}</span>
-                    </div>
-                </div>
-                <a href="/logout" style="color: var(--danger);"><i class="ph-bold ph-sign-out" style="font-size: 20px;"></i></a>
-            </div>
-        </nav>
-    {% endif %}
-
-    <main class="main-content {% if not current_user.is_authenticated %}no-sidebar{% endif %}">
+    <main class="main-content">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
                     <script>
                         Swal.fire({
-                            toast: true, position: 'top-end', showConfirmButton: false, timer: 3000,
+                            toast: true,
+                            position: 'top-end',
                             icon: '{{ "success" if category == "success" else "error" if category == "error" else "info" }}',
-                            title: '{{ message }}', background: '#18181b', color: '#fafafa'
+                            title: '{{ message }}',
+                            showConfirmButton: false,
+                            timer: 4000,
+                            background: '#1e293b',
+                            color: '#f8fafc'
                         });
                     </script>
                 {% endfor %}
             {% endif %}
         {% endwith %}
 
-        <div id="dynamic-content-wrapper">
-            {% block content %}{% endblock %}
-        </div>
+        {% block content %}{% endblock %}
     </main>
 
     <script>
+        // Script simples para marcar o menu lateral como Ativo baseado na URL
         document.addEventListener('DOMContentLoaded', () => {
             const currentPath = window.location.pathname;
             const links = document.querySelectorAll('.nav-link');
             links.forEach(link => {
-                if (link.getAttribute('href') === currentPath) link.classList.add('active');
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                }
             });
         });
-
-        // SOLUÇÃO DO SCROLL BUGADO NO MOBILE
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebarOverlay');
-            
-            sidebar.classList.toggle('active');
-            
-            if (sidebar.classList.contains('active')) {
-                overlay.style.display = 'block';
-                document.body.style.overflow = 'hidden'; // <-- TRAVA O FUNDO
-                setTimeout(() => overlay.style.opacity = '1', 10);
-            } else {
-                overlay.style.opacity = '0';
-                document.body.style.overflow = ''; // <-- LIBERA O FUNDO
-                setTimeout(() => overlay.style.display = 'none', 300);
-            }
-        }
     </script>
 </body>
 </html>
