@@ -209,7 +209,6 @@ Não use formatação em itálico (asterisco simples) para termos em inglês com
 # =========================================================
 with app.app_context():
     db.create_all()
-    
     try: 
         db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN creditos INTEGER DEFAULT 0'))
         db.session.commit()
@@ -432,6 +431,7 @@ def api_clientes_login():
         alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.nome).all()
         lista_clientes = []
         for a in alunos:
+            # Envia apenas clientes com as credenciais salvas no CRM
             if a.ava_login and a.ava_senha:
                 lista_clientes.append({
                     "nome": a.nome,
@@ -441,8 +441,8 @@ def api_clientes_login():
         return jsonify({"sucesso": True, "clientes": lista_clientes})
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
-# =========================================================
-# MENTE COLETIVA 2.0 (Gabarito Inteligente e Híbrido)
+        # =========================================================
+# MENTE COLETIVA 2.0 (Gabarito Inteligente e Híbrido Padrão Ouro)
 # =========================================================
 @app.route('/gabarito_inteligente')
 @login_required
@@ -461,106 +461,110 @@ def api_gerar_gabarito():
     if not texto_prova: 
         return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
 
-    # 1. FATIA A PROVA EM QUESTÕES
-    questoes_fatiadas = ia_core.fatiar_prova(texto_prova)
-    if not questoes_fatiadas:
-        return jsonify({"sucesso": False, "erro": "Não foi possível identificar o formato das questões. Mande um texto mais estruturado."})
-
-    respostas_conhecidas = []
-    questoes_desconhecidas = []
-
-    # 2. VERIFICA A MEMÓRIA COLETIVA (De-Para)
-    for q in questoes_fatiadas:
-        hash_q = ia_core.gerar_hash_enunciado(q['enunciado'])
-        memoria = QuestaoMemoria.query.filter_by(hash_enunciado=hash_q).first()
-        
-        if memoria:
-            # Achou na memória. Agora cruza com as alternativas embaralhadas desta prova específica.
-            letra_correta = ia_core.encontrar_letra_por_texto(memoria.texto_resposta_correta, q['alternativas'])
-            
-            if letra_correta:
-                respostas_conhecidas.append({
-                    "questao": q['numero'],
-                    "resposta": letra_correta,
-                    "justificativa": f"🧠 (Memória Coletiva) {memoria.justificativa}"
-                })
-            else:
-                # O Enunciado é igual, mas a alternativa certa não estava nas opções (prova modificada)
-                questoes_desconhecidas.append(q)
-        else:
-            questoes_desconhecidas.append(q)
-
-    # 3. SE AINDA HOUVER QUESTÕES DESCONHECIDAS, MANDA PRA IA
-    modelo_elite = "anthropic/claude-3.5-sonnet"
-    if questoes_desconhecidas:
-        texto_inverso = ""
-        for q in questoes_desconhecidas:
-            texto_inverso += q['texto_original'] + "\n\n"
-            
-        prompt = f"Resolva APENAS as questões abaixo. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo.\"}}]\nQUESTÕES:\n{texto_inverso}"
-        
-        try:
-            resposta_ia, custo = ia_core.chamar_ia(prompt, modelo_elite, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
-            resultado_ia = ia_core.extrair_json_seguro(resposta_ia)
-            novo_registro = RegistroUso(modelo_usado=modelo_elite, custo=custo)
-            db.session.add(novo_registro)
-        except Exception as e:
-            return jsonify({"sucesso": False, "erro": f"Falha na IA para as questões inéditas: {e}"})
-
-        # Processa e salva as novas questões no cérebro
-        for idx_ia, q_ia in enumerate(resultado_ia):
-            try:
-                num_q = int(q_ia.get('questao', 0))
-                # Encontra a questão correspondente no nosso array fatiado
-                q_original = next((item for item in questoes_desconhecidas if item['numero'] == num_q), None)
-                
-                letra_crua = str(q_ia.get('resposta', '')).upper().strip()
-                match_letra = re.search(r'[A-E]', letra_crua)
-                letra_final = match_letra.group(0) if match_letra else "?"
-                just_final = q_ia.get('justificativa', 'Sem justificativa.')
-                
-                respostas_conhecidas.append({
-                    "questao": num_q,
-                    "resposta": letra_final,
-                    "justificativa": just_final
-                })
-
-                # SALVAR NO BANCO DE MEMÓRIA SE DESCOBRIU
-                if q_original and letra_final in q_original['alternativas']:
-                    hash_novo = ia_core.gerar_hash_enunciado(q_original['enunciado'])
-                    texto_certo = q_original['alternativas'][letra_final]
-                    
-                    if not QuestaoMemoria.query.filter_by(hash_enunciado=hash_novo).first():
-                        db.session.add(QuestaoMemoria(
-                            hash_enunciado=hash_novo,
-                            enunciado_texto=q_original['enunciado'],
-                            texto_resposta_correta=texto_certo,
-                            justificativa=just_final
-                        ))
-            except Exception:
-                continue
-
-    # 4. ORDENA TUDO E SALVA A PROVA FECHADA
-    gabarito_final = sorted(respostas_conhecidas, key=lambda k: k['questao'])
-    texto_limpo_hash = re.sub(r'[\W_]+', '', "".join(texto_prova.split('\n'))[:1500])
-    hash_prova_atual = hashlib.md5(texto_limpo_hash.encode('utf-8')).hexdigest()
-
     try:
-        # Salva o arquivo completo para histórico (GabaritoSalvo)
+        # 1. TENTA FATIAR E, SE ESTIVER SUJO, USA O PRÉ-PROCESSADOR IA (Padrão Ouro)
+        questoes_fatiadas = ia_core.fatiar_prova(texto_prova)
+        
+        if not questoes_fatiadas or len(questoes_fatiadas) < 2:
+            try:
+                questoes_fatiadas, custo_parser = ia_core.fatiar_prova_com_ia(texto_prova, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
+                db.session.add(RegistroUso(modelo_usado="google/gemini-2.5-flash (Parser Ouro)", custo=custo_parser))
+                db.session.commit()
+            except Exception as e:
+                return jsonify({"sucesso": False, "erro": f"A prova está inlegível e o Pré-Processador de Inteligência falhou: {str(e)}"})
+                
+        if not questoes_fatiadas:
+            return jsonify({"sucesso": False, "erro": "Não foi possível extrair as questões. Tente colar um formato mais limpo."})
+
+        respostas_conhecidas = []
+        questoes_desconhecidas = []
+
+        # 2. VERIFICA A MEMÓRIA COLETIVA GRANULAR
+        for q in questoes_fatiadas:
+            hash_q = ia_core.gerar_hash_enunciado(q['enunciado'])
+            memoria = QuestaoMemoria.query.filter_by(hash_enunciado=hash_q).first()
+            
+            if memoria:
+                letra_correta = ia_core.encontrar_letra_por_texto(memoria.texto_resposta_correta, q['alternativas'])
+                if letra_correta:
+                    respostas_conhecidas.append({
+                        "questao": q['numero'],
+                        "resposta": letra_correta,
+                        "justificativa": f"🧠 (Memória Coletiva) {memoria.justificativa}"
+                    })
+                else:
+                    questoes_desconhecidas.append(q)
+            else:
+                questoes_desconhecidas.append(q)
+
+        # 3. ENVIA APENAS AS INÉDITAS PARA O CLAUDE 3.5 SONNET
+        modelo_elite = "anthropic/claude-3.5-sonnet"
+        if questoes_desconhecidas:
+            texto_inverso = ""
+            for q in questoes_desconhecidas:
+                texto_inverso += q['texto_original'] + "\n\n"
+                
+            prompt = f"Resolva APENAS as questões abaixo. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo.\"}}]\nQUESTÕES:\n{texto_inverso}"
+            
+            try:
+                resposta_ia, custo = ia_core.chamar_ia(prompt, modelo_elite, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
+                resultado_ia = ia_core.extrair_json_seguro(resposta_ia)
+                db.session.add(RegistroUso(modelo_usado=modelo_elite, custo=custo))
+            except Exception as e:
+                return jsonify({"sucesso": False, "erro": f"Falha na IA principal ao resolver a prova: {e}"})
+
+            # Aprende as questões inéditas e salva
+            for idx_ia, q_ia in enumerate(resultado_ia):
+                try:
+                    num_q = int(q_ia.get('questao', 0))
+                    q_original = next((item for item in questoes_desconhecidas if item['numero'] == num_q), None)
+                    
+                    letra_crua = str(q_ia.get('resposta', '')).upper().strip()
+                    match_letra = re.search(r'[A-E]', letra_crua)
+                    letra_final = match_letra.group(0) if match_letra else "?"
+                    just_final = q_ia.get('justificativa', 'Sem justificativa.')
+                    
+                    respostas_conhecidas.append({
+                        "questao": num_q,
+                        "resposta": letra_final,
+                        "justificativa": just_final
+                    })
+
+                    if q_original and letra_final in q_original['alternativas']:
+                        hash_novo = ia_core.gerar_hash_enunciado(q_original['enunciado'])
+                        texto_certo = q_original['alternativas'][letra_final]
+                        
+                        if not QuestaoMemoria.query.filter_by(hash_enunciado=hash_novo).first():
+                            db.session.add(QuestaoMemoria(
+                                hash_enunciado=hash_novo,
+                                enunciado_texto=q_original['enunciado'],
+                                texto_resposta_correta=texto_certo,
+                                justificativa=just_final
+                            ))
+                except Exception:
+                    continue
+
+        # 4. ORDENA E SALVA O ARQUIVO DEFINITIVO
+        gabarito_final = sorted(respostas_conhecidas, key=lambda k: k['questao'])
+        texto_limpo_hash = re.sub(r'[\W_]+', '', "".join(texto_prova.split('\n'))[:1500])
+        hash_prova_atual = hashlib.md5(texto_limpo_hash.encode('utf-8')).hexdigest()
+
         novo_gabarito = GabaritoSalvo(
             user_id=current_user.id, 
             prova_texto=texto_prova, 
             resultado_json=json.dumps(gabarito_final), 
             hash_prova=hash_prova_atual,
-            titulo=f"Prova Híbrida - {datetime.utcnow().strftime('%d/%m')}"
+            titulo=f"Prova Híbrida Inteligente - {datetime.utcnow().strftime('%d/%m')}"
         )
         db.session.add(novo_gabarito)
         db.session.commit()
-    except Exception:
-        db.session.rollback()
 
-    status_modelo = f"Híbrido: {len(questoes_fatiadas) - len(questoes_desconhecidas)} de Memória | {len(questoes_desconhecidas)} de IA"
-    return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": status_modelo})
+        status_modelo = f"Padrão Ouro: {len(questoes_fatiadas) - len(questoes_desconhecidas)} na Memória | {len(questoes_desconhecidas)} Inéditas"
+        return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": status_modelo})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"sucesso": False, "erro": f"Erro estrutural no Gabarito Inteligente: {str(e)}"})
 
 # =========================================================
 # MIGRAÇÃO DE MEMÓRIA (Transformar o Legado no Sistema Novo)
@@ -576,12 +580,13 @@ def migrar_memoria_v2():
     for g in gabaritos_antigos:
         try:
             respostas_antigas = json.loads(g.resultado_json)
+            # Usa o fatiador agressivo sem IA (para não gerar custo na migração)
             questoes_fatiadas = ia_core.fatiar_prova(g.prova_texto)
             
             for fatiada in questoes_fatiadas:
                 num = int(fatiada['numero'])
                 
-                # Procura a resposta no json antigo garantindo que são inteiros
+                # Procura a resposta no json antigo
                 resp_antiga = next((item for item in respostas_antigas if int(item.get('questao', -1)) == num), None)
                 
                 if resp_antiga:
@@ -743,7 +748,7 @@ def gerar_extensao():
     caminho_ficha = os.path.join(app.root_path, 'TEMPLATE_FICHA_PARANA.docx')
     
     if not os.path.exists(caminho_evidencias) or not os.path.exists(caminho_ficha):
-        flash('Erro: Os arquivos TEMPLATE_EVIDENCIAS_PARANA.docx ou TEMPLATE_FICHA_PARANA.docx não foram encontrados.', 'error')
+        flash('Erro: Os arquivos TEMPLATE_EVIDENCIAS_PARANA.docx ou TEMPLATE_FICHA_PARANA.docx não foram encontrados no servidor.', 'error')
         return redirect(url_for('projetos_extensao'))
 
     quantidade_datas = 30 
@@ -811,6 +816,8 @@ def gerar_extensao():
                 resp2 = requests.post(f'https://v2.convertapi.com/convert/docx/to/pdf?Secret={config.convert_api_key}', files={'File': (nome_arq_ficha, bytes_ficha)}).json()
                 if 'Files' in resp2: 
                     pdf_ficha_bytes = base64.b64decode(resp2['Files'][0]['FileData'])
+            else:
+                flash('Chave da ConvertAPI não encontrada nas Configurações.', 'warning')
 
         if aluno:
             db.session.add(Documento(aluno_id=aluno.id, nome_arquivo=nome_arq_evidencias, dados_arquivo=bytes_evidencias))
@@ -841,6 +848,7 @@ def gerar_extensao():
     except Exception as e:
         flash(f'Erro ao processar os documentos: {str(e)}', 'error')
         return redirect(url_for('projetos_extensao'))
+
 
 # =========================================================
 # ROTAS DE TRABALHOS ACADÊMICOS E CRM
@@ -887,7 +895,8 @@ def gerar_rascunho():
 MUITO IMPORTANTE: Use as marcações exatas [START_NOME_DA_TAG] e [END_NOME_DA_TAG] para cada sessão.
 REGRAS DE SEGURANÇA MÁXIMA (ANTI-DETECÇÃO):
 1. É ESTRITAMENTE PROIBIDO fazer "meta-comentários" sobre a estrutura da prova.
-2. Na Autoavaliação ou Resumo, NUNCA mencione "limites de caracteres", "exigências do prompt", "Etapa 5", ou a dificuldade de escrever o texto. Fale como se o trabalho fosse real e prático."""
+2. Na Autoavaliação ou Resumo, NUNCA mencione "limites de caracteres", "exigências do prompt", "Etapa 5", ou a dificuldade de escrever o texto. Fale como se o trabalho fosse real e prático.
+3. Fale APENAS sobre o caso prático, os conceitos da disciplina e o aprendizado do aluno."""
     
     fila_modelos = [modelo_selecionado] + [m for m in get_modelos_ativos() if m != modelo_selecionado]
     
@@ -1210,6 +1219,7 @@ def dashboard():
     a_receber_periodo = 0.0
     trabalhos_periodo = 0
     
+    # Lógica financeira e de clientes
     for a in todos_alunos:
         data_referencia = (a.data_pagamento or a.data_cadastro)
         data_referencia_br = (data_referencia - timedelta(hours=3)).date() if data_referencia else hoje_brasil.date()
@@ -1229,6 +1239,7 @@ def dashboard():
         if in_period_cadastro: 
             trabalhos_periodo += 1
             
+    # Lógica de custos das IAs
     custo_periodo = 0.0
     uso_modelos_dict = {}
     for u in RegistroUso.query.all():
@@ -1241,6 +1252,7 @@ def dashboard():
 
     uso_modelos_lista = [(k, v['count'], v['custo']) for k, v in uso_modelos_dict.items()]
     
+    # Cálculos dos gráficos
     labels_meses = [(hoje_brasil.year - (1 if hoje_brasil.month - i <= 0 else 0), hoje_brasil.month - i + (12 if hoje_brasil.month - i <= 0 else 0)) for i in range(5, -1, -1)]
     faturamento_dict = {k: 0.0 for k in labels_meses}
     pedidos_dias = [0] * 7
