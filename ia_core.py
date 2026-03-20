@@ -10,8 +10,10 @@ def limpar_texto_ia(texto):
     except Exception: 
         pass
         
+    # Remove asteriscos simples (itálicos chatos) mas preserva os duplos (negritos)
     texto = re.sub(r'(?<!\*)\*(?!\*)', '', texto)
     
+    # Dicionário de limpeza extrema
     substituicoes = {
         r'\bmomentum\b': 'impulso',
         r'\blocus\b': 'ambiente',
@@ -41,6 +43,7 @@ def calcular_custo_api(modelo, prompt_tokens, completion_tokens):
     custo_usd = 0.0
     mod_lower = modelo.lower()
     
+    # Tabela de preços exata atualizada (Valores por 1 Milhão de Tokens)
     if "claude-3.5-sonnet" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 3.0) + (completion_tokens / 1000000 * 15.0)
     elif "claude-3-opus" in mod_lower:
@@ -166,11 +169,9 @@ def consultar_saldo_openrouter(chave_openrouter):
 # =========================================================
 def fatiar_prova(texto_prova):
     """Fatia o texto bruto da prova com alta tolerância a falhas de formatação."""
-    # Tenta cortar por "Questão 1", "Pergunta 1"
     padrao_questao = r'(?i)(?:quest[ãa]o|pergunta)\s*(\d+)'
     partes = re.split(padrao_questao, texto_prova)
     
-    # Se não achou (ex: colou só "1)"), corta por número no início da linha
     if len(partes) <= 1:
         padrao_questao = r'(?m)^\s*(\d+)[\)\-\.]\s+'
         partes = re.split(padrao_questao, texto_prova)
@@ -181,11 +182,9 @@ def fatiar_prova(texto_prova):
             num = partes[i]
             corpo = partes[i+1]
             
-            # Pega o enunciado permitindo espaços antes da alternativa "A"
             enunciado_match = re.split(r'(?m)^\s*([a-eA-E])[\)\-\.]', corpo)
             enunciado = enunciado_match[0].strip() if enunciado_match else corpo.strip()
             
-            # Pega as alternativas ignorando espaços brancos
             alternativas = {}
             alt_raw = re.findall(r'(?m)^\s*([a-eA-E])[\)\-\.]\s*(.*?)(?=^\s*[a-eA-E][\)\-\.]|\Z)', corpo, re.DOTALL)
             for letra, texto_alt in alt_raw:
