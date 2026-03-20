@@ -50,9 +50,8 @@ def handle_exception(e):
     if isinstance(e, HTTPException): 
         return e
     
-    # Se o erro for requisitado pela extensão, devolve JSON puro
     if request.path.startswith('/api/'):
-        return jsonify({"sucesso": False, "erro": f"Erro interno do Servidor Koyeb: {str(e)}"}), 500
+        return jsonify({"sucesso": False, "erro": f"Erro interno do Servidor: {str(e)}"}), 500
         
     return f"""
     <div style="font-family: sans-serif; padding: 20px; background: #262730; color: #E1E4E8; height: 100vh;">
@@ -121,6 +120,15 @@ class GabaritoSalvo(db.Model):
     hash_prova = db.Column(db.String(255), nullable=True)
     titulo = db.Column(db.String(255), nullable=True)
     data_geracao = db.Column(db.DateTime, default=datetime.utcnow)
+
+# 🧠 A NOVA TABELA DA MENTE COLETIVA 2.0 (Granular)
+class QuestaoMemoria(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    hash_enunciado = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    enunciado_texto = db.Column(db.Text, nullable=False)
+    texto_resposta_correta = db.Column(db.Text, nullable=False)
+    justificativa = db.Column(db.Text, nullable=True)
+    data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Aluno(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -200,90 +208,34 @@ Não use formatação em itálico (asterisco simples) para termos em inglês com
 # INICIALIZAÇÃO E MIGRAÇÕES
 # =========================================================
 with app.app_context():
-    db.create_all()
-    try: 
-        db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN creditos INTEGER DEFAULT 0'))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE gabarito_salvo ADD COLUMN hash_prova VARCHAR(255)"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
+    db.create_all() # Isso agora cria a tabela QuestaoMemoria automaticamente
+    
+    # ... Restante das migrações antigas ...
+    try: db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN creditos INTEGER DEFAULT 0')); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE gabarito_salvo ADD COLUMN hash_prova VARCHAR(255)")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE gabarito_salvo ADD COLUMN titulo VARCHAR(255)")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Produção'")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN valor FLOAT DEFAULT 70.0")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN ava_login VARCHAR(255)")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN ava_senha VARCHAR(255)")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN prompt_password VARCHAR(255)")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN convert_api_key VARCHAR(255)")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE registro_uso ADD COLUMN custo FLOAT DEFAULT 0.0")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN data_pagamento TIMESTAMP")); db.session.commit()
+    except Exception: db.session.rollback()
+    try: db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN modelos_ativos TEXT")); db.session.commit()
+    except Exception: db.session.rollback()
 
-    try: 
-        db.session.execute(db.text("ALTER TABLE gabarito_salvo ADD COLUMN titulo VARCHAR(255)"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN status VARCHAR(20) DEFAULT 'Produção'"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN valor FLOAT DEFAULT 70.0"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN ava_login VARCHAR(255)"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN ava_senha VARCHAR(255)"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN prompt_password VARCHAR(255)"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN convert_api_key VARCHAR(255)"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE registro_uso ADD COLUMN custo FLOAT DEFAULT 0.0"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE aluno ADD COLUMN data_pagamento TIMESTAMP"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-        
-    try: 
-        db.session.execute(db.text("ALTER TABLE site_settings ADD COLUMN modelos_ativos TEXT"))
-        db.session.commit()
-    except Exception: 
-        db.session.rollback()
-
-    # Atualizar datas de pagamento vazias
-    try:
-        alunos_pagos = Aluno.query.filter_by(status='Pago').all()
-        for al in alunos_pagos:
-            if not al.data_pagamento:
-                al.data_pagamento = al.data_cadastro
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    # Criar dados padrão se estiver vazio
     try:
         if not User.query.filter_by(username='admin').first():
             senha_hash = generate_password_hash('admin123')
@@ -423,19 +375,14 @@ def api_clientes_login():
         alunos = Aluno.query.filter_by(user_id=current_user.id).order_by(Aluno.nome).all()
         lista_clientes = []
         for a in alunos:
-            # Envia apenas clientes com as credenciais salvas no CRM
             if a.ava_login and a.ava_senha:
-                lista_clientes.append({
-                    "nome": a.nome,
-                    "login": a.ava_login,
-                    "senha": a.ava_senha
-                })
+                lista_clientes.append({"nome": a.nome, "login": a.ava_login, "senha": a.ava_senha})
         return jsonify({"sucesso": True, "clientes": lista_clientes})
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
 
 # =========================================================
-# GABARITO INTELIGENTE & MENTE COLETIVA (Filtro Anti-Sujeira)
+# MENTE COLETIVA 2.0 (Gabarito Inteligente e Híbrido)
 # =========================================================
 @app.route('/gabarito_inteligente')
 @login_required
@@ -454,88 +401,152 @@ def api_gerar_gabarito():
     if not texto_prova: 
         return jsonify({"sucesso": False, "erro": "O texto da prova está vazio."})
 
-    # =========================================================
-    # 🧼 O FILTRO DE HIGIENIZAÇÃO DE HASH (Anti-Sujeira)
-    # =========================================================
-    linhas = texto_prova.split('\n')
-    linhas_uteis = []
-    
-    palavras_proibidas = [
-        'acadêmico', 'academico', 'aluno', 'matrícula', 'matricula', 
-        'polo', 'curso', 'cpf', 'avaliação', 'disciplina', 'data', 
-        'hora', 'voltar', 'imprimir', 'sair', 'hubmaster'
-    ]
+    # 1. FATIA A PROVA EM QUESTÕES
+    questoes_fatiadas = ia_core.fatiar_prova(texto_prova)
+    if not questoes_fatiadas:
+        return jsonify({"sucesso": False, "erro": "Não foi possível identificar o formato das questões. Mande um texto mais estruturado."})
 
-    for linha in linhas:
-        linha_min = linha.lower().strip()
-        if len(linha_min) < 3: 
-            continue
+    respostas_conhecidas = []
+    questoes_desconhecidas = []
+
+    # 2. VERIFICA A MEMÓRIA COLETIVA (De-Para)
+    for q in questoes_fatiadas:
+        hash_q = ia_core.gerar_hash_enunciado(q['enunciado'])
+        memoria = QuestaoMemoria.query.filter_by(hash_enunciado=hash_q).first()
         
-        tem_sujeira = False
-        for prob in palavras_proibidas:
-            if linha_min.startswith(prob) or f"{prob}:" in linha_min:
-                tem_sujeira = True
-                break
-        
-        if not tem_sujeira:
-            linhas_uteis.append(linha_min)
+        if memoria:
+            # Achou na memória. Agora cruza com as alternativas embaralhadas desta prova específica.
+            letra_correta = ia_core.encontrar_letra_por_texto(memoria.texto_resposta_correta, q['alternativas'])
+            
+            if letra_correta:
+                respostas_conhecidas.append({
+                    "questao": q['numero'],
+                    "resposta": letra_correta,
+                    "justificativa": f"🧠 (Memória Coletiva) {memoria.justificativa}"
+                })
+            else:
+                # O Enunciado é igual, mas a alternativa certa não estava nas opções (prova modificada)
+                questoes_desconhecidas.append(q)
+        else:
+            questoes_desconhecidas.append(q)
 
-    texto_para_hash = "".join(linhas_uteis)
-    texto_limpo = re.sub(r'[\W_]+', '', texto_para_hash)
-    hash_prova_atual = hashlib.md5(texto_limpo.encode('utf-8')).hexdigest()
-    # =========================================================
-
-    try:
-        gabarito_em_cache = GabaritoSalvo.query.filter_by(hash_prova=hash_prova_atual).first()
-        if gabarito_em_cache:
-            respostas_salvas = json.loads(gabarito_em_cache.resultado_json)
-            return jsonify({
-                "sucesso": True, 
-                "gabarito": respostas_salvas, 
-                "modelo_utilizado": "🧠 Mente Coletiva (Zero Custo)"
-            })
-    except Exception as e:
-        db.session.rollback()
-
+    # 3. SE AINDA HOUVER QUESTÕES DESCONHECIDAS, MANDA PRA IA
     modelo_elite = "anthropic/claude-3.5-sonnet"
-    prompt = f"Resolva a prova abaixo. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo.\"}}]\nPROVA:\n{texto_prova}"
-    
+    if questoes_desconhecidas:
+        texto_inverso = ""
+        for q in questoes_desconhecidas:
+            texto_inverso += q['texto_original'] + "\n\n"
+            
+        prompt = f"Resolva APENAS as questões abaixo. Retorne EXATAMENTE um Array JSON puro.\nEstrutura: [{{\"questao\": 1, \"resposta\": \"A\", \"justificativa\": \"Motivo.\"}}]\nQUESTÕES:\n{texto_inverso}"
+        
+        try:
+            resposta_ia, custo = ia_core.chamar_ia(prompt, modelo_elite, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
+            resultado_ia = ia_core.extrair_json_seguro(resposta_ia)
+            novo_registro = RegistroUso(modelo_usado=modelo_elite, custo=custo)
+            db.session.add(novo_registro)
+        except Exception as e:
+            return jsonify({"sucesso": False, "erro": f"Falha na IA para as questões inéditas: {e}"})
+
+        # Processa e salva as novas questões no cérebro
+        for idx_ia, q_ia in enumerate(resultado_ia):
+            try:
+                num_q = int(q_ia.get('questao', 0))
+                # Encontra a questão correspondente no nosso array fatiado
+                q_original = next((item for item in questoes_desconhecidas if item['numero'] == num_q), None)
+                
+                letra_crua = str(q_ia.get('resposta', '')).upper().strip()
+                match_letra = re.search(r'[A-E]', letra_crua)
+                letra_final = match_letra.group(0) if match_letra else "?"
+                just_final = q_ia.get('justificativa', 'Sem justificativa.')
+                
+                respostas_conhecidas.append({
+                    "questao": num_q,
+                    "resposta": letra_final,
+                    "justificativa": just_final
+                })
+
+                # SALVAR NO BANCO DE MEMÓRIA SE DESCOBRIU
+                if q_original and letra_final in q_original['alternativas']:
+                    hash_novo = ia_core.gerar_hash_enunciado(q_original['enunciado'])
+                    texto_certo = q_original['alternativas'][letra_final]
+                    
+                    if not QuestaoMemoria.query.filter_by(hash_enunciado=hash_novo).first():
+                        db.session.add(QuestaoMemoria(
+                            hash_enunciado=hash_novo,
+                            enunciado_texto=q_original['enunciado'],
+                            texto_resposta_correta=texto_certo,
+                            justificativa=just_final
+                        ))
+            except Exception:
+                continue
+
+    # 4. ORDENA TUDO E SALVA A PROVA FECHADA
+    gabarito_final = sorted(respostas_conhecidas, key=lambda k: k['questao'])
+    texto_limpo_hash = re.sub(r'[\W_]+', '', "".join(texto_prova.split('\n'))[:1500])
+    hash_prova_atual = hashlib.md5(texto_limpo_hash.encode('utf-8')).hexdigest()
+
     try:
-        resposta_ia, custo = ia_core.chamar_ia(prompt, modelo_elite, CHAVE_API_GOOGLE, CHAVE_OPENROUTER)
-        resultado_ia = ia_core.extrair_json_seguro(resposta_ia)
-    except Exception as e:
-        return jsonify({"sucesso": False, "erro": f"Falha na IA: {e}"})
-
-    if not resultado_ia: 
-        return jsonify({"sucesso": False, "erro": "A IA falhou ao processar o gabarito."})
-
-    gabarito_final = []
-    for idx, q in enumerate(resultado_ia):
-        letra_crua = str(q.get('resposta', '')).upper().strip()
-        match_letra = re.search(r'[A-E]', letra_crua)
-        gabarito_final.append({
-            "questao": q.get('questao', idx + 1),
-            "resposta": match_letra.group(0) if match_letra else "?",
-            "justificativa": q.get('justificativa', 'Sem justificativa.')
-        })
-
-    try:
-        novo_registro = RegistroUso(modelo_usado=modelo_elite, custo=custo)
+        # Salva o arquivo completo para histórico (GabaritoSalvo)
         novo_gabarito = GabaritoSalvo(
             user_id=current_user.id, 
             prova_texto=texto_prova, 
             resultado_json=json.dumps(gabarito_final), 
             hash_prova=hash_prova_atual,
-            titulo=f"Prova Automática - {datetime.utcnow().strftime('%d/%m')}"
+            titulo=f"Prova Híbrida - {datetime.utcnow().strftime('%d/%m')}"
         )
-        
-        db.session.add(novo_registro)
         db.session.add(novo_gabarito)
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
 
-    return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": modelo_elite})
+    status_modelo = f"Híbrido: {len(questoes_fatiadas) - len(questoes_desconhecidas)} de Memória | {len(questoes_desconhecidas)} de IA"
+    return jsonify({"sucesso": True, "gabarito": gabarito_final, "modelo_utilizado": status_modelo})
+
+# =========================================================
+# MIGRAÇÃO DE MEMÓRIA (Transformar o Legado no Sistema Novo)
+# =========================================================
+@app.route('/migrar_memoria_v2')
+@login_required
+def migrar_memoria_v2():
+    if current_user.role not in ['admin', 'sub-admin']: abort(403)
+    
+    gabaritos_antigos = GabaritoSalvo.query.all()
+    questoes_salvas = 0
+    
+    for g in gabaritos_antigos:
+        try:
+            respostas_antigas = json.loads(g.resultado_json)
+            questoes_fatiadas = ia_core.fatiar_prova(g.prova_texto)
+            
+            for fatiada in questoes_fatiadas:
+                num = fatiada['numero']
+                # Procura a resposta no json antigo
+                resp_antiga = next((item for item in respostas_antigas if item.get('questao') == num), None)
+                
+                if resp_antiga:
+                    letra = resp_antiga.get('resposta', '').upper()
+                    if letra in fatiada['alternativas']:
+                        texto_certo = fatiada['alternativas'][letra]
+                        hash_enunciado = ia_core.gerar_hash_enunciado(fatiada['enunciado'])
+                        
+                        # Se não existir na memória nova, insere
+                        if not QuestaoMemoria.query.filter_by(hash_enunciado=hash_enunciado).first():
+                            db.session.add(QuestaoMemoria(
+                                hash_enunciado=hash_enunciado,
+                                enunciado_texto=fatiada['enunciado'],
+                                texto_resposta_correta=texto_certo,
+                                justificativa=resp_antiga.get('justificativa', 'Migrado do v1')
+                            ))
+                            questoes_salvas += 1
+        except Exception:
+            continue
+            
+    db.session.commit()
+    flash(f'Migração concluída! {questoes_salvas} novas questões foram inseridas no Cérebro Coletivo.', 'success')
+    return redirect(url_for('banco_gabaritos'))
+
+
+# ... TODO O RESTANTE DO CÓDIGO INTACTO ...
 
 # =========================================================
 # ROTAS DA MENTE COLETIVA (GERENCIAMENTO)
@@ -577,17 +588,13 @@ def renomear_gabarito(id):
 @app.route('/corrigir_gabarito/<int:id>', methods=['POST'])
 @login_required
 def corrigir_gabarito(id):
-    if current_user.role not in ['admin', 'sub-admin']: 
-        abort(403)
-        
+    if current_user.role not in ['admin', 'sub-admin']: abort(403)
     gabarito = GabaritoSalvo.query.get_or_404(id)
     dados = request.json
-    
     questao_num = int(dados.get('questao'))
     nova_letra = str(dados.get('nova_letra')).upper().strip()
     
-    if nova_letra not in ['A', 'B', 'C', 'D', 'E']:
-        return jsonify({"sucesso": False, "erro": "Letra inválida."})
+    if nova_letra not in ['A', 'B', 'C', 'D', 'E']: return jsonify({"sucesso": False, "erro": "Letra inválida."})
 
     try:
         respostas = json.loads(gabarito.resultado_json)
@@ -604,10 +611,25 @@ def corrigir_gabarito(id):
         if modificado:
             gabarito.resultado_json = json.dumps(respostas)
             db.session.commit()
+            
+            # Atualiza também a Memória Granular se o admin corrigir
+            questoes_fatiadas = ia_core.fatiar_prova(gabarito.prova_texto)
+            q_original = next((item for item in questoes_fatiadas if item['numero'] == questao_num), None)
+            if q_original and nova_letra in q_original['alternativas']:
+                hash_novo = ia_core.gerar_hash_enunciado(q_original['enunciado'])
+                texto_certo = q_original['alternativas'][nova_letra]
+                
+                memoria = QuestaoMemoria.query.filter_by(hash_enunciado=hash_novo).first()
+                if memoria:
+                    memoria.texto_resposta_correta = texto_certo
+                    memoria.justificativa = "Corrigido pelo Admin"
+                else:
+                    db.session.add(QuestaoMemoria(hash_enunciado=hash_novo, enunciado_texto=q_original['enunciado'], texto_resposta_correta=texto_certo, justificativa="Corrigido pelo Admin"))
+                db.session.commit()
+            
             return jsonify({"sucesso": True})
         else:
             return jsonify({"sucesso": False, "erro": "Questão não encontrada na prova."})
-            
     except Exception as e:
         db.session.rollback()
         return jsonify({"sucesso": False, "erro": str(e)})
@@ -625,37 +647,8 @@ def deletar_gabarito(id):
 @app.route('/recalcular_hashes')
 @login_required
 def recalcular_hashes():
-    """ ROTA DE MANUTENÇÃO: Conserta os hashes antigos com o novo filtro """
     if current_user.role not in ['admin', 'sub-admin']: abort(403)
-    
-    gabaritos = GabaritoSalvo.query.all()
-    palavras_proibidas = [
-        'acadêmico', 'academico', 'aluno', 'matrícula', 'matricula', 
-        'polo', 'curso', 'cpf', 'avaliação', 'disciplina', 'data', 
-        'hora', 'voltar', 'imprimir', 'sair', 'hubmaster'
-    ]
-    
-    for g in gabaritos:
-        linhas = g.prova_texto.split('\n')
-        linhas_uteis = []
-        for linha in linhas:
-            linha_min = linha.lower().strip()
-            if len(linha_min) < 3: continue
-            tem_sujeira = False
-            for prob in palavras_proibidas:
-                if linha_min.startswith(prob) or f"{prob}:" in linha_min:
-                    tem_sujeira = True
-                    break
-            if not tem_sujeira:
-                linhas_uteis.append(linha_min)
-                
-        texto_limpo = re.sub(r'[\W_]+', '', "".join(linhas_uteis))
-        novo_hash = hashlib.md5(texto_limpo.encode('utf-8')).hexdigest()
-        g.hash_prova = novo_hash
-        
-    db.session.commit()
-    flash('Todos os Hashes antigos foram higienizados e recalculados com sucesso!', 'success')
-    return redirect(url_for('banco_gabaritos'))
+    return redirect(url_for('migrar_memoria_v2'))
 
 # =========================================================
 # FERRAMENTA: PROJETOS DE EXTENSÃO
@@ -1096,10 +1089,8 @@ def banco_temas():
     # CORREÇÃO: Banco Coletivo para Admins/Sub-Admins
     # =================================================================
     if current_user.role in ['admin', 'sub-admin']:
-        # Se for admin/sócio, puxa TODOS os temas do banco sem filtrar por dono
         temas_brutos = db.session.query(TemaTrabalho).order_by(TemaTrabalho.data_cadastro.desc()).all()
     else:
-        # Se for um usuário comum, puxa apenas os dele (por segurança)
         temas_brutos = db.session.query(TemaTrabalho).join(Aluno).filter(Aluno.user_id == current_user.id).order_by(TemaTrabalho.data_cadastro.desc()).all()
     
     temas_unicos = []
