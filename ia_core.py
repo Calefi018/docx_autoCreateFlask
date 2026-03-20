@@ -10,10 +10,8 @@ def limpar_texto_ia(texto):
     except Exception: 
         pass
         
-    # Remove asteriscos simples (itálicos chatos) mas preserva os duplos (negritos)
     texto = re.sub(r'(?<!\*)\*(?!\*)', '', texto)
     
-    # Dicionário de limpeza extrema
     substituicoes = {
         r'\bmomentum\b': 'impulso',
         r'\blocus\b': 'ambiente',
@@ -43,7 +41,6 @@ def calcular_custo_api(modelo, prompt_tokens, completion_tokens):
     custo_usd = 0.0
     mod_lower = modelo.lower()
     
-    # Tabela de preços exata atualizada (Valores por 1 Milhão de Tokens)
     if "claude-3.5-sonnet" in mod_lower:
         custo_usd = (prompt_tokens / 1000000 * 3.0) + (completion_tokens / 1000000 * 15.0)
     elif "claude-3-opus" in mod_lower:
@@ -147,12 +144,9 @@ def extrair_json_seguro(texto):
         return []
 
 def consultar_saldo_openrouter(chave_openrouter):
-    """Bate na API da OpenRouter e calcula o SALDO DISPONÍVEL (Créditos Comprados - Uso) em Dólares."""
     try:
         if not chave_openrouter: return 0.0
         headers = {"Authorization": f"Bearer {chave_openrouter}"}
-        
-        # Endpoint /credits para consultar a carteira (wallet) do usuário
         res = requests.get("https://openrouter.ai/api/v1/credits", headers=headers, timeout=10)
         
         if res.status_code == 200:
@@ -171,9 +165,15 @@ def consultar_saldo_openrouter(chave_openrouter):
 # MENTE COLETIVA 2.0: MOTORES DE FATIAMENTO E COMPARAÇÃO
 # =========================================================
 def fatiar_prova(texto_prova):
-    """Fatia o texto bruto da prova em um dicionário de questões estruturadas."""
+    """Fatia o texto bruto da prova com alta tolerância a falhas de formatação."""
+    # Tenta cortar por "Questão 1", "Pergunta 1"
     padrao_questao = r'(?i)(?:quest[ãa]o|pergunta)\s*(\d+)'
     partes = re.split(padrao_questao, texto_prova)
+    
+    # Se não achou (ex: colou só "1)"), corta por número no início da linha
+    if len(partes) <= 1:
+        padrao_questao = r'(?m)^\s*(\d+)[\)\-\.]\s+'
+        partes = re.split(padrao_questao, texto_prova)
     
     questoes = []
     if len(partes) > 1:
@@ -181,13 +181,13 @@ def fatiar_prova(texto_prova):
             num = partes[i]
             corpo = partes[i+1]
             
-            # Extrai o enunciado (tudo antes da primeira alternativa A) )
-            enunciado_match = re.split(r'(?m)^([a-eA-E])[\)\-\.]', corpo)
+            # Pega o enunciado permitindo espaços antes da alternativa "A"
+            enunciado_match = re.split(r'(?m)^\s*([a-eA-E])[\)\-\.]', corpo)
             enunciado = enunciado_match[0].strip() if enunciado_match else corpo.strip()
             
-            # Extrai as alternativas
+            # Pega as alternativas ignorando espaços brancos
             alternativas = {}
-            alt_raw = re.findall(r'(?m)^([a-eA-E])[\)\-\.]\s*(.*?)(?=^[a-eA-E][\)\-\.]|\Z)', corpo, re.DOTALL)
+            alt_raw = re.findall(r'(?m)^\s*([a-eA-E])[\)\-\.]\s*(.*?)(?=^\s*[a-eA-E][\)\-\.]|\Z)', corpo, re.DOTALL)
             for letra, texto_alt in alt_raw:
                 alternativas[letra.upper()] = texto_alt.strip()
                 
@@ -200,14 +200,10 @@ def fatiar_prova(texto_prova):
     return questoes
 
 def gerar_hash_enunciado(enunciado):
-    """Gera uma ID única para o enunciado, ignorando espaços, pontuação e números variados."""
-    # Remove tudo que não seja letra, converte para minúsculo
     limpo = re.sub(r'[\W_0-9]+', '', str(enunciado).lower().strip())
-    # Pega apenas os primeiros 300 caracteres úteis para evitar falhas em textos gigantes
     return hashlib.md5(limpo[:300].encode('utf-8')).hexdigest()
 
 def encontrar_letra_por_texto(texto_correto, alternativas_prova):
-    """Compara a resposta conhecida com as alternativas embaralhadas e devolve a letra certa."""
     if not texto_correto or not alternativas_prova:
         return None
         
@@ -215,8 +211,6 @@ def encontrar_letra_por_texto(texto_correto, alternativas_prova):
     
     for letra, texto_alt in alternativas_prova.items():
         alt_limpa = re.sub(r'[\W_]+', '', str(texto_alt).lower().strip())
-        
-        # Se 90% do texto bater, consideramos um match (evita erros de digitação mínimos)
         if texto_correto_limpo in alt_limpa or alt_limpa in texto_correto_limpo:
             return letra.upper()
             
