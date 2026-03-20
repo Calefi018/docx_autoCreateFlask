@@ -1092,7 +1092,16 @@ def converter_pdf(doc_id):
 @app.route('/banco_temas')
 @login_required
 def banco_temas():
-    temas_brutos = db.session.query(TemaTrabalho).join(Aluno).filter(Aluno.user_id == current_user.id).order_by(TemaTrabalho.data_cadastro.desc()).all()
+    # =================================================================
+    # CORREÇÃO: Banco Coletivo para Admins/Sub-Admins
+    # =================================================================
+    if current_user.role in ['admin', 'sub-admin']:
+        # Se for admin/sócio, puxa TODOS os temas do banco sem filtrar por dono
+        temas_brutos = db.session.query(TemaTrabalho).order_by(TemaTrabalho.data_cadastro.desc()).all()
+    else:
+        # Se for um usuário comum, puxa apenas os dele (por segurança)
+        temas_brutos = db.session.query(TemaTrabalho).join(Aluno).filter(Aluno.user_id == current_user.id).order_by(TemaTrabalho.data_cadastro.desc()).all()
+    
     temas_unicos = []
     hashes_vistos = set()
     
